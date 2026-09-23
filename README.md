@@ -150,6 +150,26 @@ TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE AUTHORS, CONTRIBUTORS, AN
 
 These disclaimers do not exclude or limit any liability or rights that cannot lawfully be excluded or limited. This notice addresses safety, warranty, and liability only; it does not grant copyright permissions or change any applicable license terms.
 
+## License and acknowledgments
+
+NAVALM's astronomical engine is adapted from Dr. Thomas R. Metcalf's
+NAV48 software, distributed by Sparcom, ported to HP49/50 by Eddie C. Dost,
+and updated as NAV50 by Olivier M.P. Coignard. The C adaptation used
+AI-assisted translation of the available RPL source. The underlying
+astronomy includes methods published by Jean Meeus and the VSOP87
+planetary theory.
+
+See [LICENSE](LICENSE) for NAVALM's custom terms, preserved upstream
+permission statements, attribution requirements, and disclaimers. The
+new grant is limited to Chris Maness's rights and requires that the
+software not be sold for profit; third-party rights remain subject to
+their own permissions. NAVALM is not represented as GPL-licensed or
+public domain.
+
+See [PROVENANCE.md](PROVENANCE.md) for the source comparison and the
+distinction between shared astronomical mathematics and the RPL-to-C
+adaptation.
+
 ## Further documentation
 
 See [README.txt](README.txt) for the full command reference, input formats, altitude-correction formulas, running-fix workflow, web API endpoints, and version history.
