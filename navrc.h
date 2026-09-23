@@ -1,3 +1,7 @@
+/* SPDX-License-Identifier: MIT
+ * NAVALM contributions: Copyright (c) 2026 Chris Maness.
+ * See LICENSE, THIRD_PARTY_NOTICES.md, and SAFETY.md.
+ */
 #ifndef NAVRC_H
 #define NAVRC_H
 

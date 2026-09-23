@@ -1,3 +1,7 @@
+/* SPDX-License-Identifier: MIT
+ * NAVALM contributions: Copyright (c) 2026 Chris Maness.
+ * See LICENSE, THIRD_PARTY_NOTICES.md, and SAFETY.md.
+ */
 /* navalm 2.1 - mono ncurses console interface (./navalm --gui)
  *
  * Numbered menu entries in the style of the TI-89, function keys to move
@@ -45,7 +49,7 @@ static void title(const char *screen){
     time_t t = time(NULL);
     struct tm *g = gmtime(&t);
     attron(A_REVERSE);
-    snprintf(buf,sizeof buf,"NAVALM 2.8g  %-24s %04d-%02d-%02d %02d:%02d:%02d UTC",
+    snprintf(buf,sizeof buf,"NAVALM 3.0c  %-24s %04d-%02d-%02d %02d:%02d:%02d UTC",
              screen,g->tm_year+1900,g->tm_mon+1,g->tm_mday,g->tm_hour,g->tm_min,g->tm_sec);
     bar(0,buf);
     attroff(A_REVERSE);
@@ -881,6 +885,8 @@ static void screen_menu(void)
         mvprintw(10,4,"F1 Almanac   F2 Sight   F3 LOPs   F5 Table   F6 Setup   F10 Quit");
         mvprintw(12,4,"LOP store   %s",navsight_store_path());
         mvprintw(13,4,"Defaults    %s",navrc_path());
+        mvprintw(15,4,"Informational only. No warranty. No safety-critical reliance.");
+        mvprintw(16,4,"Use accepts risk terms: SAFETY.md or navalm --notice.");
         footer("select a number, or use the function keys                    F10/Q quit");
         refresh();
 

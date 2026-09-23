@@ -4,9 +4,11 @@
 
 NAVALM brings almanac calculations, worked sextant-sight reductions, and position fixes together in one C program. Use it from the command line, in a full-screen terminal, or through its built-in browser interface.
 
-Current version: **2.8g**.
+Current version: **3.0c**.
 
-**Navigation safety:** Use at your own risk and independently verify results. Read the [warranty and liability notice](#navigation-safety-warranty-and-liability) before use.
+**Informational and educational use only. Do not rely on NAVALM where an error could cause death, injury, or property damage. By using it, you accept the [safety and assumption-of-risk terms](SAFETY.md), to the extent permitted by law.**
+
+This branch contains the XEphem-based 3.0c implementation. The older v2.8g release still contains the legacy engine and is not covered by this license transition.
 
 ## Features
 
@@ -21,7 +23,8 @@ Current version: **2.8g**.
 ### Requirements
 
 - A C99 compiler, such as GCC or Clang, and the C math library.
-- `make`, a POSIX shell (`sh`), and `sed`.
+- `make`, a POSIX shell (`sh`), `sed`, and an archiver (`ar`).
+- `awk` if regenerating the navigation-star table with `make stars`.
 - ncurses headers and libraries for the full-screen terminal interface.
 - Git if cloning the repository; a downloaded source archive also works.
 
@@ -39,7 +42,7 @@ If you downloaded a source archive, extract it and enter its source directory, t
 
 **Run `make page` before `make`.** The first command runs `mkpage.sh` to convert `page.html` into `navweb_page.h`, embedding the browser interface in the program. The second compiles the C sources and creates the `navalm` executable. Plain `make` does not regenerate the page header automatically.
 
-The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 2.8g`. The executable is built in the source directory and can be run there without an installation step.
+The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 3.0c`. The executable is built in the source directory and can be run there without an installation step.
 
 ### Build without ncurses
 
@@ -142,36 +145,66 @@ The web server listens on `127.0.0.1` by default. Use `./navalm -d 9000` for ano
 
 ## Navigation safety, warranty, and liability
 
-**Use NAVALM at your own risk.** It is a calculation aid and must not be your sole basis for navigation or any decision affecting the safety of people or property. Independently verify its inputs and results against current authoritative navigation information and other reliable methods. You are responsible for assessing its suitability and for your navigation decisions.
+NAVALM, its documentation, and all generated results are provided for
+informational and educational purposes only. They are not certified
+navigation products. Do not rely on them for navigation or any decision
+where an incorrect result, failure, or delay could cause death, personal
+injury, or loss of or damage to property. Independent verification does
+not make NAVALM suitable for safety-critical use.
 
-TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THIS SOFTWARE AND ITS DOCUMENTATION ARE PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, RELIABILITY, AND NON-INFRINGEMENT.
+By using NAVALM, you acknowledge this warning and agree, to the maximum
+extent permitted by applicable law, to use it entirely at your own risk
+and to assume all responsibility and liability for your use, your
+interpretation of its results, your decisions, and the resulting
+consequences. If you do not accept these terms, do not use NAVALM.
 
-TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE AUTHORS, CONTRIBUTORS, AND DISTRIBUTORS SHALL NOT BE LIABLE FOR ANY CLAIM, LOSS, OR DAMAGE ARISING OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS USE OR INABILITY TO BE USED, WHETHER IN CONTRACT, TORT, OR OTHERWISE, INCLUDING NAVIGATION ERRORS, PERSONAL INJURY, PROPERTY DAMAGE, LOSS OF DATA, OR DIRECT, INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL DAMAGES.
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE SOFTWARE,
+DOCUMENTATION, DATA, AND OUTPUT ARE PROVIDED "AS IS" AND "AS AVAILABLE",
+WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+LIMITED TO MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, ACCURACY,
+COMPLETENESS, RELIABILITY, AVAILABILITY, AND NONINFRINGEMENT.
 
-These disclaimers do not exclude or limit any liability or rights that cannot lawfully be excluded or limited. This notice addresses safety, warranty, and liability only; it does not grant copyright permissions or change any applicable license terms.
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE AUTHORS, COPYRIGHT
+HOLDERS, CONTRIBUTORS, AND DISTRIBUTORS SHALL NOT BE LIABLE FOR ANY CLAIM,
+LOSS, DAMAGE, OR OTHER LIABILITY ARISING FROM OR IN CONNECTION WITH
+NAVALM OR ITS USE OR INABILITY TO BE USED, WHETHER IN CONTRACT, TORT
+(INCLUDING NEGLIGENCE), OR OTHERWISE. THIS INCLUDES DEATH, PERSONAL
+INJURY, PROPERTY DAMAGE, NAVIGATION ERRORS, LOSS OF DATA OR PROFITS, AND
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL DAMAGES.
+
+Nothing in this notice excludes or limits liability or rights that cannot
+lawfully be excluded or limited. This notice does not promise that a
+waiver or disclaimer is enforceable in every jurisdiction or circumstance.
+
+Copyright permissions are granted by LICENSE and the applicable
+third-party licenses. This safety and risk notice does not amend the MIT
+license, add a copyright field-of-use restriction, or reduce anyone's
+rights under the upstream XEphem MIT license.
 
 ## License and acknowledgments
 
-NAVALM's astronomical engine is adapted from Dr. Thomas R. Metcalf's
-NAV48 software, distributed by Sparcom, ported to HP49/50 by Eddie C. Dost,
-and updated as NAV50 by Olivier M.P. Coignard. The C adaptation used
-AI-assisted translation of the available RPL source. The underlying
-astronomy includes methods published by Jean Meeus and the VSOP87
-planetary theory.
+NAVALM 3.0c contributions are licensed under the [MIT license](LICENSE).
+XEphem libastro and the selected XEphem star-catalog records retain the
+[upstream MIT notice](libastro/LICENSE.XEphem). Commercial use is permitted
+under MIT; the prior project noncommercial grant is not the license of
+this replacement source tree. Preserve the applicable copyright and
+permission notices when distributing source or binaries. See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-See [LICENSE](LICENSE) for NAVALM's custom terms, preserved upstream
-permission statements, attribution requirements, and disclaimers. The
-new grant is limited to Chris Maness's rights and requires that the
-software not be sold for profit; third-party rights remain subject to
-their own permissions. NAVALM is not represented as GPL-licensed or
-public domain.
+The former Metcalf-derived astronomical engine and tables have been
+removed. We gratefully remember **Dr. Thomas R. Metcalf**, whose handheld
+celestial-navigation software inspired this project, and acknowledge the
+NAV48/NAV50 community and his family for preserving that legacy.
 
-See [PROVENANCE.md](PROVENANCE.md) for the source comparison and the
-distinction between shared astronomical mathematics and the RPL-to-C
-adaptation.
+[PROVENANCE.md](PROVENANCE.md) records the replacement, upstream revision,
+catalog sources, historical acknowledgments, and the scope of the review.
+The new license does not retroactively relicense older versions or
+third-party material in Git history.
 
 ## Further documentation
 
 See [README.txt](README.txt) for the full command reference, input formats, altitude-correction formulas, running-fix workflow, web API endpoints, and version history.
 
 The browser page is maintained in `page.html`; regenerate its embedded header with `make page` rather than editing `navweb_page.h` directly. Build the `navalm` executable on the machine where you intend to run it; compiled binaries are excluded from version control.
+
+See [CHANGELOG.md](CHANGELOG.md) for the 3.0c transition and [VALIDATION.md](VALIDATION.md) for the publication checks.

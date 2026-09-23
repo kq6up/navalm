@@ -1,143 +1,22 @@
-NAVALM CUSTOM LICENSE AND UPSTREAM NOTICES
-Version 1 — 23 September 2026
+MIT License
 
-1. Attribution and scope
+Copyright (c) 2026 Chris Maness
 
-NAVALM is maintained by Chris Maness. Its astronomical engine is adapted
-from the NAV48/NAV50 software developed by Dr. Thomas R. Metcalf and
-distributed by Sparcom, subsequently ported to HP49/50 by Eddie C. Dost
-and updated as NAV50 by Olivier M.P. Coignard. The C adaptation was
-developed with AI-assisted translation of the available RPL source.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-The underlying astronomy includes published methods described by Jean
-Meeus and the VSOP87 planetary theory. Credit to Metcalf concerns the
-upstream software implementation, not a claim that he originated all
-the underlying mathematics. See PROVENANCE.md.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-2. Permission for NAVALM contributions
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
-To the extent Chris Maness holds copyright in original contributions to
-NAVALM, permission is granted to use, copy, modify, and redistribute those
-contributions in source or binary form, subject to these conditions:
-
-(a) The software and documentation must not be sold for profit.
-(b) Redistributed copies must retain this license, the applicable
-    upstream notices, attribution, and warranty and liability disclaimers.
-    Binary distributions must include them in accompanying documentation.
-(c) Modified distributions must identify their changes and must not
-    imply endorsement by the original authors or their families.
-
-This grant applies only to rights held by Chris Maness. It does not grant
-permission on behalf of other copyright holders, expand the scope of
-the upstream permissions, or override their restrictions. It places no
-restriction on mathematical methods, facts, or material that is actually
-in the public domain. No claim of copyright in purely AI-generated
-material is made.
-
-3. Upstream permissions and limits
-
-The original statements below are preserved with their separate scopes.
-Thomas Metcalf's 1994 permission accompanies the NAV48 Tricks and
-Shortcuts supplement; it is not represented as a license for the entire
-Sparcom ROM. Fred Metcalf's email accompanies Eddie Dost's patched
-HP49/50 distribution. The NAV50 package credits Coignard but contains
-no additional express license grant identified in its source or README.
-
-The original Sparcom manual asserts corporate copyright. The supplied
-materials do not establish a transfer of those rights to the Metcalf
-family or expressly settle permission for every subsequent translation
-and redistribution. This document records the available permissions;
-it does not certify that all upstream rights have been cleared.
-
-NAVALM is not offered as GPL-licensed or as a public-domain dedication.
-
-4. Navigation safety, warranty, and liability
-
-Use NAVALM at your own risk. It is a calculation aid and must not be your sole basis for navigation or any decision affecting the safety of people or property. Independently verify its inputs and results against current authoritative navigation information and other reliable methods. You are responsible for assessing its suitability and for your navigation decisions.
-
-TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THIS SOFTWARE AND ITS DOCUMENTATION ARE PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, RELIABILITY, AND NON-INFRINGEMENT.
-
-TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE AUTHORS, CONTRIBUTORS, AND DISTRIBUTORS SHALL NOT BE LIABLE FOR ANY CLAIM, LOSS, OR DAMAGE ARISING OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS USE OR INABILITY TO BE USED, WHETHER IN CONTRACT, TORT, OR OTHERWISE, INCLUDING NAVIGATION ERRORS, PERSONAL INJURY, PROPERTY DAMAGE, LOSS OF DATA, OR DIRECT, INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL DAMAGES.
-
-These disclaimers do not exclude or limit any liability or rights that cannot lawfully be excluded or limited. The permissions in section 2 are separate from this safety, warranty, and liability notice.
-
-5. Thomas R. Metcalf's supplement notice (verbatim)
-
-Source: nav48_l.zip / nav48_L.txt
-NAV48 Tricks and Shortcuts, Version L: January, 1996.
-Line endings normalized; original wording preserved.
-
-This software and manual is provided "as is" and is subject to change without
-notice.  No warranty of any kind is made with regard to this software or
-manual, including, but not limited to, the implied warranties of
-merchantability and fitness for a particular purpose.  The author shall not
-be liable for any errors or for direct, indirect, special, incidental or
-consequential damages in connection with the furnishing, performance, or use
-of this software.  The programs included here should not be relied on for
-solving a problem whose incorrect solution could result in injury to a person
-or loss of property.  If you do use the programs in such a manner it is AT
-YOUR OWN RISK.
-
-Copyright 1994 by Thomas R. Metcalf.  Permission is granted to any individual 
-or institution to use, copy, or redistribute this software and manual provided 
-that it is not sold for profit and provided that this copyright notice and the 
-above disclaimer are retained.
-
-6. Eddie C. Dost's distribution README and Fred Metcalf's email (verbatim)
-
-Source: nav-251.zip / README (also supplied as nav-251(1).zip).
-Line endings normalized; original wording preserved.
-
-This software has been developed by Dr. Thomas Metcalf and all credit
-belongs to him.
-
-After his tragic death and all activity around Sparcom ended, the
-software was unmaintained. I contacted Thomas Metcalfs father and
-was allowed to distribute the software patched for the HP49/50.
-
-The HP49/50 library can only be installed to port 0, or IRAM, due to
-size limitations in the flash banks.
-
-README             - This file
-nav-2.5.1-um.pdf   - The manual to the Sparcom Celestial Navigation Pac
-nav-2.5.1.bin      - A dump of the Sparcom card for the HP48
-nav-2.5.1.hp49.lib - The software ported to the HP49/50
-
-
-Eddie C. Dost <ecd@brainaid.de>
-
-========================================================================
-
-Hello Eddie,
-
-I am somewhat familiar with the software you're referring to.  I feel 
-that I can say with complete confidence that Tom would have wanted his 
-code to be maintained on sourceforge if he were no longer able to do so.
-
-I do not have a copy of the original source, but will look on the 
-machine left at his house in Boulder, Colorado when I'm there in late 
-August.  Some of the less obvious calculations are described in some 
-articles in the Journal of Navigation - several by Tom and a couple 
-jointly with myself.
-
-Please feel free to distribute the patched software as you see fit, 
-simply acknowledging the origins of the code.
-
-Fred Metcalf (Tom's father)
-Professor of Mathematics, Emeritus
-
-7. Original Sparcom notice (copyright and distribution excerpts)
-
-Source: nav-2.5.1-um2.pdf, opening Notice page, Edition 1, August 1992.
-Transcribed from the scanned manual; line wrapping normalized.
-These are historical upstream terms, not a new permission grant.
-
-This manual and the accompanying software are © Sparcom Corporation
-1992. All rights reserved. Reproduction, transmission in any form or by any
-means, adaptation, or translation of this manual is prohibited without prior
-written permission of Sparcom, except as allowed under the copyright laws.
-
-The owner of this manual is granted a one-user, non-commercial license to use
-the enclosed software, and may not copy, distribute, or transfer the software
-under any circumstances without specific prior written permission of Sparcom
-Corporation.

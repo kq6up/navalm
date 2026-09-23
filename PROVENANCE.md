@@ -1,132 +1,103 @@
-# NAVALM provenance and astronomical methods
+# NAVALM 3.0c provenance and acknowledgments
 
-NAVALM's astronomical engine is a C adaptation derived from the available
-NAV48/NAV50 RPL implementation. Chris Maness reports using AI-assisted
-translation of that RPL as a development input. The source comparison below
-supports that engineering lineage. It is not a judicial determination of
-copyright infringement or of which individual elements are copyrightable.
+## Current implementation
 
-## Credits
+NAVALM 3.0c replaces the former NAV89/NAV48/NAV50-derived astronomical
+engine and its data tables with XEphem's libastro and a star catalog
+selected from XEphem's SKY2k65.edb. The Metcalf-derived engine and tables
+are no longer included in the current source tree or build.
 
-- **Dr. Thomas R. Metcalf:** original NAV48 celestial-navigation software.
-- **Sparcom Corporation:** original distributor; the 1992 manual asserts
-  copyright in the manual and accompanying software.
-- **Eddie C. Dost:** HP49/50 port and preservation of the family permission.
-- **Olivier M.P. Coignard:** NAV50 updates and the supplied readable
-  `SPARCOM.hpprg` source.
-- **Jean Meeus:** published astronomical methods used in this lineage.
-- **P. Bretagnon and G. Francou:** VSOP87 planetary theory cited by the
-  original manual.
-- **M. Chapront-Touzé and J. Chapront:** ELP lunar theory underlying the
-  truncated lunar method presented by Meeus.
-- **Chris Maness:** NAVALM project, C adaptation, and subsequent integration.
-
-The supplied NAV50 README describes extraction of the HP49/50 library into
-218 subprograms before modification. This supports the recovered-library
-history; it does not identify every intermediate reverse-engineering step.
-Andrés Capdevila's separate HP50g patch exists, but was not established as
-an input to this project's source.
-
-## Material examined
-
-Audit date: 23 September 2026.
-
-| Supplied archive | Contents relevant to provenance | SHA-256 |
-| --- | --- | --- |
-| `nav50(2).zip` | `SPARCOM.hpprg`, compiled program, README PDF, star data | `62e42f964786756b682f737898b14491917689ac9c5d7eb71f207d28e39f097a` |
-| `nav-251(1).zip` | ROM dump, HP49/50 library, original manual, permission email | `ce0ab414f049b89e2283c2981dffce9621bb1e4328a372b92de40b75c7250958` |
-| `nav48_l.zip` | Metcalf's Tricks and Shortcuts supplement and custom permission | `6f4213a422daa1297aacafb6014662ad8b34a1f000f466b5944a1ce617bc13a7` |
-
-The first two archives match the corresponding HPCALC downloads byte for
-byte. The comparison used NAVALM's GitHub source, verified against the
-local source archive using Git blob hashes:
-
-| File | Git blob SHA |
+| Removed legacy files | Replacement |
 | --- | --- |
-| `nav_engine_split.c` | `858b60aff1136268af2405f664a9c5b1a93dc9ac` |
-| `moon_data.c` | `8286759f8c99ef62e002afcf9a82873f25f24ca9` |
-| `planet_data.c` | `7f19bc6d1bb34b9359b54eef8039fd67cd0cca12` |
+| nav_engine_split.c | nav_engine_x.c and libastro/ |
+| moon_data.c, moon_data.h | XEphem libastro/moon.c |
+| planet_data.c, planet_data.h | XEphem's solar and planetary routines and tables |
+| star_data.c, star_data.h | navstars.edb and generated nav_stars_x.c/.h |
 
-## Comparison results
+Chris Maness supplied the 3.0c replacement and reports that the
+Metcalf-derived code was removed. The publication review on 23 September
+2026 confirmed the seven legacy files are absent and the Makefile uses
+the replacement. Existing command handling, interfaces, sight reduction,
+and storage code remain; this review is not a forensic certification of
+the independent origin of every retained line or a clean-room rewrite.
+The earlier provenance investigation concerned the removed astronomy
+engine, and did not establish Metcalf authorship of those other modules.
 
-The lunar table comparison parsed coefficient/multiplier tuples from the
-C arrays and the RPL lists and compared every tuple in sequence.
+## XEphem source
 
-| NAVALM table | RPL source | Rows | Result |
-| --- | --- | ---: | --- |
-| `moon_lon` | `MOONGD` longitude list | 59 | Exact numeric match, same order |
-| `moon_lat` | `MOONGD` latitude list | 60 | Exact numeric match, same order |
-| `moon_dist` | `MHP` distance list | 46 | Exact numeric match, same order |
+Upstream: https://github.com/XEphem/XEphem
 
-The solar/planetary comparison preserved all coordinate and polynomial-order
-groups in the RPL lists. All 765 amplitude/phase/frequency triples match
-the C arrays in order and grouping, allowing only numeric-format rounding
-with tolerance `max(1e-12, abs(RPL value) * 2e-15)`.
+Reference commit: `780234cc4aa98eeb7d96acfd4ba515fa4565fae9`.
 
-| RPL data list | C series | Triples |
-| --- | --- | ---: |
-| `sundata` | `nav_sun` | 28 |
-| `eardata` | `nav_ear` | 96 |
-| `vendata` | `nav_ven` | 82 |
-| `mardata` | `nav_mar` | 155 |
-| `jupdata` | `nav_jup` | 155 |
-| `satdata` | `nav_sat` | 169 |
-| `merdata` | `nav_mer` | 80 |
+All 66 bundled libastro C and header files match the Git blob hashes at
+that commit. This identifies a verified matching upstream revision; it
+does not claim knowledge of the original download date. The MIT text in
+[libastro/LICENSE.XEphem](libastro/LICENSE.XEphem) matches upstream
+apart from a trailing blank line. Original source comments and credits
+are preserved.
 
-Manual inspection also found these correspondences:
+The library includes VSOP87 and Chapront planetary routines, S. L.
+Moshier's lunar implementation adapted for XEphem by Michael Sternberg,
+and coordinate, nutation, precession, and apparent-place calculations.
+The uploaded description of the Moon routine as "full ELP2000-82B" has
+been corrected to reflect the actual bundled implementation. No
+particular accuracy is guaranteed.
 
-| RPL routine | C routine(s) | Correspondence |
-| --- | --- | --- |
-| `X09B` | `margs` | Same lunar argument polynomials, including the rounded coefficients, auxiliary arguments, and eccentricity expression |
-| `MOONGD`, `X0D2`, `MHP` | `moon_tt`, `msum` | Corresponding lunar series evaluation, eccentricity weighting, and additive corrections |
-| `X04F` | `nut`, `addnut` | Same compact nutation approximation and conversion sequence |
-| `X050` | `aberr` | Corresponding aberration correction through ecliptic coordinates |
-| `X047`, `X051` | `precess` | Corresponding precession polynomials and matrix entries, specialized in C to a J2000 starting epoch |
-| `DOPLANET`, `X08C` | `eplanet`, `ecoord` | Corresponding coordinate series evaluation |
-| `X08A` | `planet_app` | Corresponding Earth subtraction and one-step light-time adjustment |
+NAVALM's adapter selects geocentric apparent coordinates and converts
+them to GHA, declination, horizontal parallax, and semidiameter.
+Bundled libastro/deltat.c is excluded from the build: nav_engine_x.c
+supplies the time-scale calculation using a leap-second table for modern
+dates and polynomial estimates for earlier dates. Future leap seconds
+require table maintenance; historical and extrapolated results have
+additional limitations.
 
-These are correspondences, not a claim of identical whole-program behavior.
-For example, the C engine has a different time-scale implementation,
-including a leap-second table, and different interfaces and error handling.
-The audit did not establish the origin of every UI, sight-reduction, or
-position-fix routine.
+## Star catalog
 
-## Meeus and the distinction between mathematics and implementation
+Source: [XEphem SKY2k65.edb at the reference commit](https://github.com/XEphem/XEphem/blob/780234cc4aa98eeb7d96acfd4ba515fa4565fae9/GUI/xephem/catalogs/SKY2k65.edb).
 
-The Moon routine follows the truncated ELP-2000/82 family presented in
-Meeus's *Astronomical Algorithms*. The original manual's bibliography,
-printed page I-165 (PDF page 88), explicitly cites:
+The underlying catalog is SKY2000 Master Catalog Version 4 (2002),
+credited to J. R. Myers, C. B. Sande, A. C. Miller, W. H. Warren Jr.,
+and D. A. Tracewell, NASA/Goddard Space Flight Center. XEphem supplies
+the magnitude-limited edition and additional common names.
 
-- Jean Meeus, *Astronomical Algorithms*, Willmann-Bell, 1991.
-- Jean Meeus, *Astronomical Formulae for Calculators*, Willmann-Bell, 1988.
-- P. Bretagnon and G. Francou, “Planetary Theories in Rectangular and
-  Spherical Variables. VSOP87 Solutions,” *Astronomy and Astrophysics*
-  202, 309–315, 1988.
+navstars.edb retains 58 source records, with NAVALM's chosen navigation
+name prepended. tools/mknavstars.sh converts these records into the C
+table; run `make stars` after editing them.
 
-A common scientific method explains many matching equations and constants.
-Those matches alone do not prove copying of protected expression. Here,
-the developer's reported use of RPL as translation input, the complete
-matching selected data sets, and the routine correspondences support
-attribution as an adaptation of NAV48/NAV50 rather than a claim of an
-independently developed implementation.
+The publication review corrected two ambiguous common-name selections:
+Atria now uses Alpha Trianguli Australis (HR 6217), and Suhail uses
+Lambda Velorum (HR 3634). The upload had selected Alpha Trianguli and
+Canopus, respectively. Catalog fields come from the cited XEphem source.
+Acrux and Rigil Kentaurus use individual bright components; results may
+differ from almanacs representing a combined pair.
 
-Copyright in software concerns protectable expression, not mathematical
-algorithms themselves. Whether any particular translated portion carries
-upstream copyright requires analysis beyond numerical matching. This
-document therefore records technical provenance without claiming that
-every matching formula or number is owned by Metcalf.
+## In memory of Dr. Thomas R. Metcalf
 
-## Permissions
+Dr. Thomas R. Metcalf's celestial-navigation software helped make
+sophisticated navigation calculations accessible on handheld calculators
+and inspired NAVALM's development. We remember his work with gratitude
+and respect.
 
-See [LICENSE](LICENSE) for the custom grant limited to Chris Maness's
-rights, preserved original permission statements, and the separate scope
-of each upstream notice. Neither a public-domain dedication nor GPL
-licensing of the upstream software has been established.
+We also acknowledge the preservation and continuation of that legacy:
+Sparcom's original distribution, Eddie C. Dost's HP49/50 port,
+Olivier M. P. Coignard's NAV50 updates, and the Metcalf family's support
+for keeping the work available.
 
-## References
+This acknowledgment honors the project's historical inspiration. It is
+not an attribution of the current XEphem engine to Metcalf and does not
+imply endorsement by his family, Sparcom, the port maintainers, or XEphem.
 
-- [Original port and ROM archive](https://www.hpcalc.org/details/7082)
-- [NAV50 source archive](https://www.hpcalc.org/details/9643)
-- [Original manual](https://literature.hpcalc.org/community/pp-celestial.pdf)
-- [Independent Meeus/ELP implementation and description](https://www.celestialprogramming.com/meeus-elp82.html)
-- [US Copyright Office Circular 61](https://www.copyright.gov/circs/circ61.pdf)
+## License transition and historical versions
+
+The current NAVALM contributions are offered under [MIT](LICENSE),
+with XEphem's MIT copyright and permission notice retained separately.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the
+[safety and assumption-of-risk notice](SAFETY.md).
+
+The former NAVALM custom noncommercial grant and NAV48/NAV50 permissions
+are not the license of this replacement source tree. This update does
+not retroactively relicense third-party material in older commits,
+archives, or the v2.8g release, which still contain the old engine.
+Their source and permission history remain in Git history. Use the
+current branch for the replacement implementation; do not treat an old
+release archive as MIT merely because today's README says MIT.

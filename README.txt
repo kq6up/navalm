@@ -1,14 +1,24 @@
-NAVALM 2.8g - console nautical almanac and sight worker
+NAVALM 3.0c - console nautical almanac and sight worker
 
-This combines the current NAV89 astronomy engine/data with the host-side navalm CLI.
+3.0c replaces the former NAV89/NAV48/NAV50-derived astronomical engine and
+its data tables with XEphem libastro and a catalog selected from XEphem's
+SKY2k65.edb. The removed Metcalf-derived engine and tables are no longer
+included. Current NAVALM contributions use MIT (LICENSE); XEphem retains
+its own MIT notice (libastro/LICENSE.XEphem). See PROVENANCE.md for the
+review scope and historical acknowledgment of Dr. Thomas R. Metcalf.
+
+INFORMATIONAL AND EDUCATIONAL USE ONLY. Do not rely on NAVALM where an
+error could cause death, injury, or property damage. By using it, you
+accept the safety and assumption-of-risk terms in SAFETY.md, to the
+maximum extent permitted by law. No express or implied warranty is given.
+
 It is for Linux/Unix console use and does not require GCC4TI.
 
 Build:
   make page
   make
 
-Run make page first to embed page.html in navweb_page.h, then make to compile.
-See README.md for prerequisites, build options, and a quick start.
+Without ncurses headers/libraries, use make nogui after make page.
 
 Version:
   ./navalm -v
@@ -349,9 +359,80 @@ untouched, so this can be repeated and undone by setting the DR back.
 
 Building without ncurses
 ------------------------
-  make page     regenerate the embedded web page before either build below
   make          builds with the interface (links -lncurses)
   make nogui    builds everything except --gui
 
 A binary built with "make nogui" reports that the interface was not compiled
 in if --gui is given; every other command is unaffected.
+
+
+Provenance and licensing
+------------------------
+The former engine and lunar, planetary, and star tables were removed.
+See PROVENANCE.md for the replacement map, verified upstream revision,
+star-catalog source, and review limitations. XEphem's original source
+credits and MIT notice are preserved in libastro/.
+
+The astronomy now uses XEphem's VSOP87/Chapront routines and Moshier lunar
+implementation, plus its precession, nutation, and apparent-place code.
+The adapter requests geocentric coordinates. libastro/deltat.c is
+excluded from the build in favor of NAVALM's leap-second-based modern
+TT-UT1 calculation and historical polynomial estimates. The leap-second
+table requires maintenance; historical and future results have limits.
+
+The star table is generated from navstars.edb with make stars. Atria and
+Suhail selections were corrected before publication to use Alpha
+Trianguli Australis and Lambda Velorum. Acrux and Rigil Kentaurus use
+individual bright components rather than combined pairs.
+
+No accuracy certification is implied by replacing the engine or passing
+build and smoke checks. See VALIDATION.md for the checks actually run.
+
+In memory of Dr. Thomas R. Metcalf: his calculator navigation software
+inspired NAVALM. We honor his work and acknowledge Sparcom, Eddie C.
+Dost, Olivier M. P. Coignard, and the Metcalf family for preserving and
+continuing that legacy. This historical acknowledgment implies no
+endorsement and does not attribute XEphem's implementation to him.
+
+Current NAVALM contributions: MIT, see LICENSE.
+XEphem: MIT, see libastro/LICENSE.XEphem and THIRD_PARTY_NOTICES.md.
+Older releases and Git history retain their applicable original terms;
+this update does not retroactively relicense their third-party code.
+
+Safety, warranty, and assumption of risk
+---------------------------------------
+NAVALM, its documentation, and all generated results are provided for
+informational and educational purposes only. They are not certified
+navigation products. Do not rely on them for navigation or any decision
+where an incorrect result, failure, or delay could cause death, personal
+injury, or loss of or damage to property. Independent verification does
+not make NAVALM suitable for safety-critical use.
+
+By using NAVALM, you acknowledge this warning and agree, to the maximum
+extent permitted by applicable law, to use it entirely at your own risk
+and to assume all responsibility and liability for your use, your
+interpretation of its results, your decisions, and the resulting
+consequences. If you do not accept these terms, do not use NAVALM.
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE SOFTWARE,
+DOCUMENTATION, DATA, AND OUTPUT ARE PROVIDED "AS IS" AND "AS AVAILABLE",
+WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+LIMITED TO MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, ACCURACY,
+COMPLETENESS, RELIABILITY, AVAILABILITY, AND NONINFRINGEMENT.
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE AUTHORS, COPYRIGHT
+HOLDERS, CONTRIBUTORS, AND DISTRIBUTORS SHALL NOT BE LIABLE FOR ANY CLAIM,
+LOSS, DAMAGE, OR OTHER LIABILITY ARISING FROM OR IN CONNECTION WITH
+NAVALM OR ITS USE OR INABILITY TO BE USED, WHETHER IN CONTRACT, TORT
+(INCLUDING NEGLIGENCE), OR OTHERWISE. THIS INCLUDES DEATH, PERSONAL
+INJURY, PROPERTY DAMAGE, NAVIGATION ERRORS, LOSS OF DATA OR PROFITS, AND
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL DAMAGES.
+
+Nothing in this notice excludes or limits liability or rights that cannot
+lawfully be excluded or limited. This notice does not promise that a
+waiver or disclaimer is enforceable in every jurisdiction or circumstance.
+
+Copyright permissions are granted by LICENSE and the applicable
+third-party licenses. This safety and risk notice does not amend the MIT
+license, add a copyright field-of-use restriction, or reduce anyone's
+rights under the upstream XEphem MIT license.

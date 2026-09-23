@@ -1,4 +1,9 @@
+/* SPDX-License-Identifier: MIT
+ * NAVALM contributions: Copyright (c) 2026 Chris Maness.
+ * See LICENSE, THIRD_PARTY_NOTICES.md, and SAFETY.md.
+ */
 #include "nav_engine.h"
+#include "nav_notice.h"
 #include "navsight.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,7 +15,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define NAVALM_VERSION "2.8g"
+#define NAVALM_VERSION "3.0c"
 
 static double rad(double x){ return x*M_PI/180.0; }
 static double deg(double x){ return x*180.0/M_PI; }
@@ -266,6 +271,7 @@ static void render_ascii(const DailyData *t){
     int i,r;
     size_t half,n;
 
+    puts("Informational use only. No warranty. Do not rely on this for safety-critical decisions.");
     printf("NAVALM %s   DAILY NAUTICAL ALMANAC   %04d-%02d-%02d UTC\n",NAVALM_VERSION,t->y,t->m,t->d);
     printf("Values are apparent geocentric quantities at whole UTC hours.\n");
     printf("GHA/SHA and Dec are degrees and minutes; v/d/HP/SD are arcminutes.\n\n");
@@ -371,6 +377,7 @@ static void render_html(FILE *out,const DailyData *t){
     fprintf(out,"<p class=\"note\">Values are apparent geocentric quantities at whole UTC hours.</p>\n");
     fprintf(out,"<p class=\"note\">GHA/SHA and Dec are degrees and minutes; v/d/HP/SD are arcminutes.</p>\n");
 
+    fprintf(out,"<p class=\"note\">Informational use only. No warranty. Do not rely on this for safety-critical decisions. See SAFETY.md.</p>\n");
     fprintf(out,"<h2>Aries and planets</h2>\n<table>\n<thead>\n<tr><th rowspan=\"2\">UTC h</th><th rowspan=\"2\">Aries GHA</th>");
     for(i=0;i<NPLANET;i++){
         fputs("<th colspan=\"2\">",out); html_puts(out,table_planet_names[i]); fputs("</th>",out);
@@ -489,6 +496,7 @@ static void render_tex(const DailyData *t){
            NAVALM_VERSION,t->y,t->m,t->d);
     printf("\\normalsize Values are apparent geocentric quantities at whole UTC hours.\\\\\n");
     printf("GHA/SHA and Dec are degrees and minutes; v/d/HP/SD are arcminutes.\\\\[6pt]\n");
+    printf("\\small Informational use only. No warranty. No safety-critical reliance; see SAFETY.md.\\\\\n");
     printf("\\textbf{Aries and planets}\n\\end{center}\n\n");
 
     printf("\\begin{center}\n\\navfit{\\dimexpr\\textheight-4.2cm\\relax}{%%\n");
@@ -591,6 +599,8 @@ int navalm_write_daily_html(FILE *out,int y,int m,int d){
 
 static void usage(const char *p){
  fprintf(stderr,
+  "Informational use only; no safety-critical reliance. Use implies acceptance\n"
+  "of the risk and liability terms; see SAFETY.md or --notice. MIT: see LICENSE.\n"
   "usage:\n"
   "  %s BODY YYYY MM DD HH MM SS [--ap LATdeg LATmin N|S LONdeg LONmin E|W]\n"
   "  %s star NAME YYYY MM DD HH MM SS [--ap LATdeg LATmin N|S LONdeg LONmin E|W]\n"
@@ -651,6 +661,7 @@ int navgui_run(void);
 int navweb_run(const char *addr,int port);
 
 int main(int argc,char**argv){
+ if(argc==2 && !strcmp(argv[1],"--notice")){ puts(navalm_safety_notice); return 0; }
  if(argc>=2 && (!strcmp(argv[1],"-d") || !strcmp(argv[1],"--daemon"))){
    const char *addr="127.0.0.1"; int port=8080,i;
    for(i=2;i<argc;i++){

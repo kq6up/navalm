@@ -1,3 +1,7 @@
+/* SPDX-License-Identifier: MIT
+ * NAVALM contributions: Copyright (c) 2026 Chris Maness.
+ * See LICENSE, THIRD_PARTY_NOTICES.md, and SAFETY.md.
+ */
 /* navalm 2.8g - ./navalm -d : a small embedded web interface.
  *
  * Single-threaded HTTP/1.1, no dependencies, no framework.  The server is
