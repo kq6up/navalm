@@ -4,7 +4,11 @@ This combines the current NAV89 astronomy engine/data with the host-side navalm 
 It is for Linux/Unix console use and does not require GCC4TI.
 
 Build:
+  make page
   make
+
+Run make page first to embed page.html in navweb_page.h, then make to compile.
+See README.md for prerequisites, build options, and a quick start.
 
 Version:
   ./navalm -v
@@ -345,6 +349,7 @@ untouched, so this can be repeated and undone by setting the DR back.
 
 Building without ncurses
 ------------------------
+  make page     regenerate the embedded web page before either build below
   make          builds with the interface (links -lncurses)
   make nogui    builds everything except --gui
 
