@@ -9,7 +9,7 @@ GUI_SRC    = navgui.c
 GUI_LIBS   = -lncurses
 
 SRC = navalm.c navsight.c navcmd.c navrc.c navweb.c nav_engine_x.c nav_stars_x.c
-HDR = nav_notice.h nav_engine.h nav_stars_x.h navsight.h navrc.h navweb_page.h
+HDR = nav_notice.h nav_engine.h nav_stars_x.h navsight.h navrc.h navweb_page.h air_daily.inc
 
 # XEphem libastro, vendored under libastro/ (MIT, see libastro/LICENSE.XEphem)
 # deltat.c is excluded: nav_engine_x.c supplies deltat() from the leap-second

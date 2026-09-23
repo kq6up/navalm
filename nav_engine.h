@@ -18,6 +18,8 @@ typedef struct {
     double hp_deg;       /* horizontal parallax, degrees (0 if not supplied) */
     double sd_deg;       /* semidiameter, degrees (Sun/Moon where supplied) */
     double distance;     /* AU for Sun/planets, km for Moon */
+    double elong_deg;    /* elongation from the Sun, degrees (0 for the Sun) */
+    double magnitude;    /* apparent visual magnitude */
 } NavAlmanac;
 
 double nav_julian_date(int year,int month,int day,int hour,int minute,double second);

@@ -126,6 +126,11 @@ size_t navsight_star_match(const char *query,int *idx,size_t max);
 
 /* Formatting helpers (shared with main) */
 const char *navsight_fmt_lat(double deg,char *buf,size_t n);
+/* single-body lookups keep the second decimal of a minute: DDD MM.mm */
+const char *navsight_fmt_lat2(double deg,char *buf,size_t n);
+const char *navsight_fmt_gha2(double deg,char *buf,size_t n);
+/* right ascension as degrees, minutes and seconds */
+const char *navsight_fmt_ra(double deg,char *buf,size_t n);
 const char *navsight_fmt_lon(double deg,char *buf,size_t n);
 const char *navsight_fmt_gha(double deg,char *buf,size_t n);
 

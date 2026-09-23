@@ -230,6 +230,8 @@ int nav_almanac(NavBody body,double jd_ut,NavAlmanac *out)
         out->hp_deg = raddeg(asin(EARTH_RAD_KM/dist_km));
 
     out->distance = (body == NAV_MOON) ? dist_km : o.s_edist;
+    out->elong_deg = (body == NAV_SUN) ? 0.0 : fabs(o.s_elong);
+    out->magnitude = get_mag(&o);
     return 0;
 }
 

@@ -49,7 +49,7 @@ static void title(const char *screen){
     time_t t = time(NULL);
     struct tm *g = gmtime(&t);
     attron(A_REVERSE);
-    snprintf(buf,sizeof buf,"NAVALM 3.0c  %-24s %04d-%02d-%02d %02d:%02d:%02d UTC",
+    snprintf(buf,sizeof buf,"NAVALM 3.3c  %-24s %04d-%02d-%02d %02d:%02d:%02d UTC",
              screen,g->tm_year+1900,g->tm_mon+1,g->tm_mday,g->tm_hour,g->tm_min,g->tm_sec);
     bar(0,buf);
     attroff(A_REVERSE);
@@ -408,7 +408,8 @@ static void draw_sight_fields(const Sight *si,int y0){
     mvprintw(y0+9,2," 0 Label       %s",si->label[0]?si->label:"(none)");
 }
 
-static void screen_sight(Sight *carry)
+/* edit_id > 0 edits that stored LOP in place; 0 enters a new sight */
+static void screen_sight_ex(Sight *carry,int edit_id)
 {
     Sight si = *carry;
     NavDefaults d0;
@@ -426,7 +427,11 @@ static void screen_sight(Sight *carry)
         int ok;
 
         erase();
-        title("SIGHT   Hs -> Ho -> HO 229");
+        if(edit_id > 0){
+            char t[64];
+            snprintf(t,sizeof t,"SIGHT   editing LOP %d",edit_id);
+            title(t);
+        } else title("SIGHT   Hs -> Ho -> HO 229");
         draw_sight_fields(&si,2);
 
         panex = 40; panew = COLS-panex-1; paneh = LINES-5;
@@ -447,7 +452,9 @@ static void screen_sight(Sight *carry)
         pane_draw(&p,2,panex,paneh,panew);
         if(status[0]) message(status);
 
-        footer("1-0 edit   N now   S save   D defaults   PgUp/PgDn scroll   ESC back");
+        footer(edit_id > 0
+               ? "1-0 edit   N now   S update this LOP   D defaults   PgUp/PgDn scroll   ESC back"
+               : "1-0 edit   N now   S save   D defaults   PgUp/PgDn scroll   ESC back");
         refresh();
 
         c = getch();
@@ -474,6 +481,23 @@ static void screen_sight(Sight *carry)
             int id;
             if(si.hs_deg <= 0.0){ copy_str(status,sizeof status,"nothing to save: Hs is empty"); continue; }
             if(navsight_store_load(&st,err,sizeof err)){ copy_str(status,sizeof status,err); continue; }
+            if(edit_id > 0){
+                Sight *tgt = navsight_store_find(&st,edit_id);
+                if(tgt){
+                    int keep = tgt->id;
+                    *tgt = si;
+                    tgt->id = keep;
+                    if(navsight_store_save(&st,err,sizeof err))
+                        copy_str(status,sizeof status,"save failed");
+                    else {
+                        char m[MAXLINE+32];
+                        snprintf(m,sizeof m,"LOP %d updated",edit_id);
+                        copy_str(status,sizeof status,m);
+                    }
+                } else copy_str(status,sizeof status,"that LOP is gone");
+                navsight_store_free(&st);
+                continue;
+            }
             id = navsight_store_add(&st,&si);
             if(id <= 0 || navsight_store_save(&st,err,sizeof err))
                 copy_str(status,sizeof status,"save failed");
@@ -487,6 +511,8 @@ static void screen_sight(Sight *carry)
     }
     *carry = si;
 }
+
+static void screen_sight(Sight *carry){ screen_sight_ex(carry,0); }
 
 /* ------------------------------------------------------------ LOP screen */
 
@@ -657,7 +683,7 @@ static void screen_lops(void)
                 mvprintw(2+(int)i,COLS-18,"%03.0f/%.0fkt",st.v[i].course,st.v[i].speed);
         }
 
-        footer("up/dn move  SPACE mark  ENTER detail  A advance  D delete  F fix  ESC back");
+        footer("up/dn  SPACE mark  ENTER detail  E edit  A advance  D delete  F fix  ESC back");
         refresh();
 
         c = getch();
@@ -666,6 +692,15 @@ static void screen_lops(void)
         else if(c == KEY_DOWN && sel+1 < (int)st.n) sel++;
         else if(c == ' ' && st.n) marked[sel] = !marked[sel];
         else if((c == '\n' || c == KEY_ENTER) && st.n) screen_lop_detail(&st.v[sel]);
+        else if((c == 'e' || c == 'E') && st.n){
+            Sight s = st.v[sel];
+            int id = s.id;
+            navsight_store_free(&st);
+            screen_sight_ex(&s,id);               /* every field, filled in */
+            if(navsight_store_load(&st,err,sizeof err)) return;
+            memset(marked,0,sizeof marked);
+            if(sel >= (int)st.n && sel) sel--;
+        }
         else if((c == 'f' || c == 'F') && st.n) screen_fix(&st,marked);
         else if((c == 'd' || c == 'D') && st.n){
             char q[MAXLINE];
@@ -724,17 +759,19 @@ static void screen_almanac(void)
             int idx = nav_star_find(q.star);
             if(idx < 0 || nav_star_almanac((size_t)idx,jd,&s)) pane_add(&p,"star not found");
             else {
-                snprintf(buf,sizeof buf,"  GHA  %s",navsight_fmt_gha(s.gha_deg,b,sizeof b)); pane_add(&p,buf);
-                snprintf(buf,sizeof buf,"  SHA  %s",navsight_fmt_gha(s.sha_deg,b,sizeof b)); pane_add(&p,buf);
-                snprintf(buf,sizeof buf,"  Dec  %s",navsight_fmt_lat(s.dec_deg,b,sizeof b)); pane_add(&p,buf);
+                snprintf(buf,sizeof buf,"  GHA  %s",navsight_fmt_gha2(s.gha_deg,b,sizeof b)); pane_add(&p,buf);
+                snprintf(buf,sizeof buf,"  SHA  %s",navsight_fmt_gha2(s.sha_deg,b,sizeof b)); pane_add(&p,buf);
+                snprintf(buf,sizeof buf,"  Dec  %s",navsight_fmt_lat2(s.dec_deg,b,sizeof b)); pane_add(&p,buf);
+                snprintf(buf,sizeof buf,"  RA   %s",navsight_fmt_ra(s.ra_deg,b,sizeof b)); pane_add(&p,buf);
                 snprintf(buf,sizeof buf,"  Mag  %.2f",s.magnitude); pane_add(&p,buf);
             }
         } else {
             int bi = navsight_body_index(q.body);
             if(bi < 0 || nav_almanac((NavBody)bi,jd,&a)) pane_add(&p,"almanac failed");
             else {
-                snprintf(buf,sizeof buf,"  GHA  %s",navsight_fmt_gha(a.gha_deg,b,sizeof b)); pane_add(&p,buf);
-                snprintf(buf,sizeof buf,"  Dec  %s",navsight_fmt_lat(a.dec_deg,b,sizeof b)); pane_add(&p,buf);
+                snprintf(buf,sizeof buf,"  GHA  %s",navsight_fmt_gha2(a.gha_deg,b,sizeof b)); pane_add(&p,buf);
+                snprintf(buf,sizeof buf,"  Dec  %s",navsight_fmt_lat2(a.dec_deg,b,sizeof b)); pane_add(&p,buf);
+                snprintf(buf,sizeof buf,"  RA   %s",navsight_fmt_ra(a.ra_deg,b,sizeof b)); pane_add(&p,buf);
                 if(a.sd_deg != 0.0){ snprintf(buf,sizeof buf,"  SD   %.2f'",a.sd_deg*60.0); pane_add(&p,buf); }
                 if(a.hp_deg != 0.0){ snprintf(buf,sizeof buf,"  HP   %.2f'",a.hp_deg*60.0); pane_add(&p,buf); }
                 snprintf(buf,sizeof buf,"  JD   %.8f",jd); pane_add(&p,buf);

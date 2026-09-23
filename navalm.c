@@ -15,7 +15,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define NAVALM_VERSION "3.0c"
+#define NAVALM_VERSION "3.3c"
 
 static double rad(double x){ return x*M_PI/180.0; }
 static double deg(double x){ return x*180.0/M_PI; }
@@ -107,6 +107,31 @@ static void fmt_dec(double x,char *buf,size_t n){
     double a=fabs(x); int d=(int)floor(a); double m=(a-d)*60.0;
     if(m>=59.95){ m=0.0; d++; }
     snprintf(buf,n,"%c%02d %04.1f",x<0?'S':'N',d,m);
+}
+
+/* single-body lookups keep the second decimal; the printed-style daily
+ * tables stay at tenths, as the almanac pages do */
+static void fmt_gha2(double x,char *buf,size_t n){
+    double a=norm360(x); int d=(int)floor(a); double m=(a-d)*60.0;
+    if(m>=59.995){ m=0.0; d=(d+1)%360; }
+    snprintf(buf,n,"%03d %05.2f",d,m);
+}
+
+static void fmt_dec2(double x,char *buf,size_t n){
+    double a=fabs(x); int d=(int)floor(a); double m=(a-d)*60.0;
+    if(m>=59.995){ m=0.0; d++; }
+    snprintf(buf,n,"%c%02d %05.2f",x<0?'S':'N',d,m);
+}
+
+/* right ascension as degrees, minutes and seconds: "177 12 58.4" */
+static void fmt_ra_dms(double x,char *buf,size_t n){
+    double a=norm360(x); int d,m; double s;
+    d=(int)floor(a);
+    m=(int)floor((a-d)*60.0);
+    s=((a-d)*60.0-m)*60.0;
+    if(s>=59.95){ s=0.0; m++; }
+    if(m>=60){ m=0; d=(d+1)%360; }
+    snprintf(buf,n,"%03d %02d %04.1f",d,m,s);
 }
 
 static void fmt_arcmin(double x,char *buf,size_t n){
@@ -712,13 +737,14 @@ int main(int argc,char**argv){
    si=mm[0];
    double jd=nav_julian_date(atoi(argv[3]),atoi(argv[4]),atoi(argv[5]),atoi(argv[6]),atoi(argv[7]),atof(argv[8]));
    NavStarAlmanac a; if(nav_star_almanac((size_t)si,jd,&a)) return 1;
-   char g[32],d[32],sha[32]; fmt_gha(a.gha_deg,g,sizeof g);fmt_dec(a.dec_deg,d,sizeof d);fmt_gha(a.sha_deg,sha,sizeof sha);
+   char g[32],d[32],sha[32]; fmt_gha2(a.gha_deg,g,sizeof g);fmt_dec2(a.dec_deg,d,sizeof d);fmt_gha2(a.sha_deg,sha,sizeof sha);
    if(atoi(argv[3])>=1972) {
      printf("%s  JD(UT)=%.8f  TT-UTC=%.3fs (DUT1=0 assumed)\n",a.name,jd,nav_delta_t_seconds(jd));
    } else {
      printf("%s  JD(UT)=%.8f  DeltaT=%.3fs\n",a.name,jd,nav_delta_t_seconds(jd));
    }
-   printf("GHA %s\nSHA %s\nDec %s\nRA  %.8f deg\nMag %.2f\n",g,sha,d,a.ra_deg,a.magnitude);
+   { char ra[32]; fmt_ra_dms(a.ra_deg,ra,sizeof ra);
+     printf("GHA %s\nSHA %s\nDec %s\nRA  %s\nMag %.2f\n",g,sha,d,ra,a.magnitude); }
    if(have_ap) print_ap_solution(a.gha_deg,a.dec_deg,alat,alon);
    return 0;
  }
@@ -728,14 +754,15 @@ int main(int argc,char**argv){
  int b=body(argv[1]);if(b<0){fprintf(stderr,"unknown body\n");return 2;}
  double jd=nav_julian_date(atoi(argv[2]),atoi(argv[3]),atoi(argv[4]),atoi(argv[5]),atoi(argv[6]),atof(argv[7]));
  NavAlmanac a;if(nav_almanac((NavBody)b,jd,&a))return 1;
- char g[32],d[32],hp[32],sd[32];fmt_gha(a.gha_deg,g,sizeof g);fmt_dec(a.dec_deg,d,sizeof d);fmt_arcmin(a.hp_deg,hp,sizeof hp);fmt_arcmin(a.sd_deg,sd,sizeof sd);
+ char g[32],d[32],hp[32],sd[32];fmt_gha2(a.gha_deg,g,sizeof g);fmt_dec2(a.dec_deg,d,sizeof d);fmt_arcmin(a.hp_deg,hp,sizeof hp);fmt_arcmin(a.sd_deg,sd,sizeof sd);
  if(atoi(argv[2])>=1972) {
    printf("%s  JD(UT)=%.8f  TT-UTC=%.3fs (DUT1=0 assumed)\n",nav_body_name((NavBody)b),jd,nav_delta_t_seconds(jd));
  } else {
    printf("%s  JD(UT)=%.8f  DeltaT=%.3fs\n",nav_body_name((NavBody)b),jd,nav_delta_t_seconds(jd));
  }
  printf("GHA %s\n",g);
- if(b!=NAV_ARIES)printf("Dec %s\nRA  %.8f deg\n",d,a.ra_deg);
+ if(b!=NAV_ARIES){ char ra[32]; fmt_ra_dms(a.ra_deg,ra,sizeof ra);
+   printf("Dec %s\nRA  %s\n",d,ra); }
  if(a.hp_deg != 0.0)printf("HP  %s'\n",hp);
  if(a.sd_deg != 0.0)printf("SD  %s'\n",sd);
  if(b!=NAV_ARIES)printf("Distance %.9g %s\n",a.distance,b==NAV_MOON?"km":"AU");

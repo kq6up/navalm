@@ -97,6 +97,29 @@ static const char *fmt_min(double x,char *b,size_t n){
 }
 
 const char *navsight_fmt_lat(double d,char *b,size_t n){ return fmt_lat(d,b,n); }
+
+/* hundredths of a minute: the engine really does carry this, so single-body
+ * lookups show it.  Printed-style tables stay at tenths. */
+const char *navsight_fmt_lat2(double x,char *b,size_t n){
+    double a=fabs(x); int d=(int)floor(a); double m=(a-d)*60.0;
+    if(m>=59.995){ m=0.0; d++; }
+    snprintf(b,n,"%c %02d %05.2f'",x<0?'S':'N',d,m); return b;
+}
+const char *navsight_fmt_ra(double x,char *b,size_t n){
+    double a=norm360(x); int d,m; double s;
+    d=(int)floor(a);
+    m=(int)floor((a-d)*60.0);
+    s=((a-d)*60.0-m)*60.0;
+    if(s>=59.95){ s=0.0; m++; }
+    if(m>=60){ m=0; d=(d+1)%360; }
+    snprintf(b,n,"%03d %02d %04.1f\"",d,m,s); return b;
+}
+
+const char *navsight_fmt_gha2(double x,char *b,size_t n){
+    double a=norm360(x); int d=(int)floor(a); double m=(a-d)*60.0;
+    if(m>=59.995){ m=0.0; d=(d+1)%360; }
+    snprintf(b,n,"%03d %05.2f'",d,m); return b;
+}
 const char *navsight_fmt_lon(double d,char *b,size_t n){ return fmt_lon(d,b,n); }
 const char *navsight_fmt_gha(double d,char *b,size_t n){ return fmt_gha(d,b,n); }
 

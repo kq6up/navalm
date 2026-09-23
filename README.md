@@ -69,6 +69,21 @@ For a clean rebuild, run `make clean` first. Use `make nogui` instead of the fin
 
 If compilation reports `ncurses.h: No such file or directory` or cannot link `-lncurses`, install the ncurses development files for your system or use the build without ncurses above.
 
+## Daily tables in the web interface
+
+Both tables open on the Almanac tab itself. The NAVAL button gives the
+whole-hour daily table; the AIR button gives Air Almanac style daily pages,
+A.M. and P.M., at ten-minute steps, with the planet columns the printed
+pages would carry. Under each table is a link to a printable standalone
+page, and that link is the only thing that opens a new tab:
+
+    GET /daily/naval?y=2026&mo=9&d=23
+    GET /daily/air?y=2026&mo=9&d=23
+
+Single-body lookups show degrees and hundredths of a minute; daily tables
+stay at tenths, as the printed almanacs do. Right ascension is shown as
+degrees, minutes and seconds (DDD MM SS.s).
+
 ## Choose an interface
 
 | Interface | Command | Use |

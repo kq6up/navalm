@@ -331,7 +331,7 @@ static size_t api_almanac(const char *qs,char *out,size_t cap){
         jstr(&j,"body","star"); jstr(&j,"name",a.name);
         jint(&j,"y",y); jint(&j,"mo",mo); jint(&j,"d",d);
         jint(&j,"h",h); jint(&j,"mi",mi); jnum(&j,"s",sec);
-        jnum(&j,"gha",a.gha_deg); jnum(&j,"sha",a.sha_deg);
+        jnum(&j,"gha",a.gha_deg); jnum(&j,"sha",a.sha_deg); jnum(&j,"ra",a.ra_deg);
         jnum(&j,"dec",a.dec_deg); jnum(&j,"mag",a.magnitude);
         jtrim(&j); jput(&j,"}"); return j.n;
     }
@@ -349,7 +349,7 @@ static size_t api_almanac(const char *qs,char *out,size_t cap){
         jstr(&j,"body",bname); jstr(&j,"name",nav_body_name(b));
         jint(&j,"y",y); jint(&j,"mo",mo); jint(&j,"d",d);
         jint(&j,"h",h); jint(&j,"mi",mi); jnum(&j,"s",sec);
-        jnum(&j,"gha",a.gha_deg); jnum(&j,"dec",a.dec_deg);
+        jnum(&j,"gha",a.gha_deg); jnum(&j,"dec",a.dec_deg); jnum(&j,"ra",a.ra_deg);
         jnum(&j,"hp_min",a.hp_deg*60.0); jnum(&j,"sd_min",a.sd_deg*60.0);
         jtrim(&j); jput(&j,"}"); return j.n;
     }
@@ -481,6 +481,8 @@ static void web_dec(double x,char *buf,size_t n,int dec_places){
     else snprintf(buf,n,"%c%02d %04.1f'",x<0?'S':'N',d,m);
 }
 
+#include "air_daily.inc"
+
 static size_t api_daily(const char *qs,char *out,size_t cap){
     Json j={out,0,cap};
     char sty[16];
@@ -489,6 +491,7 @@ static size_t api_daily(const char *qs,char *out,size_t cap){
     static const NavBody pb[]={NAV_VENUS,NAV_MARS,NAV_JUPITER,NAV_SATURN};
     if(!qs_get(qs,"style",sty,sizeof sty)) strcpy(sty,"naval");
     air=!strcmp(sty,"air"); step=air?10:60; total=24*60/step;
+    if(air) return api_daily_air(qs,out,cap);
 
     jput(&j,"<h2>%s table &mdash; %04d-%02d-%02d UTC</h2>",air?"AIR 10-minute":"NAVAL daily",y,mo,d);
     if(air) jput(&j,"<div class=\"hint\">10-minute tabulation for rapid interpolation. Sun/Aries are shown to 0.1&prime;; Moon and planets to 1&prime;.</div>");
@@ -589,6 +592,32 @@ static void handle_request(int fd,const char *req)
           rewind(f); n=fread(pagebuf,1,(size_t)sz,f); fclose(f);
           send_response(fd,"200 OK","text/html; charset=utf-8",pagebuf,n);
         }
+        return;
+    }
+    if(!strcmp(target,"/daily/air")){
+        static const char *head =
+            "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+            "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+            "<title>Air Almanac daily page</title><style>"
+            "body{margin:1rem;background:#fff;color:#111;font:13px/1.35 Georgia,'Times New Roman',serif}"
+            ".airpage{page-break-after:always;margin-bottom:2rem}"
+            ".airtitle{text-align:center;font-weight:700;letter-spacing:.04em;margin:.4rem 0 .5rem}"
+            "table.air{border-collapse:collapse;width:100%;font:12px/1.25 ui-monospace,Menlo,Consolas,monospace}"
+            "table.air th{font:11px system-ui;font-weight:600;letter-spacing:.05em;padding:.2rem .35rem;"
+            "border-bottom:1px solid #111;text-align:center}"
+            "table.air td{padding:.1rem .35rem;text-align:right;white-space:nowrap}"
+            "table.air td.ut{text-align:left;color:#444}"
+            "table.air tr.hr td{border-top:1px solid #bbb}"
+            "table.air tr.half td{background:#f4f2ec}"
+            ".mag{font-size:10px;margin-left:.25em;color:#444}"
+            ".airnote{margin:.4rem 0;font:11px system-ui;letter-spacing:.06em;text-align:center}"
+            ".airfoot{margin:.3rem 0 0;font:11px system-ui;color:#555}"
+            "</style></head><body>";
+        size_t hl = strlen(head), bl;
+        memcpy(pagebuf,head,hl);
+        bl = api_daily_air(qs,pagebuf+hl,sizeof pagebuf - hl - 32);
+        memcpy(pagebuf+hl+bl,"</body></html>",14);
+        send_response(fd,"200 OK","text/html; charset=utf-8",pagebuf,hl+bl+14);
         return;
     }
     if(!strcmp(target,"/api/daily")){
