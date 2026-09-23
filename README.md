@@ -6,6 +6,8 @@ NAVALM brings almanac calculations, worked sextant-sight reductions, and positio
 
 Current version: **2.8g**.
 
+**Navigation safety:** Use at your own risk and independently verify results. Read the [warranty and liability notice](#navigation-safety-warranty-and-liability) before use.
+
 ## Features
 
 - **Almanac:** Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn, Aries, and navigation stars.
@@ -137,6 +139,16 @@ The numbered examples require those sights to have been saved first. Running fix
 The browser's settings and sight list are independent of the command-line files. Export sights before clearing browser data or moving to another browser.
 
 The web server listens on `127.0.0.1` by default. Use `./navalm -d 9000` for another port. It has no authentication or TLS; if using `--listen 0.0.0.0` for LAN access, keep it on a trusted network, or use an SSH tunnel for remote access.
+
+## Navigation safety, warranty, and liability
+
+**Use NAVALM at your own risk.** It is a calculation aid and must not be your sole basis for navigation or any decision affecting the safety of people or property. Independently verify its inputs and results against current authoritative navigation information and other reliable methods. You are responsible for assessing its suitability and for your navigation decisions.
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THIS SOFTWARE AND ITS DOCUMENTATION ARE PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, RELIABILITY, AND NON-INFRINGEMENT.
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE AUTHORS, CONTRIBUTORS, AND DISTRIBUTORS SHALL NOT BE LIABLE FOR ANY CLAIM, LOSS, OR DAMAGE ARISING OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS USE OR INABILITY TO BE USED, WHETHER IN CONTRACT, TORT, OR OTHERWISE, INCLUDING NAVIGATION ERRORS, PERSONAL INJURY, PROPERTY DAMAGE, LOSS OF DATA, OR DIRECT, INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL DAMAGES.
+
+These disclaimers do not exclude or limit any liability or rights that cannot lawfully be excluded or limited. This notice addresses safety, warranty, and liability only; it does not grant copyright permissions or change any applicable license terms.
 
 ## Further documentation
 
