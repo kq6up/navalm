@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>navalm</title>
+<style>
+:root{
+  --bg:#fbfaf7; --panel:#fff; --ink:#1b1b1a; --dim:#6b6a66; --line:#ddd9d0;
+  --accent:#2f5d50; --warn:#8a4b2a; --mark:#eef3f0;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --serif:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{ --bg:#16181a; --panel:#1e2124; --ink:#e8e6e1; --dim:#9a9791; --line:#333;
+         --accent:#7fb3a0; --warn:#d09a6a; --mark:#232a27; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+     font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:baseline;gap:.6rem;padding:.6rem 1rem .2rem}
+.brand h1{font:600 17px/1 var(--serif);margin:0;letter-spacing:.02em}
+.brand span{color:var(--dim);font-size:12px;font-family:var(--mono)}
+nav{display:flex;gap:0;overflow-x:auto}
+nav button{flex:1;min-width:88px;background:none;border:none;border-bottom:2px solid transparent;
+  color:var(--dim);font:inherit;padding:.55rem .4rem;cursor:pointer}
+nav button.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+main{max-width:52rem;margin:0 auto;padding:1rem}
+section{display:none} section.on{display:block}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  padding:.9rem 1rem;margin-bottom:1rem}
+.card h2{font:600 13px/1 system-ui;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--dim);margin:0 0 .8rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7rem}
+label{display:block;font-size:12px;color:var(--dim);margin-bottom:.2rem}
+input,select{width:100%;padding:.45rem .5rem;background:var(--bg);color:var(--ink);
+  border:1px solid var(--line);border-radius:6px;font:14px var(--mono)}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.row{display:flex;gap:.5rem}.row>*{flex:1}
+button.act{background:var(--accent);color:#fff;border:none;border-radius:6px;
+  padding:.5rem .9rem;font:600 14px system-ui;cursor:pointer}
+button.ghost{background:none;border:1px solid var(--line);color:var(--ink);
+  border-radius:6px;padding:.45rem .8rem;font:14px system-ui;cursor:pointer}
+.tools{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.8rem}
+.hint{color:var(--dim);font-size:12px;margin-top:.35rem}
+.err{color:var(--warn)}
+
+/* ---- worksheet: label | typeset formula | value ---- */
+.work{width:100%;border-collapse:collapse;font-size:14px}
+.work tr{border-bottom:1px solid var(--line)}
+.work tr:last-child{border-bottom:none}
+.work tr.total td{border-top:2px solid var(--ink);font-weight:700}
+.work td{padding:.45rem .3rem;vertical-align:middle}
+.work td.k{width:7.5rem;color:var(--dim)}
+.work td.v{width:8.5rem;text-align:right;font-family:var(--mono);white-space:nowrap}
+.work td.f{font-family:var(--serif);font-size:14.5px;color:var(--ink)}
+.work .sub{display:block;color:var(--dim);font-size:12.5px;margin-top:.15rem}
+.math{font-family:var(--serif)}
+.math i{font-style:italic}
+.op{padding:0 .18em}
+.frac{display:inline-flex;flex-direction:column;vertical-align:-0.55em;
+  text-align:center;margin:0 .18em}
+.frac>span:first-child{padding:0 .3em;border-bottom:1px solid currentColor}
+.frac>span:last-child{padding:0 .3em}
+.rad{border-top:1px solid currentColor;padding:0 .15em}
+.lops{width:100%;border-collapse:collapse;font-size:13.5px}
+.lops th{text-align:left;font:600 11px system-ui;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--dim);padding:.3rem}
+.lops td{padding:.4rem .3rem;border-top:1px solid var(--line);font-family:var(--mono)}
+.lops tr.sel td{background:var(--mark)}
+.lops input[type=checkbox]{width:auto}
+.fixline{font-family:var(--mono);font-size:15px}
+.big{font-size:20px;font-family:var(--mono)}
+.matches{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem}
+.matches button{background:var(--mark);border:1px solid var(--line);border-radius:999px;
+  padding:.25rem .7rem;font:13px system-ui;color:var(--ink);cursor:pointer}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><h1>navalm</h1><span id="ver"></span></div>
+  <nav>
+    <button data-tab="sight" class="on">Sight</button>
+    <button data-tab="almanac">Almanac</button>
+    <button data-tab="list">Sights</button>
+    <button data-tab="fix">Fix</button>
+    <button data-tab="setup">Setup</button>
+  </nav>
+</header>
+
+<main>
+
+<section id="sight" class="on">
+  <div class="card">
+    <h2>Observation</h2>
+    <div class="grid">
+      <div>
+        <label>Body</label>
+        <select id="body">
+          <option>sun</option><option>moon</option><option>mercury</option>
+          <option>venus</option><option>mars</option><option>jupiter</option>
+          <option>saturn</option><option value="star">star</option>
+        </select>
+      </div>
+      <div id="starwrap" style="display:none">
+        <label>Star (first letters are enough)</label>
+        <input id="star" placeholder="pol" autocomplete="off">
+        <div class="matches" id="starmatches"></div>
+      </div>
+      <div><label>Date UTC</label><input id="date" placeholder="2026-09-19"></div>
+      <div><label>Time UTC</label><input id="time" placeholder="21:38:05"></div>
+      <div><label>Hs degrees</label><input id="hsd" inputmode="decimal" placeholder="94"></div>
+      <div><label>Hs minutes</label><input id="hsm" inputmode="decimal" placeholder="37.2"></div>
+      <div id="limbwrap">
+        <label>Limb</label>
+        <select id="limb"><option value="ll">lower</option>
+          <option value="center">center</option><option value="ul">upper</option></select>
+      </div>
+      <div><label>Label</label><input id="label" placeholder="LAN"></div>
+    </div>
+    <div class="tools">
+      <button class="ghost" id="now">Now</button>
+      <button class="ghost" id="loaddef">Use setup defaults</button>
+      <button class="act" id="save">Save to sights</button>
+    </div>
+    <div class="hint" id="savemsg"></div>
+    <div class="hint" id="activedr" style="margin-top:.65rem"></div>
+  </div>
+
+  <div class="card" id="worked"></div>
+</section>
+
+
+<section id="almanac">
+  <div class="card">
+    <h2>Almanac</h2>
+    <div class="grid">
+      <div>
+        <label>Body</label>
+        <select id="a_body">
+          <option>sun</option><option>moon</option><option>mercury</option>
+          <option>venus</option><option>mars</option><option>jupiter</option>
+          <option>saturn</option><option>aries</option><option value="star">star</option>
+        </select>
+      </div>
+      <div id="a_starwrap" style="display:none">
+        <label>Star</label><input id="a_star" placeholder="vega" autocomplete="off">
+      </div>
+      <div><label>Date UTC</label><input id="a_date" placeholder="2026-09-22"></div>
+      <div><label>Time UTC</label><input id="a_time" placeholder="20:00:00"></div>
+    </div>
+    <div class="tools">
+      <button class="ghost" id="a_now">Now</button>
+      <button class="ghost" id="a_naval">NAVAL daily table</button>
+      <button class="ghost" id="a_air">AIR 10-minute table</button>
+    </div>
+    <div class="hint">NAVAL uses whole-hour rows; AIR uses 10-minute rows.</div>
+  </div>
+  <div class="card" id="almanacout">
+    <h2>Almanac result</h2><div class="hint">Choose a body, date and UTC time.</div>
+  </div>
+</section>
+
+<section id="list">
+  <div class="card">
+    <h2>Stored sights</h2>
+    <table class="lops"><thead><tr>
+      <th></th><th>body</th><th>time UTC</th><th>Ho</th><th>a</th><th>Zn</th><th>label</th><th></th>
+    </tr></thead><tbody id="listbody"></tbody></table>
+    <div class="tools">
+      <button class="act" id="dofix">Fix from selected</button>
+      <button class="ghost" id="selall">Select all</button>
+      <button class="ghost" id="export">Export JSON</button>
+      <button class="ghost" id="importbtn">Import JSON</button>
+      <button class="ghost" id="clear">Clear all</button>
+    </div>
+    <div class="hint">Sights live in this browser only. The server keeps nothing,
+      and never touches ~/.naval.save.</div>
+    <textarea id="io" style="display:none;width:100%;height:9rem;margin-top:.6rem;
+      font:12px var(--mono);background:var(--bg);color:var(--ink);
+      border:1px solid var(--line);border-radius:6px"></textarea>
+  </div>
+</section>
+
+<section id="fix">
+  <div class="card"><h2>Fix</h2><div id="fixout">
+    <div class="hint">Select two or more sights on the Sights tab, then press
+      &ldquo;Fix from selected&rdquo;.</div></div></div>
+  <div class="card" id="motioncard"><h2>Advancing</h2>
+    <div class="hint">Each sight is advanced from its own time to the fix time using its
+      own course, speed, set and drift, so an earlier sight moves further. Set these
+      per sight below.</div>
+    <div id="motionrows"></div>
+  </div>
+</section>
+
+<section id="setup">
+  <div class="card">
+    <h2>Defaults for new sights</h2>
+    <div class="grid">
+      <div><label>Index error, arcminutes</label><input id="s_ie" inputmode="decimal"></div>
+      <div><label>IE is</label><select id="s_iearc">
+        <option value="off">off arc (+)</option><option value="on">on arc (&minus;)</option></select></div>
+      <div><label>Horizon</label><select id="s_horizon">
+        <option value="sea">sea</option><option value="ah">artificial</option></select></div>
+      <div><label>Height of eye</label><input id="s_he" inputmode="decimal"></div>
+      <div><label>HE units</label><select id="s_heunit">
+        <option value="ft">feet</option><option value="m">metres</option></select></div>
+      <div><label>Temperature &deg;C</label><input id="s_temp" inputmode="decimal"></div>
+      <div><label>Pressure mb</label><input id="s_press" inputmode="decimal"></div>
+      <div><label>DR latitude</label><input id="s_drlat" placeholder="34 2.5 N"></div>
+      <div><label>DR longitude</label><input id="s_drlon" placeholder="117 21.9 W"></div>
+    </div>
+    <div class="tools"><button class="act" id="s_save">Save defaults</button></div>
+    <div class="hint" id="setupmsg">Kept in this browser, separate from ~/.navalmrc.</div>
+  </div>
+</section>
+
+</main>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const LS_SIGHTS = 'navalm.sights', LS_SETUP = 'navalm.setup';
+
+/* ---------- formatting ---------- */
+const pad = (n,w)=>String(n).padStart(w,'0');
+function dm(x,degw){
+  const s = x<0?'\u2212':''; x=Math.abs(x);
+  let d=Math.floor(x), m=(x-d)*60;
+  if(m>=59.95){m=0;d++;}
+  return s+pad(d,degw)+'\u00b0 '+(m<10?'0':'')+m.toFixed(1)+'\u2032';
+}
+const alt = x=>dm(x,2);
+const gha = x=>dm(((x%360)+360)%360,3);
+const lat = x=>(x<0?'S ':'N ')+dm(Math.abs(x),2);
+const lon = x=>(x<0?'W ':'E ')+dm(Math.abs(x),3);
+function mins(x){
+  const r=Math.round(x*10)/10;
+  if(r===0) return '0.0\u2032';
+  return (r<0?'\u2212':'+')+Math.abs(r).toFixed(1)+'\u2032';
+}
+const num=(x,n)=>Number(x).toFixed(n===undefined?1:n);
+
+/* ---------- math typesetting (no external libraries) ---------- */
+const frac=(a,b)=>`<span class="frac"><span>${a}</span><span>${b}</span></span>`;
+const sqrt=a=>`\u221a<span class="rad">${a}</span>`;
+const v=s=>`<i>${s}</i>`;
+
+/* ---------- position parsing, same spirit as the TUI ---------- */
+function parsePos(text,isLon){
+  if(!text) return 0;
+  const nums=[]; let hemi=0;
+  const re=/([NSEWnsew])|(-?\d+(?:\.\d+)?)/g; let m;
+  while((m=re.exec(text))){
+    if(m[1]){ const c=m[1].toUpperCase();
+      if(c==='S'||c==='W') hemi=-1; else if(c==='N'||c==='E') hemi=1; }
+    else nums.push(parseFloat(m[2]));
+  }
+  if(!nums.length) return 0;
+  let val;
+  if(nums.length===1) val=nums[0];
+  else if(nums.length===2) val=Math.sign(nums[0]||1)*(Math.abs(nums[0])+nums[1]/60);
+  else val=Math.sign(nums[0]||1)*(Math.abs(nums[0])+nums[1]/60+nums[2]/3600);
+  if(hemi) val=hemi*Math.abs(val);
+  return val;
+}
+
+/* ---------- state ---------- */
+function loadSights(){ try{ return JSON.parse(localStorage.getItem(LS_SIGHTS))||[] }catch(e){ return [] } }
+function saveSights(a){ localStorage.setItem(LS_SIGHTS,JSON.stringify(a)); }
+function loadSetup(){
+  try{ return Object.assign(defSetup(),JSON.parse(localStorage.getItem(LS_SETUP))||{}) }
+  catch(e){ return defSetup() }
+}
+function defSetup(){
+  return {ie:0,iearc:'off',horizon:'sea',he:0,heunit:'ft',limb:'ll',
+          temp:10,press:1010,drlat:34.0415,drlon:-117.3645};
+}
+
+/* ---------- the sight form ---------- */
+function renderActiveDR(){
+  const st=loadSetup(), box=$('activedr');
+  box.innerHTML='<b>Active DR for this sight:</b> '+lat(st.drlat)+' &nbsp; '+lon(st.drlon)+
+    ' &nbsp; <span class="sub">(from Setup; these are live values, not examples)</span>';
+}
+function formSight(){
+  const st=loadSetup();
+  const dparts=($('date').value||'').split(/[-/ ]/).map(Number);
+  const tparts=($('time').value||'').split(/[: ]/).map(Number);
+  return {
+    body:$('body').value, star:$('star').value.trim(),
+    y:dparts[0]||2026, mo:dparts[1]||1, d:dparts[2]||1,
+    h:tparts[0]||0, mi:tparts[1]||0, s:tparts[2]||0,
+    hs:(parseFloat($('hsd').value)||0)+(parseFloat($('hsm').value)||0)/60,
+    ie:st.ie, iearc:st.iearc, horizon:st.horizon, he:st.he, heunit:st.heunit,
+    limb:$('limb').value, temp:st.temp, press:st.press,
+    drlat:st.drlat, drlon:st.drlon, label:$('label').value.trim(),
+    course:0,speed:0,set:0,drift:0
+  };
+}
+function query(s,i){
+  const k=n=>(i===undefined?n:n+i);
+  const p=new URLSearchParams();
+  const add=(n,v)=>p.set(k(n),v);
+  add('body',s.body); add('star',s.star||'');
+  add('y',s.y); add('mo',s.mo); add('d',s.d); add('h',s.h); add('mi',s.mi); add('s',s.s);
+  add('hs',s.hs); add('ie',s.ie); add('iearc',s.iearc); add('horizon',s.horizon);
+  add('he',s.he); add('heunit',s.heunit); add('limb',s.limb);
+  add('temp',s.temp); add('press',s.press); add('drlat',s.drlat); add('drlon',s.drlon);
+  add('label',s.label||'');
+  add('course',s.course||0); add('speed',s.speed||0);
+  add('set',s.set||0); add('drift',s.drift||0);
+  return p.toString();
+}
+
+/* ---------- worked sight ---------- */
+function row(k,formula,value,cls){
+  return `<tr class="${cls||''}"><td class="k">${k}</td>
+    <td class="f">${formula||''}</td><td class="v">${value||''}</td></tr>`;
+}
+function renderWorked(r){
+  if(r.error) return `<h2>Worked sight</h2><p class="err">${r.error}</p>`;
+  const AH=r.artificial, moon=(r.body==='moon');
+  let h='<h2>Hs to Ho</h2><table class="work">';
+  h+=row('Hs','sextant altitude',alt(r.hs));
+  h+=row('IC',`${v('Hs')} ${r.ie_min?(r.ie_on_arc?'\u2212':'+'):'\u00b1'} ${num(Math.abs(r.ie_min),1)}\u2032 &nbsp;<span class="sub">index error ${r.ie_on_arc?'on':'off'} the arc</span>`,mins(r.ic_min));
+  if(AH){
+    h+=row('Ha',`${frac(v('Hs')+' + IC','2')}<span class="sub">artificial horizon: the reading is a double altitude, and there is no dip</span>`,alt(r.ha));
+  }else{
+    h+=row('Dip',`${num(r.he_metres?1.76:0.97,2)}\u2032 ${sqrt(num(r.he,1)+(r.he_metres?' m':' ft'))}`,mins(-r.dip_min));
+    h+=row('Ha',`${v('Hs')} + IC \u2212 dip`,alt(r.ha));
+  }
+  h+=row('R<sub>0</sub>',
+    `${frac('0.0167\u00b0','tan('+v('Ha')+' + '+frac('7.32',v('Ha')+' + 4.32')+')')}
+     <span class="sub">= 0.0167\u00b0 / tan(${num(r.ha,2)}\u00b0 + 7.32/(${num(r.ha,2)} + 4.32)) = ${num(r.r0_min,2)}\u2032</span>`,
+    mins(-r.r0_min));
+  h+=row('f',
+    `${frac('0.28 '+v('P'),v('T')+' + 273')}
+     <span class="sub">= 0.28 \u00d7 ${num(r.press_mb,1)} mb / ${num(r.temp_c+273,1)} K</span>`,
+    num(r.f,4));
+  h+=row('R',`${v('f')} \u00d7 R<sub>0</sub>`,mins(-r.r_min));
+  if(r.used_sd){
+    const lab=(r.limb>0?'lower':'upper')+' limb';
+    h+=row('SD',
+      moon ? `SD<span class="op">\u00b7</span>(1 + sin HP<span class="op">\u00b7</span>sin ${v('H')})
+              <span class="sub">${lab}: ${num(r.sd_raw_min,2)}\u2032 augmented to ${num(Math.abs(r.sd_min),2)}\u2032</span>`
+           : `almanac semidiameter<span class="sub">${lab}: ${num(r.sd_raw_min,2)}\u2032</span>`,
+      mins(r.sd_min));
+  }
+  if(r.used_par)
+    h+=row('P<sub>a</sub>',
+      `arcsin(sin HP<span class="op">\u00b7</span>cos ${v('H')})
+       <span class="sub">HP = ${num(r.hp_min,2)}\u2032</span>`,
+      mins(r.par_min));
+  h+=row('Ho','observed altitude',alt(r.ho),'total');
+  h+='</table>';
+
+  if(!r.has_dr){
+    h+='<p class="hint">Set a DR on the Setup tab to reduce this sight to a line of position.</p>';
+    return h;
+  }
+
+  /* almanac */
+  h+='<h2 style="margin-top:1.2rem">Almanac</h2><table class="work">';
+  if(r.is_star){
+    h+=row('GHA \u2648 '+pad(r.hour_h,2)+'h','hourly page',gha(r.gha_aries_hour));
+    h+=row('Increment',`${num(r.frac_hour*60,2)} min \u00d7 15\u00b0 02.46\u2032/h`,gha(r.inc_deg));
+    h+=row('GHA \u2648','',gha(r.gha_aries));
+    h+=row('SHA',r.star,gha(r.sha_deg));
+    h+=row('GHA','GHA \u2648 + SHA',gha(r.gha));
+    h+=row('Dec','',lat(r.dec));
+  }else{
+    const rate=moon?'14\u00b0 19.0\u2032/h':'15\u00b0 00.0\u2032/h';
+    h+=row('GHA '+pad(r.hour_h,2)+'h','hourly page',gha(r.gha_hour));
+    h+=row('Increment',`${num(r.frac_hour*60,2)} min \u00d7 ${rate}`,gha(r.inc_deg));
+    if(r.has_v) h+=row('v corr',`${v('v')} \u00d7 ${num(r.frac_hour,4)} h &nbsp;<span class="sub">v = ${mins(r.v_min)} per hour</span>`,mins(r.vcorr_min));
+    h+=row('GHA','',gha(r.gha));
+    h+=row('Dec '+pad(r.hour_h,2)+'h','hourly page',lat(r.dec_hour));
+    h+=row('d corr',`${v('d')} \u00d7 ${num(r.frac_hour,4)} h &nbsp;<span class="sub">d = ${mins(r.d_min)} per hour, + when |Dec| grows</span>`,mins(r.dcorr_min));
+    h+=row('Dec','',lat(r.dec));
+    let dg=(r.gha_exact-r.gha)*60; while(dg>10800)dg-=21600; while(dg<-10800)dg+=21600;
+    h+=row('check',`engine at the exact second<span class="sub">Dec ${mins((r.dec_exact-r.dec)*60)}</span>`,mins(dg));
+  }
+  h+='</table>';
+
+  /* assumed position and HO 229 */
+  h+='<h2 style="margin-top:1.2rem">Assumed position</h2><table class="work">';
+  h+=row('a-Lat','DR latitude to the whole degree',lat(r.ap_lat));
+  h+=row('a-Lon','minutes chosen for a whole-degree LHA',lon(r.ap_lon));
+  h+=row('LHA','GHA + a-Lon',pad(r.lha,3)+'\u00b0');
+  h+='</table>';
+
+  h+=`<h2 style="margin-top:1.2rem">HO 229 &nbsp;<span style="font-weight:400;text-transform:none;letter-spacing:0">LHA ${pad(r.lha,3)}\u00b0, Lat ${Math.abs(Math.round(r.ap_lat))}\u00b0 ${r.ap_lat<0?'S':'N'}, Dec ${r.dec_deg_whole}\u00b0 ${r.same_name?'same':'contrary'} name</span></h2><table class="work">`;
+  h+=row('Tab Hc','tabulated for the whole degree of Dec',alt(r.tab_hc_min/60));
+  h+=row('d','change in Hc per degree of Dec',mins(r.d_tab_min));
+  h+=row('Dec inc','',num(r.dec_inc_min,1)+'\u2032');
+  h+=row('d corr',`${frac(v('d')+' \u00d7 Dec inc','60')}`,mins(r.dcorr229_min));
+  if(Math.abs(r.secdiff_min)>=0.05) h+=row('2nd diff','second-difference residual',mins(r.secdiff_min));
+  h+=row('Hc','',alt(r.hc_min/60));
+  h+=row('Z',`arccos ${frac('sin Dec \u2212 sin Lat<span class="op">\u00b7</span>sin '+v('Hc'),'cos Lat<span class="op">\u00b7</span>cos '+v('Hc'))}`,
+        (r.ap_lat<0?'S':'N')+' '+num(r.z,1)+'\u00b0 '+(r.lha>180?'E':'W'));
+  h+=row('Zn','from Z by the LHA rule',pad(Math.round(r.zn),3)+'\u00b0');
+  h+='</table>';
+
+  h+='<h2 style="margin-top:1.2rem">Line of position</h2><table class="work">';
+  h+=row('Ho','',alt(r.ho));
+  h+=row('Hc','',alt(r.hc_min/60));
+  h+=row('Intercept',`${v('a')} = Ho \u2212 Hc &nbsp;<span class="sub">${r.intercept_nm>=0?'Ho greater: toward':'Ho less: away'}</span>`,
+        num(Math.abs(r.intercept_nm),1)+' NM '+(r.intercept_nm>=0?'T':'A'),'total');
+  h+='</table>';
+  return h;
+}
+
+let reduceTimer=null;
+function refresh(){
+  clearTimeout(reduceTimer);
+  reduceTimer=setTimeout(async ()=>{
+    const s=formSight();
+    if(!(s.hs>0)){ $('worked').innerHTML='<h2>Worked sight</h2><p class="hint">Enter Hs to see the worked sight.</p>'; return; }
+    try{
+      const r=await (await fetch('/api/reduce?'+query(s))).json();
+      $('worked').innerHTML=renderWorked(r);
+    }catch(e){ $('worked').innerHTML='<h2>Worked sight</h2><p class="err">server not reachable</p>'; }
+  },120);
+}
+
+/* ---------- star matching ---------- */
+async function starMatch(){
+  const q=$('star').value.trim();
+  const box=$('starmatches');
+  box.innerHTML='';
+  if(!q) return;
+  const r=await (await fetch('/api/stars?q='+encodeURIComponent(q))).json();
+  if(r.count===1 && r.matches[0].toLowerCase()===q.toLowerCase()) return;
+  if(r.count>9){ box.innerHTML='<span class="hint">'+r.count+' stars match; type another letter</span>'; return; }
+  r.matches.forEach(n=>{
+    const b=document.createElement('button');
+    b.textContent=n;
+    b.onclick=()=>{ $('star').value=n; box.innerHTML=''; refresh(); };
+    box.appendChild(b);
+  });
+}
+
+
+/* ---------- almanac ---------- */
+function almanacQuery(){
+  const dp=($('a_date').value||'').split(/[-/ ]/).map(Number);
+  const tp=($('a_time').value||'').split(/[: ]/).map(Number);
+  const p=new URLSearchParams();
+  p.set('body',$('a_body').value);
+  p.set('star',$('a_star').value.trim());
+  p.set('y',dp[0]||2026); p.set('mo',dp[1]||1); p.set('d',dp[2]||1);
+  p.set('h',tp[0]||0); p.set('mi',tp[1]||0); p.set('s',tp[2]||0);
+  return p.toString();
+}
+async function refreshAlmanac(){
+  const box=$('almanacout');
+  try{
+    const r=await (await fetch('/api/almanac?'+almanacQuery())).json();
+    if(r.error){ box.innerHTML='<h2>Almanac result</h2><p class="err">'+r.error+'</p>'; return; }
+    let h='<h2>Almanac result</h2><table class="work">';
+    h+=row('Body','',r.name||'');
+    h+=row('UTC','',`${r.y}-${pad(r.mo,2)}-${pad(r.d,2)} ${pad(r.h,2)}:${pad(r.mi,2)}:${pad(Math.round(r.s),2)}`);
+    if(r.is_star){
+      h+=row('GHA','Greenwich hour angle',gha(r.gha));
+      h+=row('SHA','sidereal hour angle',gha(r.sha));
+      h+=row('Dec','apparent declination',lat(r.dec));
+      h+=row('Mag','visual magnitude',num(r.mag,2));
+    }else{
+      h+=row('GHA','Greenwich hour angle',gha(r.gha));
+      if(r.body!=='aries') h+=row('Dec','apparent declination',lat(r.dec));
+      if(r.hp_min>0.0005) h+=row('HP','horizontal parallax',num(r.hp_min,2)+'\u2032');
+      if(r.sd_min>0.0005) h+=row('SD','semidiameter',num(r.sd_min,2)+'\u2032');
+    }
+    h+='</table>';
+    box.innerHTML=h;
+  }catch(e){
+    box.innerHTML='<h2>Almanac result</h2><p class="err">Could not reach the almanac endpoint.</p>';
+  }
+}
+function setAlmanacNow(){
+  const d=new Date();
+  $('a_date').value=d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1,2)+'-'+pad(d.getUTCDate(),2);
+  $('a_time').value=pad(d.getUTCHours(),2)+':'+pad(d.getUTCMinutes(),2)+':'+pad(d.getUTCSeconds(),2);
+}
+
+async function dailyAlmanac(style){
+  const dp=($('a_date').value||'').split(/[-/ ]/).map(Number);
+  const p=new URLSearchParams();
+  p.set('style',style); p.set('y',dp[0]||2026); p.set('mo',dp[1]||1); p.set('d',dp[2]||1);
+  const box=$('almanacout');
+  box.innerHTML='<h2>Almanac table</h2><div class="hint">Building table&hellip;</div>';
+  try{
+    const r=await fetch('/api/daily?'+p.toString());
+    box.innerHTML=await r.text();
+  }catch(e){ box.innerHTML='<h2>Almanac table</h2><p class="err">Could not reach the daily-table endpoint.</p>'; }
+}
+
+/* ---------- stored sights ---------- */
+async function renderList(){
+  const arr=loadSights(), tb=$('listbody');
+  tb.innerHTML='';
+  if(!arr.length){ tb.innerHTML='<tr><td colspan="8" class="hint">No sights yet.</td></tr>'; return; }
+  for(let i=0;i<arr.length;i++){
+    const s=arr[i];
+    let r={};
+    try{ r=await (await fetch('/api/reduce?'+query(s))).json(); }catch(e){}
+    const tr=document.createElement('tr');
+    if(s.sel) tr.className='sel';
+    tr.innerHTML=`<td><input type="checkbox" ${s.sel?'checked':''}></td>
+      <td>${s.body==='star'?s.star:s.body}</td>
+      <td>${s.y}-${pad(s.mo,2)}-${pad(s.d,2)} ${pad(s.h,2)}:${pad(s.mi,2)}:${pad(Math.round(s.s),2)}</td>
+      <td>${r.ok?alt(r.ho):'\u2014'}</td>
+      <td>${r.ok&&r.has_dr?num(Math.abs(r.intercept_nm),1)+' '+(r.intercept_nm>=0?'T':'A'):'\u2014'}</td>
+      <td>${r.ok&&r.has_dr?pad(Math.round(r.zn),3):'\u2014'}</td>
+      <td>${s.label||''}</td>
+      <td><button class="ghost" style="padding:.15rem .5rem">delete</button></td>`;
+    tr.querySelector('input').onchange=e=>{ arr[i].sel=e.target.checked; saveSights(arr); renderList(); renderMotion(); };
+    tr.querySelector('button').onclick=()=>{ arr.splice(i,1); saveSights(arr); renderList(); renderMotion(); };
+    tb.appendChild(tr);
+  }
+}
+
+function renderMotion(){
+  const arr=loadSights().map((s,i)=>({s,i})).filter(o=>o.s.sel);
+  const box=$('motionrows');
+  if(!arr.length){ box.innerHTML='<div class="hint">No sights selected.</div>'; return; }
+  box.innerHTML='';
+  arr.forEach(({s,i})=>{
+    const d=document.createElement('div');
+    d.style.marginTop='.7rem';
+    d.innerHTML=`<label>${s.body==='star'?s.star:s.body} ${pad(s.h,2)}:${pad(s.mi,2)} ${s.label||''}</label>
+      <div class="row">
+        <input placeholder="course" value="${s.course||''}">
+        <input placeholder="speed kt" value="${s.speed||''}">
+        <input placeholder="set" value="${s.set||''}">
+        <input placeholder="drift kt" value="${s.drift||''}">
+      </div>`;
+    const ins=d.querySelectorAll('input');
+    ins.forEach((inp,k)=>{
+      inp.onchange=()=>{
+        const a=loadSights();
+        const val=parseFloat(inp.value)||0;
+        if(k===0)a[i].course=val; else if(k===1)a[i].speed=val;
+        else if(k===2)a[i].set=val; else a[i].drift=val;
+        saveSights(a);
+      };
+    });
+    box.appendChild(d);
+  });
+}
+
+async function doFix(){
+  const sel=loadSights().filter(s=>s.sel);
+  show('fix');
+  if(sel.length<2){ $('fixout').innerHTML='<p class="hint">Select at least two sights.</p>'; return; }
+  const p=new URLSearchParams(); p.set('n',sel.length);
+  let qs='n='+sel.length;
+  sel.forEach((s,i)=>{ qs+='&'+query(s,i); });
+  const r=await (await fetch('/api/fix?'+qs)).json();
+  if(r.error){ $('fixout').innerHTML='<p class="err">'+r.error+'</p>'; return; }
+  let h=`<p class="hint">Fix at ${r.fy}-${pad(r.fmo,2)}-${pad(r.fd,2)}
+     ${pad(r.fh,2)}:${pad(r.fmi,2)}:${pad(Math.round(r.fs),2)} UTC from ${r.lops.length} lines</p>`;
+  h+='<table class="lops"><thead><tr><th>body</th><th>Zn</th><th>a</th><th>advanced</th><th>residual</th></tr></thead><tbody>';
+  r.lops.forEach(l=>{
+    h+=`<tr><td>${l.name}</td><td>${pad(Math.round(l.zn),3)}\u00b0</td>
+      <td>${num(Math.abs(l.intercept_nm),1)} ${l.intercept_nm>=0?'T':'A'}</td>
+      <td>${l.advanced_nm>0.05?num(l.advanced_nm,1)+' NM '+pad(Math.round(l.advanced_brg),3)+'\u00b0':'\u2014'}</td>
+      <td>${mins(l.residual_nm*60)==='0.0\u2032'?num(l.residual_nm,2):num(l.residual_nm,2)} NM</td></tr>`;
+  });
+  h+='</tbody></table>';
+  h+=`<p class="big" style="margin-top:1rem">${lat(r.lat)} &nbsp; ${lon(r.lon)}</p>`;
+  h+=`<p class="fixline">RMS ${num(r.rms_nm,2)} NM`;
+  h+= r.have_ellipse
+      ? ` &nbsp;|&nbsp; 1\u03c3 ellipse ${num(r.semi_major_nm,2)} \u00d7 ${num(r.semi_minor_nm,2)} NM, major axis ${pad(Math.round(r.ellipse_brg),3)}\u00b0</p>`
+      : ` &nbsp;|&nbsp; two lines: an intersection, with nothing spare to estimate error</p>`;
+  h+='<div class="tools"><button class="act" id="usedr">Use as DR</button></div>';
+  $('fixout').innerHTML=h;
+  $('usedr').onclick=()=>{
+    const st=loadSetup(); st.drlat=r.lat; st.drlon=r.lon;
+    localStorage.setItem(LS_SETUP,JSON.stringify(st));
+    fillSetup(); renderActiveDR(); refresh(); renderList();
+    $('usedr').textContent='DR updated';
+  };
+}
+
+/* ---------- setup ---------- */
+function fillSetup(){
+  const s=loadSetup();
+  $('s_ie').value=s.ie; $('s_iearc').value=s.iearc; $('s_horizon').value=s.horizon;
+  $('s_he').value=s.he; $('s_heunit').value=s.heunit;
+  $('s_temp').value=s.temp; $('s_press').value=s.press;
+  $('s_drlat').value=s.drlat?lat(s.drlat):''; $('s_drlon').value=s.drlon?lon(s.drlon):'';
+}
+function saveSetup(){
+  const s={ie:parseFloat($('s_ie').value)||0,iearc:$('s_iearc').value,
+    horizon:$('s_horizon').value,he:parseFloat($('s_he').value)||0,
+    heunit:$('s_heunit').value,limb:'ll',
+    temp:parseFloat($('s_temp').value)||10,press:parseFloat($('s_press').value)||1010,
+    drlat:parsePos($('s_drlat').value),drlon:parsePos($('s_drlon').value)};
+  localStorage.setItem(LS_SETUP,JSON.stringify(s));
+  fillSetup(); renderActiveDR();
+  $('setupmsg').textContent='Saved in this browser.';
+  refresh();
+}
+
+/* ---------- tabs and wiring ---------- */
+function show(id){
+  document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id===id));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===id));
+  if(id==='list'){ renderList(); }
+  if(id==='fix'){ renderMotion(); }
+}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.tab));
+
+['a_body','a_star','a_date','a_time'].forEach(id=>{
+  $(id).addEventListener('input',refreshAlmanac);
+  $(id).addEventListener('change',refreshAlmanac);
+});
+$('a_body').addEventListener('change',()=>{
+  $('a_starwrap').style.display=$('a_body').value==='star'?'':'none';
+});
+$('a_now').onclick=()=>{ setAlmanacNow(); refreshAlmanac(); };
+$('a_naval').onclick=()=>{ const dp=($('a_date').value||'').split(/[-/ ]/).map(Number); window.open('/daily/naval?y='+(dp[0]||2026)+'&mo='+(dp[1]||1)+'&d='+(dp[2]||1),'_blank'); };
+$('a_air').onclick=()=>dailyAlmanac('air');
+
+function setNow(){
+  const d=new Date();
+  $('date').value=d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1,2)+'-'+pad(d.getUTCDate(),2);
+  $('time').value=pad(d.getUTCHours(),2)+':'+pad(d.getUTCMinutes(),2)+':'+pad(d.getUTCSeconds(),2);
+}
+
+['body','limb','date','time','hsd','hsm','label'].forEach(id=>{
+  $(id).addEventListener('input',refresh);
+  $(id).addEventListener('change',refresh);
+});
+$('body').addEventListener('change',()=>{
+  const isStar=$('body').value==='star';
+  $('starwrap').style.display=isStar?'':'none';
+  $('limbwrap').style.display=(['sun','moon'].includes($('body').value))?'':'none';
+});
+$('star').addEventListener('input',()=>{ starMatch(); refresh(); });
+$('now').onclick=()=>{ setNow(); refresh(); };
+$('loaddef').onclick=()=>{ refresh(); $('savemsg').textContent='Using the current setup defaults.'; };
+$('save').onclick=()=>{
+  const s=formSight();
+  if(!(s.hs>0)){ $('savemsg').textContent='Enter Hs first.'; return; }
+  const arr=loadSights(); s.sel=true; arr.push(s); saveSights(arr);
+  $('savemsg').textContent='Saved. '+arr.length+' sight'+(arr.length>1?'s':'')+' stored in this browser.';
+  renderList();
+};
+$('dofix').onclick=doFix;
+$('selall').onclick=()=>{ const a=loadSights(); a.forEach(s=>s.sel=true); saveSights(a); renderList(); renderMotion(); };
+$('clear').onclick=()=>{ if(confirm('Remove every stored sight?')){ saveSights([]); renderList(); renderMotion(); } };
+$('export').onclick=()=>{ const t=$('io'); t.style.display='block'; t.value=JSON.stringify(loadSights(),null,1); t.select(); };
+$('importbtn').onclick=()=>{
+  const t=$('io');
+  if(t.style.display==='none'){ t.style.display='block'; t.value=''; t.placeholder='paste exported JSON, then press Import again'; return; }
+  try{ const a=JSON.parse(t.value); if(Array.isArray(a)){ saveSights(a); renderList(); t.style.display='none'; } }
+  catch(e){ alert('that is not the exported JSON'); }
+};
+$('s_save').onclick=saveSetup;
+
+(async function init(){
+  try{ const v=await (await fetch('/api/version')).json(); $('ver').textContent='v'+v.version; }catch(e){}
+  setNow(); setAlmanacNow(); fillSetup(); renderActiveDR();
+  $('limbwrap').style.display='';
+  refresh(); refreshAlmanac(); renderList();
+})();
+</script>
+</body>
+</html>
