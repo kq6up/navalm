@@ -1,0 +1,16 @@
+# Build outputs
+/navalm
+*.o
+*.a
+*.so
+*.dylib
+*.dSYM/
+
+# Local navigation settings and saved sights
+.navalmrc
+.naval.save
+
+# Editor and OS files
+.DS_Store
+*~
+*.swp
