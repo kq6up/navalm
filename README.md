@@ -4,15 +4,16 @@
 
 NAVALM brings almanac calculations, worked sextant-sight reductions, and position fixes together in one C program. Use it from the command line, in a full-screen terminal, or through its built-in browser interface.
 
-Current version: **4.0p**.
+Current version: **4.1**.
 
 **Informational and educational use only. Do not rely on NAVALM where an error could cause death, injury, or property damage. By using it, you accept the [safety and assumption-of-risk terms](SAFETY.md), to the extent permitted by law.**
 
-This branch contains NAVALM 4.0p, the precision branch. It keeps the XEphem-based implementation introduced in 3.0c and adds a second, higher-accuracy engine built on NOVAS C3.1 and the JPL DE440s ephemeris; either can be selected at run time. The older v2.8g release still contains the legacy engine and is not covered by this license transition.
+NAVALM 4.1 adds an ICE F7-style almanac for working a fix on paper. It retains the two astronomy engines introduced in 4.0p: XEphem libastro and NOVAS C3.1 with the JPL DE440s ephemeris; either can be selected at run time. The older v2.8g release still contains the legacy engine and is not covered by this license transition.
 
 ## Features
 
 - **Almanac:** Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn, Aries, and navigation stars.
+- **Paper-fix summary:** GHA, Dec, Hc, Zn, and altitude-correction estimates at the Setup DR, with editable UTC date and time.
 - **Daily tables:** plain text, HTML, and LaTeX output, plus NAVAL hourly and AIR ten-minute views in the browser.
 - **Sight reduction:** sea and artificial horizons, altitude corrections, and worked HO 229-style reduction steps.
 - **Position fixes:** saved lines of position, least-squares fixes, and running fixes with course/speed and set/drift.
@@ -20,7 +21,7 @@ This branch contains NAVALM 4.0p, the precision branch. It keeps the XEphem-base
 
 ## Astronomy engines
 
-NAVALM 4.0p carries two engines and will use either on request.
+NAVALM 4.1 carries two engines and will use either on request.
 
 | | `--engine precise` (default) | `--engine classic` |
 |---|---|---|
@@ -117,7 +118,7 @@ If you downloaded a source archive, extract it and enter its source directory, t
 
 **Run `make page` before `make`.** The first command runs `mkpage.sh` to convert `page.html` into `navweb_page.h`, embedding the browser interface in the program. The second compiles the C sources and creates the `navalm` executable. Plain `make` does not regenerate the page header automatically.
 
-The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 4.0p`. The executable is built in the source directory and can be run there without an installation step.
+The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 4.1`. The executable is built in the source directory and can be run there without an installation step.
 
 ### Build without ncurses
 
@@ -205,6 +206,37 @@ This example reduces an artificial-horizon Sun sight and prints the worked corre
 ```
 
 Here, `--hs` supplies the sextant reading in degrees and minutes, `--ah` selects an artificial horizon, and `--dr` supplies the dead-reckoning position. Temperature is in degrees Celsius and pressure is in millibars. Add `--save` to store the sight as a line of position, or `--brief` for a compact result.
+
+### Almanac for a paper fix
+
+Set your DR latitude and longitude in **Setup**, then open **Almanac**.
+The display starts at the current UTC date and time; edit either field for
+an observation, or choose **Now** to return to the current time. The DR is
+used directly, without rounding it to an assumed position.
+
+The ICE F7-style summary puts GHA, declination, computed altitude (Hc),
+azimuth (Zn), refraction, semidiameter, parallax in altitude, and their
+correction sum together. It shows the selected body, a supplementary Sun
+when its Hc is at least −12°, and GHA Aries. **Additional almanac data**
+retains the detailed body information. The terminal Almanac screen uses
+the same summary; press **P** to switch between summary and details.
+
+These are predicted corrections at the DR, using a standard atmosphere
+and the lower limb for the Sun and Moon. Sum means Refr + SD + PA, in
+arcminutes. Apply dip and index error separately; the observed-altitude
+corrections in the sight reducer remain separate. Corrections are blank
+when Hc is −0.5° or lower, and azimuth is blank at the zenith or nadir.
+
+The correction conventions follow the recovered ICE 0.51 F7 navigation
+display, including lunar semidiameter augmentation and the solar limb
+increment. NAVALM retains its own selected astronomy engine and time
+model. For the example 1988-07-01 00:00 UTC at 40° N, 75° W, the precise
+engine matches the supplied ICE Sun/Aries table at its displayed
+precision; ΔT reads 56.2 seconds rather than ICE's historical 56.1.
+NAVALM currently assumes DUT1 = 0.
+
+After building the precise engine and ephemeris, run `make check-paper`
+for the screenshot comparison and horizon, Moon, star, and input checks.
 
 ### Work with saved sights
 

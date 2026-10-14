@@ -79,6 +79,26 @@ typedef struct {
 /* Reduce a sight.  Returns 0 on success, non-zero with a message in err. */
 int  navsight_reduce(const Sight *si, Reduction *r, char *err, size_t errn);
 
+/* ICE-style planning data at the exact DR, without an observed altitude.
+ * Corrections assume standard atmosphere and the Sun/Moon lower limb;
+ * they exclude dip and index error and do not change the sight reducer. */
+typedef struct {
+    char name[NAVSIGHT_NAME];
+    int is_aries, have_corrections, have_azimuth;
+    double gha, dec, hc, zn;
+    double refr_min, sd_min, par_min, sum_min;
+} NavPaperRow;
+
+typedef struct {
+    int y, mo, d, h, mi;
+    double s, delta_t, dr_lat, dr_lon;
+    NavPaperRow rows[3];       /* requested object, Sun if different, Aries */
+    size_t n;
+} NavPaper;
+
+int navsight_paper(const Sight *si, NavPaper *p, char *err, size_t errn);
+void navsight_print_paper(FILE *out, const NavPaper *p, int width);
+
 /* Printing */
 void navsight_print_correction(FILE *out, const Sight *si, const Reduction *r);
 void navsight_print_reduction(FILE *out, const Sight *si, const Reduction *r);

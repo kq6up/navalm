@@ -182,6 +182,143 @@ static int body_at(int b,double jd,NavAlmanac *a){
     return nav_almanac((NavBody)b,jd,a);
 }
 
+/* ---------------------------------------------------- paper-fix almanac */
+
+/* Standard-atmosphere refraction from a true altitude, following ICE's
+ * F7 convention: two estimates of apparent altitude before the tangent
+ * evaluation. This is deliberately separate from the observed-Ha model. */
+static double paper_refraction(double true_alt){
+    double ha=true_alt, r=0.0;
+    if(ha < 4.0){ r=32.5-6.5*ha; ha=true_alt+r/60.0; }
+    if(ha < 16.0){
+        r=1.0/rad(ha+7.31/(ha+4.4));
+        ha=true_alt+r/60.0;
+    }
+    if(ha < 87.0) r=1.0/tan(rad(ha+7.31/(ha+4.4)));
+    return -r;
+}
+
+static void paper_position(NavPaperRow *r,double latitude,double longitude,
+                           double hp_deg,double sd_deg,int sun,int moon){
+    double phi=rad(latitude), dec=rad(r->dec), lha=rad(r->gha+longitude);
+    double up=sin(phi)*sin(dec)+cos(phi)*cos(dec)*cos(lha);
+    double east=-cos(dec)*sin(lha);
+    double north=cos(phi)*sin(dec)-sin(phi)*cos(dec)*cos(lha);
+    double hc=asin(clampd(up,-1.0,1.0)), pa;
+    r->hc=deg(hc);
+    r->have_azimuth=hypot(east,north)>1e-12;
+    r->zn=r->have_azimuth ? norm360(deg(atan2(east,north))) : 0.0;
+    if(r->hc <= -0.5) return;
+    r->have_corrections=1;
+    /* ICE evaluates parallax twice and includes its conventional 1.55
+     * arcsecond solar-limb increment. Lunar SD is augmented at the DR. */
+    pa=cos(hc)*rad(hp_deg);
+    r->par_min=cos(hc-pa)*hp_deg*60.0;
+    r->sd_min=sd_deg*60.0+(sun ? 1.55/60.0 : 0.0);
+    if(moon) r->sd_min*=1.0+sin(hc)/60.27;
+    r->refr_min=paper_refraction(r->hc-r->par_min/60.0-r->sd_min/60.0);
+    r->sum_min=r->refr_min+r->sd_min+r->par_min;
+}
+
+int navsight_paper(const Sight *si,NavPaper *p,char *err,size_t errn){
+    static const int month_days[]={31,28,31,30,31,30,31,31,30,31,30,31};
+    double jd;
+    int b,limit;
+    memset(p,0,sizeof *p);
+    if(!isfinite(si->dr_lat) || !isfinite(si->dr_lon) ||
+       fabs(si->dr_lat)>90.0 || fabs(si->dr_lon)>180.0){
+        snprintf(err,errn,"DR must be within 90 degrees latitude and 180 degrees longitude");
+        return 1;
+    }
+    if(si->mo<1 || si->mo>12){ snprintf(err,errn,"invalid UTC date"); return 1; }
+    limit=month_days[si->mo-1];
+    if(si->mo==2 && si->y%4==0 && (si->y%100!=0 || si->y%400==0)) limit++;
+    if(si->d<1 || si->d>limit || si->h<0 || si->h>23 || si->mi<0 || si->mi>59 ||
+       !isfinite(si->s) || si->s<0.0 || si->s>=60.0){
+        snprintf(err,errn,"invalid UTC date or time"); return 1;
+    }
+    jd=navsight_jd(si);
+    if(!nav_engine_covers(jd)){
+        snprintf(err,errn,"%s",nav_engine_last_error()); return 1;
+    }
+    p->y=si->y; p->mo=si->mo; p->d=si->d; p->h=si->h; p->mi=si->mi; p->s=si->s;
+    p->dr_lat=si->dr_lat; p->dr_lon=si->dr_lon;
+    p->delta_t=nav_delta_t_seconds(jd);
+    b=navsight_body_index(si->body);
+    if(!strcmp(si->body,"star")){
+        int matches[2];
+        size_t n=navsight_star_match(si->star,matches,2);
+        NavStarAlmanac a;
+        NavPaperRow *r=&p->rows[p->n];
+        if(n!=1){ snprintf(err,errn,"enter an unambiguous navigation-star name"); return 1; }
+        if(nav_star_almanac((size_t)matches[0],jd,&a)) goto engine_error;
+        snprintf(r->name,sizeof r->name,"%s",a.name);
+        r->gha=a.gha_deg; r->dec=a.dec_deg;
+        paper_position(r,si->dr_lat,si->dr_lon,0.0,0.0,0,0);
+        p->n++;
+    } else if(b<0){ snprintf(err,errn,"unknown body: %s",si->body); return 1; }
+    if(b!=NAV_ARIES && strcmp(si->body,"star")){
+        NavAlmanac a;
+        NavPaperRow *r=&p->rows[p->n];
+        if(nav_almanac((NavBody)b,jd,&a)) goto engine_error;
+        snprintf(r->name,sizeof r->name,"%s",nav_body_name((NavBody)b));
+        r->gha=a.gha_deg; r->dec=a.dec_deg;
+        paper_position(r,si->dr_lat,si->dr_lon,a.hp_deg,a.sd_deg,b==NAV_SUN,b==NAV_MOON);
+        p->n++;
+    }
+    if(b!=NAV_SUN){
+        NavAlmanac a;
+        NavPaperRow *r=&p->rows[p->n];
+        if(nav_almanac(NAV_SUN,jd,&a)) goto engine_error;
+        snprintf(r->name,sizeof r->name,"Sun"); r->gha=a.gha_deg; r->dec=a.dec_deg;
+        paper_position(r,si->dr_lat,si->dr_lon,a.hp_deg,a.sd_deg,1,0);
+        /* As in ICE, a supplementary Sun is omitted below civil/nautical
+         * twilight; the requested object itself is always shown. */
+        if(r->hc >= -12.0) p->n++;
+    }
+    {
+        NavAlmanac a;
+        NavPaperRow *r=&p->rows[p->n];
+        memset(r,0,sizeof *r);
+        if(nav_almanac(NAV_ARIES,jd,&a)) goto engine_error;
+        snprintf(r->name,sizeof r->name,"Aries"); r->is_aries=1; r->gha=a.gha_deg; p->n++;
+    }
+    return 0;
+engine_error:
+    snprintf(err,errn,"%s",nav_engine_last_error()[0]?nav_engine_last_error():"almanac calculation failed");
+    return 1;
+}
+
+void navsight_print_paper(FILE *out,const NavPaper *p,int width){
+    size_t i;
+    char la[32],lo[32],g[32],d[32],raw[32],h[40],z[16];
+    fprintf(out,"Celestial Navigation Data for %04d-%02d-%02d %02d:%02d:%04.1f UTC\n",
+            p->y,p->mo,p->d,p->h,p->mi,p->s);
+    fprintf(out,"Delta T = %.1f seconds (DUT1=0 assumed)\n",p->delta_t);
+    fprintf(out,"For assumed location: %s  %s\n\n",
+            fmt_lat(p->dr_lat,la,sizeof la),fmt_lon(p->dr_lon,lo,sizeof lo));
+    fprintf(out,"%-16s %10s %11s %11s %6s%s\n","Object","GHA","Dec","Hc","Zn",
+            width>=100?" |   Refr     SD     PA    Sum":"");
+    for(i=0;i<p->n;i++){
+        const NavPaperRow *r=&p->rows[i];
+        fmt_gha(r->gha,g,sizeof g);
+        if(r->is_aries){ fprintf(out,"%-16s %10s\n",r->name,g); continue; }
+        fmt_lat(r->dec,d,sizeof d); fmt_alt(r->hc,raw,sizeof raw);
+        snprintf(h,sizeof h,"%s%s",r->hc>=0.0?"+":"",raw);
+        if(r->have_azimuth) snprintf(z,sizeof z,"%5.1f",r->zn);
+        else snprintf(z,sizeof z,"--");
+        fprintf(out,"%-16s %10s %11s %11s %6s",r->name,g,d,h,z);
+        if(r->have_corrections){
+            if(width<100) fprintf(out,"\n  Refr / SD / PA / Sum ('):");
+            else fprintf(out," |");
+            fprintf(out," %6.1f %6.1f %6.1f %6.1f",r->refr_min,r->sd_min,r->par_min,r->sum_min);
+        }
+        fprintf(out,"\n");
+    }
+    fprintf(out,"\nCorrections in arcminutes; Sun/Moon lower limb; standard atmosphere.\n");
+    fprintf(out,"Sum = Refr + SD + PA; apply dip and index error separately.\n");
+}
+
 /* --------------------------------------------------------- the reducer */
 
 int navsight_reduce(const Sight *si,Reduction *r,char *err,size_t errn){

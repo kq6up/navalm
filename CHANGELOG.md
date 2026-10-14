@@ -1,3 +1,19 @@
+# Changes in NAVALM 4.1
+
+- ICE F7-style paper-fix almanac in the browser and terminal: GHA, Dec,
+  Hc, Zn, refraction, semidiameter, parallax in altitude, and correction sum.
+- Uses the exact DR from Setup and current UTC time, with editable date
+  and time and a Now control. Shows the selected body, a supplementary
+  Sun when Hc is at least −12°, and GHA Aries.
+- Standard-atmosphere correction estimates follow ICE's lower-limb
+  conventions for Sun/Moon. Dip and index error remain separate.
+- Existing detailed almanac data remains available; P toggles the
+  terminal view. Sight-reduction calculations and astronomy engines are
+  unchanged.
+- Added `make check-paper` with the supplied 1988 ICE Sun/Aries example,
+  Moon and star checks, horizon limits, and invalid inputs. The example
+  matches at displayed precision except ΔT: 56.2 s versus ICE's 56.1 s.
+
 # Changes in NAVALM 4.0p
 
 The precision branch. NAVALM now carries two astronomy engines and lets

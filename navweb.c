@@ -378,6 +378,44 @@ static size_t api_reduce(const char *qs,char *out,size_t cap){
     return j.n;
 }
 
+static size_t api_paper(const char *qs,char *out,size_t cap){
+    Json j={out,0,cap};
+    Sight si;
+    NavPaper p;
+    char err[160],coord[64],*end;
+    size_t i;
+    memset(&si,0,sizeof si);
+    if(!qs_get(qs,"body",si.body,sizeof si.body)) strcpy(si.body,"sun");
+    qs_get(qs,"star",si.star,sizeof si.star);
+    si.y=qs_int(qs,"y",2026); si.mo=qs_int(qs,"mo",1); si.d=qs_int(qs,"d",1);
+    si.h=qs_int(qs,"h",0); si.mi=qs_int(qs,"mi",0); si.s=qs_num(qs,"s",0.0);
+    jput(&j,"{");
+    if(!qs_get(qs,"drlat",coord,sizeof coord) || !coord[0]) goto missing_dr;
+    si.dr_lat=strtod(coord,&end); if(*end || end==coord) goto missing_dr;
+    if(!qs_get(qs,"drlon",coord,sizeof coord) || !coord[0]) goto missing_dr;
+    si.dr_lon=strtod(coord,&end); if(*end || end==coord) goto missing_dr;
+    if(navsight_paper(&si,&p,err,sizeof err)){
+        jstr(&j,"error",err); jtrim(&j); jput(&j,"}"); return j.n;
+    }
+    jint(&j,"ok",1); jnum(&j,"delta_t",p.delta_t);
+    jnum(&j,"drlat",p.dr_lat); jnum(&j,"drlon",p.dr_lon);
+    jput(&j,"\"rows\":[");
+    for(i=0;i<p.n;i++){
+        const NavPaperRow *r=&p.rows[i];
+        jput(&j,"{"); jstr(&j,"name",r->name); jint(&j,"is_aries",r->is_aries);
+        jnum(&j,"gha",r->gha); jnum(&j,"dec",r->dec); jnum(&j,"hc",r->hc);
+        jint(&j,"have_azimuth",r->have_azimuth); jnum(&j,"zn",r->zn);
+        jint(&j,"have_corrections",r->have_corrections);
+        jnum(&j,"refr_min",r->refr_min); jnum(&j,"sd_min",r->sd_min);
+        jnum(&j,"par_min",r->par_min); jnum(&j,"sum_min",r->sum_min);
+        jtrim(&j); jput(&j,"},");
+    }
+    jtrim(&j); jput(&j,"]}"); return j.n;
+missing_dr:
+    jstr(&j,"error","set a numeric DR latitude and longitude in Setup");
+    jtrim(&j); jput(&j,"}"); return j.n;
+}
+
 static size_t api_fix(const char *qs,char *out,size_t cap){
     Json j;
     Sight sel[MAXFIX];
@@ -578,6 +616,11 @@ static void handle_request(int fd,const char *req)
     }
     if(!strcmp(target,"/api/almanac")){
         n = api_almanac(qs,json,sizeof json);
+        send_response(fd,"200 OK","application/json",json,n);
+        return;
+    }
+    if(!strcmp(target,"/api/paper")){
+        n = api_paper(qs,json,sizeof json);
         send_response(fd,"200 OK","application/json",json,n);
         return;
     }

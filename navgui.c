@@ -736,14 +736,17 @@ static void screen_almanac(void)
 {
     Sight q;
     Pane p;
-    int c,h;
+    NavDefaults defaults;
+    int c,h,paper=1;
 
     sight_defaults_now(&q);
+    navrc_load(&defaults);
     pane_clear(&p);
 
     for(;;){
         NavAlmanac a;
         double jd;
+        int top=p.top;
         char buf[MAXLINE+64],b[40];
 
         erase();
@@ -755,7 +758,24 @@ static void screen_almanac(void)
 
         pane_clear(&p);
         jd = nav_julian_date(q.y,q.mo,q.d,q.h,q.mi,q.s);
-        if(!strcmp(q.body,"star")){
+        if(paper){
+            NavPaper data;
+            char err[160];
+            if(!defaults.have_dr) pane_add(&p,"Set a DR position in Setup to display paper-fix data.");
+            else if(navsight_paper(&q,&data,err,sizeof err)) pane_add(&p,err);
+            else {
+                FILE *f=tmpfile();
+                if(f){
+                    navsight_print_paper(f,&data,COLS-4);
+                    rewind(f);
+                    while(fgets(buf,sizeof buf,f)){
+                        buf[strcspn(buf,"\r\n")]=0;
+                        pane_add(&p,buf);
+                    }
+                    fclose(f);
+                }else pane_add(&p,"could not create the almanac display");
+            }
+        } else if(!strcmp(q.body,"star")){
             NavStarAlmanac s;
             int idx = nav_star_find(q.star);
             if(idx < 0 || nav_star_almanac((size_t)idx,jd,&s)) pane_add(&p,"star not found");
@@ -779,15 +799,19 @@ static void screen_almanac(void)
             }
         }
         h = LINES-9;
+        p.top=top;
+        if(p.top>=p.n) p.top=0;
         pane_draw(&p,7,2,h,COLS-4);
 
-        footer("1-3 edit   N now   PgUp/PgDn scroll   ESC back");
+        footer("1-3 edit   N now   P paper/detail   PgUp/PgDn scroll   ESC back");
         refresh();
 
         c = getch();
         if(c == 27) break;
         if(pane_scroll(&p,c,h)) continue;
+        p.top=0;
         if(c >= '1' && c <= '3') edit_field(&q,c,&p);
+        else if(c == 'p' || c == 'P') paper=!paper;
         else if(c == 'n' || c == 'N'){ utc_now(&q.y,&q.mo,&q.d,&q.h,&q.mi,&q.s); q.s = floor(q.s); }
     }
 }

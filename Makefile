@@ -104,10 +104,18 @@ page: page.html
 	./mkpage.sh
 
 clean:
-	rm -f navalm libastro.a novas.a $(ASTRO_OBJ) $(NOVAS_OBJ) tools/mkde440
+	rm -f navalm libastro.a novas.a $(ASTRO_OBJ) $(NOVAS_OBJ) tools/mkde440 tests/paper_almanac
+
+tests/paper_almanac: tests/paper_almanac.c $(SRC) $(HDR) libastro.a novas.a
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ tests/paper_almanac.c navsight.c \
+	      nav_engine_sel.c nav_engine_x.c nav_engine_n.c nav_solsys440.c \
+	      nav_eph440.c nav_stars_x.c libastro.a novas.a $(LDLIBS)
+
+check-paper: tests/paper_almanac
+	./tests/paper_almanac
 
 # Removes the generated ephemeris too, but never the downloaded .bsp.
 distclean: clean
 	rm -f $(EPHEM_NAV)
 
-.PHONY: all nogui classic-only ephem ephem-fetch stars page clean distclean
+.PHONY: all nogui classic-only ephem ephem-fetch stars page clean distclean check-paper

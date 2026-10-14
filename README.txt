@@ -1,4 +1,8 @@
-NAVALM 3.0c - console nautical almanac and sight worker
+NAVALM 4.1 - nautical almanac and sight worker
+
+4.1 adds an ICE F7-style paper-fix almanac in the browser and terminal.
+It uses the DR from Setup and the current UTC time, with editable date
+and time. See README.md for the workflow and correction conventions.
 
 3.0c replaces the former NAV89/NAV48/NAV50-derived astronomical engine and
 its data tables with XEphem libastro and a catalog selected from XEphem's

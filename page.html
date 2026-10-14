@@ -91,6 +91,13 @@ table.air tr.half td{background:var(--mark)}
 .matches{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem}
 .matches button{background:var(--mark);border:1px solid var(--line);border-radius:999px;
   padding:.25rem .7rem;font:13px system-ui;color:var(--ink);cursor:pointer}
+.paperscroll{overflow-x:auto;margin:.8rem 0}
+.paper{width:100%;border-collapse:collapse;font:12px/1.5 var(--mono);white-space:nowrap}
+.paper th,.paper td{padding:.35rem .4rem;text-align:right}
+.paper th:first-child,.paper td:first-child{text-align:left}
+.paper thead{border-bottom:1px solid var(--line)}
+.paper .corrections{border-left:1px solid var(--line)}
+.papercontext{font:13px/1.6 var(--mono)}
 </style>
 </head>
 <body>
@@ -586,14 +593,45 @@ function almanacQuery(){
   p.set('star',$('a_star').value.trim());
   p.set('y',dp[0]||2026); p.set('mo',dp[1]||1); p.set('d',dp[2]||1);
   p.set('h',tp[0]||0); p.set('mi',tp[1]||0); p.set('s',tp[2]||0);
+  const setup=loadSetup();
+  p.set('drlat',setup.drlat); p.set('drlon',setup.drlon);
   return p.toString();
 }
+let almanacRequest=0;
+function paperTable(p,r){
+  let h='<h2>Celestial Navigation Data</h2><div class="papercontext">';
+  h+=`${r.y}-${pad(r.mo,2)}-${pad(r.d,2)} ${pad(r.h,2)}:${pad(r.mi,2)}:${pad(Math.round(r.s),2)} UTC<br>`;
+  h+=`Delta T = ${num(p.delta_t,1)} seconds (DUT1=0 assumed)<br>`;
+  h+=`For assumed location: ${lat(p.drlat)} &nbsp; ${lon(p.drlon)} <span class="hint">from Setup</span></div>`;
+  h+='<div class="paperscroll"><table class="paper"><thead><tr><th colspan="5">Almanac Data</th>';
+  h+='<th class="corrections" colspan="4">Altitude Corrections</th></tr><tr>';
+  h+='<th>Object</th><th>GHA<br>° ′</th><th>Dec<br>° ′</th><th>Hc<br>° ′</th><th>Zn<br>°</th>';
+  h+='<th class="corrections">Refr<br>′</th><th>SD<br>′</th><th>PA<br>′</th><th>Sum<br>′</th></tr></thead><tbody>';
+  for(const q of p.rows){
+    h+=`<tr><td>${q.name}</td><td>${gha(q.gha)}</td>`;
+    if(q.is_aries){ h+='<td></td><td></td><td></td><td class="corrections"></td><td></td><td></td><td></td>'; }
+    else{
+      h+=`<td>${lat(q.dec)}</td><td>${q.hc>=0?'+':''}${alt(q.hc)}</td><td>${q.have_azimuth?num(q.zn,1):'—'}</td>`;
+      h+=q.have_corrections
+        ? `<td class="corrections">${num(q.refr_min,1)}</td><td>${num(q.sd_min,1)}</td><td>${num(q.par_min,1)}</td><td>${num(q.sum_min,1)}</td>`
+        : '<td class="corrections">—</td><td>—</td><td>—</td><td>—</td>';
+    }
+    h+='</tr>';
+  }
+  h+='</tbody></table></div><div class="hint">Corrections estimated at the DR: standard atmosphere, Sun/Moon lower limb. '
+    +'Sum = Refr + SD + PA. Apply dip and index error separately. Corrections are omitted below −0.5°.</div>';
+  return h;
+}
 async function refreshAlmanac(){
-  const box=$('almanacout');
+  const box=$('almanacout'), request=++almanacRequest, qs=almanacQuery();
   try{
-    const r=await (await fetch('/api/almanac?'+almanacQuery())).json();
+    const [r,p]=await Promise.all([
+      fetch('/api/almanac?'+qs).then(x=>x.json()),
+      fetch('/api/paper?'+qs).then(x=>x.json())]);
+    if(request!==almanacRequest) return;
     if(r.error){ box.innerHTML='<h2>Almanac result</h2><p class="err">'+r.error+'</p>'; return; }
-    let h='<h2>Almanac result</h2><table class="work">';
+    let h=p.error ? '<h2>Celestial Navigation Data</h2><p class="err">'+p.error+'</p>' : paperTable(p,r);
+    h+='<details class="subcard"><summary>Additional almanac data</summary><table class="work">';
     h+=row('Body','',r.name||'');
     h+=row('UTC','',`${r.y}-${pad(r.mo,2)}-${pad(r.d,2)} ${pad(r.h,2)}:${pad(r.mi,2)}:${pad(Math.round(r.s),2)}`);
     if(r.is_star){
@@ -609,9 +647,10 @@ async function refreshAlmanac(){
       if(r.hp_min>0.0005) h+=row('HP','horizontal parallax',num(r.hp_min,2)+'\u2032');
       if(r.sd_min>0.0005) h+=row('SD','semidiameter',num(r.sd_min,2)+'\u2032');
     }
-    h+='</table>';
+    h+='</table></details>';
     box.innerHTML=h;
   }catch(e){
+    if(request!==almanacRequest) return;
     box.innerHTML='<h2>Almanac result</h2><p class="err">Could not reach the almanac endpoint.</p>';
   }
 }
@@ -622,6 +661,7 @@ function setAlmanacNow(){
 }
 
 async function dailyAlmanac(style){
+  const request=++almanacRequest;
   const dp=($('a_date').value||'').split(/[-/ ]/).map(Number);
   const p=new URLSearchParams();
   p.set('style',style); p.set('y',dp[0]||2026); p.set('mo',dp[1]||1); p.set('d',dp[2]||1);
@@ -629,11 +669,16 @@ async function dailyAlmanac(style){
   box.innerHTML='<h2>Almanac table</h2><div class="hint">Building table&hellip;</div>';
   try{
     const r=await fetch('/api/daily?'+p.toString());
+    const html=await r.text();
+    if(request!==almanacRequest) return;
     const q='y='+(dp[0]||2026)+'&mo='+(dp[1]||1)+'&d='+(dp[2]||1);
-    box.innerHTML=await r.text()
+    box.innerHTML=html
       +'<div class="printlink"><a href="/daily/'+(style==='air'?'air':'naval')+'?'+q
       +'" target="_blank" rel="noopener">Open a printable page in a new tab</a></div>';
-  }catch(e){ box.innerHTML='<h2>Almanac table</h2><p class="err">Could not reach the daily-table endpoint.</p>'; }
+  }catch(e){
+    if(request!==almanacRequest) return;
+    box.innerHTML='<h2>Almanac table</h2><p class="err">Could not reach the daily-table endpoint.</p>';
+  }
 }
 
 /* ---------- stored sights ---------- */
@@ -745,7 +790,7 @@ function saveSetup(){
   localStorage.setItem(LS_SETUP,JSON.stringify(s));
   fillSetup(); renderActiveDR();
   $('setupmsg').textContent='Saved in this browser.';
-  refresh();
+  refresh(); refreshAlmanac();
 }
 
 /* ---------- tabs and wiring ---------- */
@@ -753,6 +798,7 @@ function show(id){
   document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id===id));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===id));
   if(id==='list'){ renderList(); }
+  if(id==='almanac'){ refreshAlmanac(); }
   if(id==='fix'){ renderMotion(); }
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.tab));

@@ -1,3 +1,27 @@
+# NAVALM 4.1 publication validation
+
+Checks performed on 14 October 2026 for the paper-fix almanac.
+
+- `make page`, the ncurses build, `make nogui`, `make classic-only`, and
+  `make check-paper`: passed. CLI version reports 4.1.
+- `make check-paper` compares the supplied ICE screen for 1988-07-01
+  00:00 UTC, DR 40 N / 75 W. Sun/Aries values agree at displayed precision,
+  including Refr −10.6', SD 15.8', PA 0.1', and Sum 5.3'. NAVALM's time
+  model gives ΔT 56.184 s (56.2 displayed), versus ICE's historical 56.1.
+- Core checks cover Moon semidiameter augmentation and parallax, Vega,
+  invalid star/date/coordinates, a valid zero DR, zenith/nadir geometry,
+  and ephemeris coverage errors.
+- Live HTTP checks covered every supported body, Vega, finite results,
+  and invalid DR, date, star, and ephemeris-range requests.
+- The actual browser interface was exercised with Setup DR changes,
+  editable UTC date/time, Now, and Sun/Moon/Vega tables. The terminal
+  interface compiled; its new interactive screen was not exercised.
+- Astronomy engine code and the observed-sight reducer are unchanged.
+  These checks validate the new summary against the supplied example,
+  rather than providing new independent astrometric certification.
+- The previously observed browser saved-sight row duplication after
+  editing is outside this change; exported records remained correct.
+
 # NAVALM 4.0p publication validation
 
 Checks performed on 14 October 2026. 4.0p adds a second astronomy engine:
