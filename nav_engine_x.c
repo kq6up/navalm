@@ -11,6 +11,10 @@
  * and precession; this file only converts between that library's
  * conventions and the almanac quantities navalm works in.
  *
+ * The calendar, delta T, body naming and the star catalogue index are
+ * shared with the precision engine and live in nav_engine_sel.c; what is
+ * left here is only what libastro itself answers.
+ *
  * Conventions here:
  *   - positions are apparent geocentric, equinox and equator of date
  *   - GHA = GAST - RA(apparent), where GAST is libastro's GMST plus the
@@ -20,6 +24,7 @@
  */
 
 #include "nav_engine.h"
+#include "nav_engine_impl.h"
 #include "nav_stars_x.h"
 #include "libastro/astro.h"
 #include "libastro/preferences.h"
@@ -40,81 +45,6 @@ static double norm360(double x){ x = fmod(x,360.0); return x < 0 ? x + 360.0 : x
 /* JD (UT) <-> libastro modified julian date (days since 1899 Dec 31 12:00) */
 static double jd_to_mj(double jd){ return jd - MJD0; }
 
-double nav_julian_date(int year,int month,int day,int hour,int minute,double second)
-{
-    double mj;
-    cal_mjd(month,(double)day,year,&mj);
-    return mj + MJD0 + (hour + minute/60.0 + second/3600.0)/24.0;
-}
-
-/* ---------------------------------------------------------------- delta T
- *
- * TT - UT1 = 32.184s + (TAI - UTC) - DUT1.
- *
- * TAI - UTC is the leap-second count, which is known exactly, so for any
- * modern date this is better than any polynomial: the only unknown is DUT1,
- * which is under a second and which the caller may supply.  Before the leap
- * second era the polynomial fits of Espenak and Meeus are used instead.
- *
- * Leap seconds through 2025: TAI - UTC has stood at 37s since 2017 Jan 1.
- * Update the table below if another leap second is ever announced.
- */
-typedef struct { double jd; double tai_utc; } LeapEntry;
-
-static const LeapEntry leap_table[] = {
-    {2441317.5, 10.0}, {2441499.5, 11.0}, {2441683.5, 12.0}, {2442048.5, 13.0},
-    {2442413.5, 14.0}, {2442778.5, 15.0}, {2443144.5, 16.0}, {2443509.5, 17.0},
-    {2443874.5, 18.0}, {2444239.5, 19.0}, {2444786.5, 20.0}, {2445151.5, 21.0},
-    {2445516.5, 22.0}, {2446247.5, 23.0}, {2447161.5, 24.0}, {2447892.5, 25.0},
-    {2448257.5, 26.0}, {2448804.5, 27.0}, {2449169.5, 28.0}, {2449534.5, 29.0},
-    {2450083.5, 30.0}, {2450630.5, 31.0}, {2451179.5, 32.0}, {2453736.5, 33.0},
-    {2454832.5, 34.0}, {2456109.5, 35.0}, {2457204.5, 36.0}, {2457754.5, 37.0}
-};
-#define NLEAP ((int)(sizeof leap_table / sizeof leap_table[0]))
-
-/* Espenak and Meeus polynomial fits, used outside the leap-second era */
-static double deltat_poly(double year)
-{
-    double t,u;
-    if(year < 1600.0){ u = (year - 2000.0)/100.0; return 62.92 + 32.217*u + 55.89*u*u; }
-    if(year < 1700.0){ t = year - 1600.0; return 120.0 - 0.9808*t - 0.01532*t*t + t*t*t/7129.0; }
-    if(year < 1800.0){ t = year - 1700.0; return 8.83 + 0.1603*t - 0.0059285*t*t + 0.00013336*t*t*t - t*t*t*t/1174000.0; }
-    if(year < 1860.0){ t = year - 1800.0; return 13.72 - 0.332447*t + 0.0068612*t*t + 0.0041116*t*t*t
-                                                  - 0.00037436*t*t*t*t + 0.0000121272*t*t*t*t*t; }
-    if(year < 1900.0){ t = year - 1860.0; return 7.62 + 0.5737*t - 0.251754*t*t + 0.01680668*t*t*t
-                                                  - 0.0004473624*t*t*t*t; }
-    if(year < 1920.0){ t = year - 1900.0; return -2.79 + 1.494119*t - 0.0598939*t*t + 0.0061966*t*t*t
-                                                  - 0.000197*t*t*t*t; }
-    if(year < 1941.0){ t = year - 1920.0; return 21.20 + 0.84493*t - 0.076100*t*t + 0.0020936*t*t*t; }
-    if(year < 1961.0){ t = year - 1950.0; return 29.07 + 0.407*t - t*t/233.0 + t*t*t/2547.0; }
-    /* 1961 to the start of the leap-second table */
-    t = year - 1975.0;
-    return 45.45 + 1.067*t - t*t/260.0 - t*t*t/718.0;
-}
-
-static double tai_minus_utc(double jd_ut)
-{
-    int i;
-    if(jd_ut < leap_table[0].jd) return 0.0;
-    for(i = NLEAP-1; i >= 0; i--)
-        if(jd_ut >= leap_table[i].jd) return leap_table[i].tai_utc;
-    return leap_table[0].tai_utc;
-}
-
-double nav_delta_t_with_dut1_seconds(double jd_ut,double dut1_seconds)
-{
-    if(jd_ut < leap_table[0].jd){
-        double year = 2000.0 + (jd_ut - 2451545.0)/365.25;
-        return deltat_poly(year);
-    }
-    return 32.184 + tai_minus_utc(jd_ut) - dut1_seconds;
-}
-
-double nav_delta_t_seconds(double jd_ut)
-{
-    return nav_delta_t_with_dut1_seconds(jd_ut,0.0);
-}
-
 /* libastro asks for delta T through deltat(); its own table stops in the
  * 2010s and over-extrapolates by several seconds for the 2020s, so this
  * replaces it (libastro/deltat.c is left out of the build).  Argument and
@@ -125,7 +55,7 @@ double deltat(double mj)
 }
 
 /* Greenwich apparent sidereal time, degrees */
-double nav_gast_deg(double jd_ut)
+double nav_x_gast_deg(double jd_ut)
 {
     double mj = jd_to_mj(jd_ut);
     double tt_mj = mj + deltat(mj)/86400.0;
@@ -138,12 +68,12 @@ double nav_gast_deg(double jd_ut)
     return norm360(gmst_hr*15.0 + raddeg(dpsi*cos(eps+deps)));
 }
 
-double nav_gha_aries_deg(double jd_ut)
+double nav_x_gha_aries_deg(double jd_ut)
 {
-    return nav_gast_deg(jd_ut);
+    return nav_x_gast_deg(jd_ut);
 }
 
-int nav_moon_geocentric(double jd_ut,double *lon_deg,double *lat_deg,double *distance_km)
+int nav_x_moon_geocentric(double jd_ut,double *lon_deg,double *lat_deg,double *distance_km)
 {
     double mj = jd_to_mj(jd_ut);
     double tt_mj = mj + deltat(mj)/86400.0;
@@ -192,7 +122,7 @@ static void now_at(Now *np,double jd_ut)
     np->n_tz = 0.0;
 }
 
-int nav_almanac(NavBody body,double jd_ut,NavAlmanac *out)
+int nav_x_almanac(NavBody body,double jd_ut,NavAlmanac *out)
 {
     Now nw;
     Obj o;
@@ -201,7 +131,7 @@ int nav_almanac(NavBody body,double jd_ut,NavAlmanac *out)
 
     if(!out) return 1;
     memset(out,0,sizeof *out);
-    gast = nav_gast_deg(jd_ut);
+    gast = nav_x_gast_deg(jd_ut);
 
     if(body == NAV_ARIES){
         out->ra_deg = 0.0;
@@ -235,55 +165,9 @@ int nav_almanac(NavBody body,double jd_ut,NavAlmanac *out)
     return 0;
 }
 
-const char *nav_body_name(NavBody body)
-{
-    switch(body){
-        case NAV_SUN:     return "Sun";
-        case NAV_MOON:    return "Moon";
-        case NAV_MERCURY: return "Mercury";
-        case NAV_VENUS:   return "Venus";
-        case NAV_MARS:    return "Mars";
-        case NAV_JUPITER: return "Jupiter";
-        case NAV_SATURN:  return "Saturn";
-        case NAV_ARIES:   return "Aries";
-    }
-    return "?";
-}
-
 /* ------------------------------------------------------------ stars */
 
-size_t nav_star_count_get(void){ return nav_star_cat_count; }
-
-const char *nav_star_name(size_t index)
-{
-    return (index < nav_star_cat_count) ? nav_star_cat[index].name : "";
-}
-
-/* letters and digits only, case-folded: "al nair", "Al Na'ir", "ALNAIR" match */
-static void squash(const char *s,char *out,size_t n)
-{
-    size_t k = 0;
-    if(!s){ out[0] = 0; return; }
-    for(; *s && k+1 < n; s++)
-        if(isalnum((unsigned char)*s)) out[k++] = (char)tolower((unsigned char)*s);
-    out[k] = 0;
-}
-
-int nav_star_find(const char *name)
-{
-    char want[64],have[64];
-    size_t i;
-    if(!name || !*name) return -1;
-    squash(name,want,sizeof want);
-    if(!want[0]) return -1;
-    for(i=0;i<nav_star_cat_count;i++){
-        squash(nav_star_cat[i].name,have,sizeof have);
-        if(!strcmp(have,want)) return (int)i;
-    }
-    return -1;
-}
-
-int nav_star_almanac(size_t index,double jd_ut,NavStarAlmanac *out)
+int nav_x_star_almanac(size_t index,double jd_ut,NavStarAlmanac *out)
 {
     const NavStarCat *sc;
     Now nw;
@@ -312,7 +196,7 @@ int nav_star_almanac(size_t index,double jd_ut,NavStarAlmanac *out)
 
     if(obj_cir(&nw,&o)) return 1;
 
-    gast = nav_gast_deg(jd_ut);
+    gast = nav_x_gast_deg(jd_ut);
     out->name      = sc->name;
     out->ra_deg    = norm360(raddeg(o.s_ra));
     out->dec_deg   = raddeg(o.s_dec);

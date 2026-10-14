@@ -4,7 +4,8 @@
   echo '/* generated from page.html by mkpage.sh - do not edit */'
   echo '#ifndef NAVWEB_PAGE_H'
   echo '#define NAVWEB_PAGE_H'
-  echo '#define NAVALM_WEB_VERSION "3.3c"'
+  echo '#include "nav_version.h"'
+  echo '#define NAVALM_WEB_VERSION NAVALM_VERSION'
   echo 'static const char navweb_page[] ='
   sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/^/"/' -e 's/$/\\n"/' page.html
   echo ';'

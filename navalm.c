@@ -15,7 +15,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define NAVALM_VERSION "3.3c"
+#include "nav_version.h"
 
 static double rad(double x){ return x*M_PI/180.0; }
 static double deg(double x){ return x*180.0/M_PI; }
@@ -649,6 +649,13 @@ static void usage(const char *p){
   "  %s setup [same options]           show or change the defaults in ~/.navalmrc\n"
   "  %s --gui                          full-screen ncurses interface\n"
   "  %s -d [PORT] [--listen ADDR]      web interface (default 127.0.0.1:8080)\n"
+  "\n"
+  "global options, valid with any command:\n"
+  "  --engine precise | classic        precise: NOVAS C3.1 with JPL DE440s (default)\n"
+  "                                    classic: XEphem libastro, no data file\n"
+  "  --ephemeris PATH                  DE440s file for the precise engine\n"
+  "                                    (default: $NAVALM_EPHEMERIS, then de440s.nav\n"
+  "                                     in ., ephem/, ~/.navalm/, /usr/local/share/navalm/)\n"
   "examples:\n"
   "  %s moon 2026 9 1 13 36 47 --ap 34 2.5 N 117 21.9 W\n"
   "  %s star Sirius 2026 9 3 12 0 0\n"
@@ -685,8 +692,65 @@ int navgui_run(void);
 #endif
 int navweb_run(const char *addr,int port);
 
+/* Global options.
+ *
+ * The command dispatch below keys off argv[1] and exact argument counts, so
+ * --engine and --ephemeris are lifted out of argv first and the rest is
+ * closed up.  Every positional form then sees the argument list it always
+ * saw, wherever the user put the global flags.
+ */
+static int take_global_opts(int *argc,char **argv,char *err,size_t errlen)
+{
+ int i,out=1,n=*argc;
+ const char *engine=NULL,*ephem=NULL;
+
+ for(i=1;i<n;i++){
+   if(!strcmp(argv[i],"--engine") && i+1<n){ engine=argv[++i]; continue; }
+   if(!strncmp(argv[i],"--engine=",9)){ engine=argv[i]+9; continue; }
+   if(!strcmp(argv[i],"--ephemeris") && i+1<n){ ephem=argv[++i]; continue; }
+   if(!strncmp(argv[i],"--ephemeris=",12)){ ephem=argv[i]+12; continue; }
+   argv[out++]=argv[i];
+ }
+ argv[out]=NULL;
+ *argc=out;
+
+ if(ephem && *ephem) nav_engine_set_ephemeris_path(ephem);
+ if(engine && nav_engine_select(engine)){
+   const char *why=nav_engine_last_error();
+   if(why && *why) snprintf(err,errlen,"%s",why);
+   else snprintf(err,errlen,
+     "unknown engine \"%s\"; use --engine precise (NOVAS + JPL DE440s) "
+     "or --engine classic (XEphem libastro)",engine);
+   return 1;
+ }
+ return 0;
+}
+
 int main(int argc,char**argv){
+ char engine_err[768];
+
+ if(take_global_opts(&argc,argv,engine_err,sizeof engine_err)){
+   fprintf(stderr,"%s\n",engine_err);
+   return 2;
+ }
+
+ /* --notice and -v are answerable without an ephemeris. */
  if(argc==2 && !strcmp(argv[1],"--notice")){ puts(navalm_safety_notice); return 0; }
+ if(argc==2 && (!strcmp(argv[1],"-v") || !strcmp(argv[1],"--version"))){
+   printf("navalm version %s\n",NAVALM_VERSION);
+   if(nav_engine_init(engine_err,sizeof engine_err))
+     printf("engine  %s (unavailable)\n%s\n",nav_engine_name(),engine_err);
+   else
+     printf("engine  %s - %s\n",nav_engine_name(),nav_engine_detail());
+   return 0;
+ }
+
+ /* Every other command works the almanac, so a missing or unreadable
+  * ephemeris is reported here rather than discovered mid-table. */
+ if(nav_engine_init(engine_err,sizeof engine_err)){
+   fprintf(stderr,"navalm: %s\n",engine_err);
+   return 2;
+ }
  if(argc>=2 && (!strcmp(argv[1],"-d") || !strcmp(argv[1],"--daemon"))){
    const char *addr="127.0.0.1"; int port=8080,i;
    for(i=2;i<argc;i++){
@@ -709,16 +773,16 @@ int main(int argc,char**argv){
    int rc = navsight_command(argc,argv);
    if(rc >= 0) return rc;
  }
- if(argc==2 && (!strcmp(argv[1],"-v") || !strcmp(argv[1],"--version"))){
-   printf("navalm version %s\n",NAVALM_VERSION);
-   return 0;
- }
  if(argc>=2 && (!strcmp(argv[1],"-t") || !strcmp(argv[1],"-th") || !strcmp(argv[1],"-tx"))){
    int y=0,m=0,d=0,ok=0;
    TableFormat fmt = (argv[1][2]=='h') ? TBL_HTML : (argv[1][2]=='x') ? TBL_TEX : TBL_ASCII;
    if(argc==3) ok=parse_date_arg(argv[2],&y,&m,&d);
    else if(argc==5){ y=atoi(argv[2]); m=atoi(argv[3]); d=atoi(argv[4]); ok=valid_date(y,m,d); }
    if(!ok){ fprintf(stderr,"invalid date; use %s YYYY-MM-DD or %s YYYY MM DD\n",argv[1],argv[1]); return 2; }
+   if(!nav_engine_covers(nav_julian_date(y,m,d,12,0,0))){
+     fprintf(stderr,"navalm: %s\n",nav_engine_last_error());
+     return 2;
+   }
    return print_daily_table(y,m,d,fmt);
  }
  if(argc==2 && !strcmp(argv[1],"list-stars")){
@@ -736,7 +800,12 @@ int main(int argc,char**argv){
      fprintf(stderr,"use more letters\n");return 2;}
    si=mm[0];
    double jd=nav_julian_date(atoi(argv[3]),atoi(argv[4]),atoi(argv[5]),atoi(argv[6]),atoi(argv[7]),atof(argv[8]));
-   NavStarAlmanac a; if(nav_star_almanac((size_t)si,jd,&a)) return 1;
+   NavStarAlmanac a;
+   if(nav_star_almanac((size_t)si,jd,&a)){
+     const char *why=nav_engine_last_error();
+     fprintf(stderr,"navalm: %s\n",(why&&*why)?why:"could not compute that position");
+     return 1;
+   }
    char g[32],d[32],sha[32]; fmt_gha2(a.gha_deg,g,sizeof g);fmt_dec2(a.dec_deg,d,sizeof d);fmt_gha2(a.sha_deg,sha,sizeof sha);
    if(atoi(argv[3])>=1972) {
      printf("%s  JD(UT)=%.8f  TT-UTC=%.3fs (DUT1=0 assumed)\n",a.name,jd,nav_delta_t_seconds(jd));
@@ -753,7 +822,12 @@ int main(int argc,char**argv){
  if(argc==15){int n=parse_ap(argc,argv,8,&alat,&alon); if(n<0){fprintf(stderr,"invalid --ap; expected LATdeg LATmin N|S LONdeg LONmin E|W\n");return 2;} have_ap=1;}
  int b=body(argv[1]);if(b<0){fprintf(stderr,"unknown body\n");return 2;}
  double jd=nav_julian_date(atoi(argv[2]),atoi(argv[3]),atoi(argv[4]),atoi(argv[5]),atoi(argv[6]),atof(argv[7]));
- NavAlmanac a;if(nav_almanac((NavBody)b,jd,&a))return 1;
+ NavAlmanac a;
+ if(nav_almanac((NavBody)b,jd,&a)){
+   const char *why=nav_engine_last_error();
+   fprintf(stderr,"navalm: %s\n",(why&&*why)?why:"could not compute that position");
+   return 1;
+ }
  char g[32],d[32],hp[32],sd[32];fmt_gha2(a.gha_deg,g,sizeof g);fmt_dec2(a.dec_deg,d,sizeof d);fmt_arcmin(a.hp_deg,hp,sizeof hp);fmt_arcmin(a.sd_deg,sd,sizeof sd);
  if(atoi(argv[2])>=1972) {
    printf("%s  JD(UT)=%.8f  TT-UTC=%.3fs (DUT1=0 assumed)\n",nav_body_name((NavBody)b),jd,nav_delta_t_seconds(jd));

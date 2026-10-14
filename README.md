@@ -4,11 +4,11 @@
 
 NAVALM brings almanac calculations, worked sextant-sight reductions, and position fixes together in one C program. Use it from the command line, in a full-screen terminal, or through its built-in browser interface.
 
-Current version: **3.3c**.
+Current version: **4.0p**.
 
 **Informational and educational use only. Do not rely on NAVALM where an error could cause death, injury, or property damage. By using it, you accept the [safety and assumption-of-risk terms](SAFETY.md), to the extent permitted by law.**
 
-This branch contains NAVALM 3.3c, building on the XEphem-based implementation introduced in 3.0c. The older v2.8g release still contains the legacy engine and is not covered by this license transition.
+This branch contains NAVALM 4.0p, the precision branch. It keeps the XEphem-based implementation introduced in 3.0c and adds a second, higher-accuracy engine built on NOVAS C3.1 and the JPL DE440s ephemeris; either can be selected at run time. The older v2.8g release still contains the legacy engine and is not covered by this license transition.
 
 ## Features
 
@@ -17,6 +17,79 @@ This branch contains NAVALM 3.3c, building on the XEphem-based implementation in
 - **Sight reduction:** sea and artificial horizons, altitude corrections, and worked HO 229-style reduction steps.
 - **Position fixes:** saved lines of position, least-squares fixes, and running fixes with course/speed and set/drift.
 - **Navigation-friendly input:** degrees and decimal minutes, flexible DR coordinates, and partial star-name matching.
+
+## Astronomy engines
+
+NAVALM 4.0p carries two engines and will use either on request.
+
+| | `--engine precise` (default) | `--engine classic` |
+|---|---|---|
+| Source | NOVAS C3.1 with JPL DE440s | XEphem libastro |
+| Theory | JPL Chebyshev coefficients, IAU 2000A/2006 reduction | VSOP87 and the Moshier lunar theory |
+| Accuracy | milliarcseconds | arcseconds |
+| Dates | 1849 to 2150 | unbounded |
+| Needs a data file | yes, about 30 MB | no |
+
+In practice the two agree to about 0.01 arcminute, which is the resolution
+the tables print, so the printed numbers rarely change. What changes is the
+error budget: the precise engine's is milliarcseconds and traceable to
+JPL's published ephemeris, rather than the truncation error of an analytic
+series. See [VALIDATION.md](VALIDATION.md) for the measurements.
+
+The classic engine remains useful: it needs no data file, and it covers
+dates outside the DE440s span.
+
+### Choosing an engine
+
+The engine is chosen with a command-line flag, and the flag is the only
+place it lives: there is no engine setting in `~/.navalmrc`, on the
+terminal Setup screen, or in the browser interface. `--engine` works with
+every command and every interface.
+
+```sh
+./navalm sun 2026 9 9 12 0 0                    # precise, the default
+./navalm --engine classic sun 2026 9 9 12 0 0   # same sight, XEphem engine
+./navalm --engine classic -t 2026-09-09         # daily table
+./navalm --engine classic --gui                 # terminal interface
+./navalm --engine classic -d 8080               # browser interface
+./navalm -v                                     # which engine is active now
+```
+
+`--engine` and `--ephemeris` may appear anywhere on the command line. They
+are lifted out before the command is read, so they never disturb the
+positional arguments a command expects.
+
+To make the classic engine your default, alias it:
+
+```sh
+alias navalm='navalm --engine classic'
+```
+
+### Setting up the precise engine
+
+The ephemeris is a build input, not part of the repository. Fetch and
+repack it once:
+
+```sh
+make ephem-fetch     # downloads ephem/de440s.bsp from JPL, about 31 MB
+make ephem           # repacks it into ephem/de440s.nav, about 30 MB
+```
+
+`make ephem` runs `tools/mkde440`, which copies the Chebyshev coefficients
+NAVALM needs out of JPL's SPK kernel into a flat file the program reads
+directly. The coefficients are copied verbatim; nothing is refitted,
+resampled or rounded.
+
+Without `ephem/de440s.nav` the precise engine reports what is missing and
+how to supply it. Use `--engine classic` to run without it, or build
+`make classic-only` to leave the precision engine out altogether.
+
+NAVALM looks for the ephemeris in `$NAVALM_EPHEMERIS`, then `de440s.nav`
+in the current directory, `ephem/`, `~/.navalm/` and
+`/usr/local/share/navalm/`. `--ephemeris PATH` overrides all of that.
+
+`./navalm -v` reports which engine is active and, for the precise engine,
+which file it opened and the dates it covers.
 
 ## Build
 
@@ -35,6 +108,8 @@ git clone https://github.com/kq6up/navalm.git
 cd navalm
 make page
 make
+make ephem-fetch     # once: downloads the JPL ephemeris
+make ephem           # once: repacks it for NAVALM
 ./navalm -v
 ```
 
@@ -42,7 +117,7 @@ If you downloaded a source archive, extract it and enter its source directory, t
 
 **Run `make page` before `make`.** The first command runs `mkpage.sh` to convert `page.html` into `navweb_page.h`, embedding the browser interface in the program. The second compiles the C sources and creates the `navalm` executable. Plain `make` does not regenerate the page header automatically.
 
-The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 3.3c`. The executable is built in the source directory and can be run there without an installation step.
+The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 4.0p`. The executable is built in the source directory and can be run there without an installation step.
 
 ### Build without ncurses
 
@@ -198,13 +273,24 @@ rights under the upstream XEphem MIT license.
 
 ## License and acknowledgments
 
-NAVALM 3.0c contributions are licensed under the [MIT license](LICENSE).
-XEphem libastro and the selected XEphem star-catalog records retain the
-[upstream MIT notice](libastro/LICENSE.XEphem). Commercial use is permitted
-under MIT; the prior project noncommercial grant is not the license of
-this replacement source tree. Preserve the applicable copyright and
-permission notices when distributing source or binaries. See
+NAVALM contributions are licensed under the [MIT license](LICENSE), and
+4.0p does not change that. XEphem libastro and the selected XEphem
+star-catalog records retain the [upstream MIT
+notice](libastro/LICENSE.XEphem). Commercial use is permitted under MIT;
+the prior project noncommercial grant is not the license of this
+replacement source tree. Preserve the applicable copyright and permission
+notices when distributing source or binaries. See
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+The two components added in 4.0p are both public domain and neither
+imposes conditions on NAVALM's own terms. **NOVAS C3.1** is a work of the
+U.S. Naval Observatory; its documentation asks only that users acknowledge
+the USNO Astronomical Applications Department, which NAVALM does here and
+in `--notice`. The **JPL DE440s ephemeris** is US Government data produced
+by the Jet Propulsion Laboratory, California Institute of Technology,
+under contract with NASA, and is freely redistributable; it is data rather
+than software and is not covered by the MIT grant. Both are credited in
+full in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 The former Metcalf-derived astronomical engine and tables have been
 removed. We gratefully remember **Dr. Thomas R. Metcalf**, whose handheld

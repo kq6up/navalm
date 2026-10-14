@@ -1,3 +1,40 @@
+# Changes in NAVALM 4.0p
+
+The precision branch. NAVALM now carries two astronomy engines and lets
+you choose between them at run time.
+
+- **New precise engine:** NOVAS C3.1, from the U.S. Naval Observatory,
+  reading JPL's DE440s planetary and lunar ephemeris. NOVAS supplies the
+  IAU 2000A nutation, IAU 2006 precession, light-time iteration,
+  aberration and gravitational deflection; DE440s supplies the positions
+  as the Chebyshev polynomials JPL published.
+- **The XEphem engine is still here** and still selectable, as
+  `--engine classic`. It needs no data file and has no date limit, so it
+  remains the fallback outside 1849-2150 and on installations that cannot
+  carry 30 MB of coefficients.
+- `--engine precise | classic` and `--ephemeris PATH` work with any
+  command. `-v` reports the active engine, the ephemeris file it opened
+  and the dates it covers.
+- **New `tools/mkde440`:** repacks JPL's SPK kernel into the flat file
+  NAVALM reads, copying the coefficients verbatim. `make ephem-fetch`
+  downloads de440s.bsp; `make ephem` repacks it. Neither file is in the
+  repository.
+- **New `make classic-only`:** builds without NOVAS or the ephemeris at
+  all, for targets that cannot carry the data file.
+- **New `tools/engine_diff.py`:** runs both engines over the same dates
+  and reports the differences in arcminutes.
+- Missing or out-of-range ephemeris data is now reported with a message
+  naming the span and the way out, instead of exiting silently.
+- The two engines agree to about 0.01 arcminute, so printed tables are
+  essentially unchanged. The precise engine was checked against Skyfield
+  (0.0005 arcsecond worst case, 1900-2149) and its repacked coefficients
+  against jplephem (0.24 mm). USNO's own checkout program, built from the
+  vendored NOVAS sources, reproduces the USNO reference output digit for
+  digit. See VALIDATION.md.
+- Licensing is unchanged: NAVALM stays MIT. NOVAS is public-domain USNO
+  work and DE440s is public-domain JPL data; neither imposes conditions.
+  Both are credited in THIRD_PARTY_NOTICES.md.
+
 # Changes in NAVALM 3.3c
 
 - Publication review: AIR declination now repeats the hemisphere when it

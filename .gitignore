@@ -14,3 +14,11 @@
 .DS_Store
 *~
 *.swp
+
+# JPL ephemeris: a build input and a generated file, neither is source.
+# Fetch with "make ephem-fetch", build with "make ephem".
+/ephem/*.bsp
+/ephem/*.nav
+
+# Build tools
+/tools/mkde440

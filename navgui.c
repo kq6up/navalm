@@ -12,6 +12,7 @@
  * command line uses, so the two stay in step by construction.
  */
 
+#include "nav_version.h"
 #include "navsight.h"
 #include "navrc.h"
 #include "nav_engine.h"
@@ -49,8 +50,8 @@ static void title(const char *screen){
     time_t t = time(NULL);
     struct tm *g = gmtime(&t);
     attron(A_REVERSE);
-    snprintf(buf,sizeof buf,"NAVALM 3.3c  %-24s %04d-%02d-%02d %02d:%02d:%02d UTC",
-             screen,g->tm_year+1900,g->tm_mon+1,g->tm_mday,g->tm_hour,g->tm_min,g->tm_sec);
+    snprintf(buf,sizeof buf,"NAVALM %s  %-24s %04d-%02d-%02d %02d:%02d:%02d UTC",
+             NAVALM_VERSION,screen,g->tm_year+1900,g->tm_mon+1,g->tm_mday,g->tm_hour,g->tm_min,g->tm_sec);
     bar(0,buf);
     attroff(A_REVERSE);
 }

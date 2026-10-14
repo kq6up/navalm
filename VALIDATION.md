@@ -1,3 +1,115 @@
+# NAVALM 4.0p publication validation
+
+Checks performed on 14 October 2026. 4.0p adds a second astronomy engine:
+NOVAS C3.1 reading JPL DE440s. Unlike earlier releases, this round did
+include independent astronomical cross-checks, described below.
+
+## Build
+
+- `make`, `make nogui`, `make classic-only`, `make ephem`: all passed with
+  no compiler warnings under Apple clang 21 (arm64).
+- NOVAS and libastro both export `nutation()` and `refract()`. The Makefile
+  compiles the NOVAS objects with `-Dnutation=novas_nutation
+  -Drefract=novas_refract`, so both vendored trees remain byte-identical to
+  their upstream releases. A symbol-table comparison of `novas.a` against
+  `libastro.a` confirmed those two were the only collisions.
+- The complete NOVAS C3.1 distribution under `novas/` was byte-compared
+  against the USNO release archive: all 26 files identical.
+
+## Ephemeris repacking
+
+`tools/mkde440` copies JPL's Chebyshev coefficients verbatim out of
+de440s.bsp. Positions read back through `nav_eph440.c` were compared
+against the `jplephem` Python package reading the original kernel, at six
+dates spanning 1849 to 2150 for all nine retained bodies:
+
+    worst position difference   2.4e-07 km   (0.24 mm)
+    worst velocity difference   5.0e-13 km/s
+
+That is double-precision rounding at Saturn's distance, so the repacked
+file and the original kernel are the same numbers.
+
+## Apparent places
+
+NAVALM's precise engine was compared against Skyfield 1.55, which performs
+its own light-time, aberration, deflection and precession-nutation
+reduction from the same kernel. Eight dates from 1900 to 2149, seven
+bodies, comparing apparent RA and declination of date at a common TT:
+
+    worst angular separation    0.0005 arcsec
+
+That is the print precision of the comparison harness, not a measured
+disagreement.
+
+USNO's own `checkout-stars` validation program, built from the vendored
+sources, reproduces `novas/checkout-stars-usno.txt` digit for digit. (The
+files differ only in line endings; the USNO reference is CRLF.)
+
+## Engine cross-check
+
+`tools/engine_diff.py` runs both engines over the same dates and bodies.
+Eight dates from 1950 to 2140, in arcminutes:
+
+    body      worst dGHA   worst dDec
+    sun            0.010        0.000
+    moon           0.010        0.010
+    mercury        0.010        0.010
+    venus          0.010        0.010
+    mars           0.030        0.010
+    jupiter        0.010        0.010
+    saturn         0.010        0.000
+    aries          0.000        0.000
+
+All 58 navigation stars agreed to 0.01' in SHA and declination, except
+Polaris at 0.61' of SHA. That is the usual ill-conditioning of SHA within
+a degree of the pole, not a position disagreement: Polaris' declination
+agrees to 0.01'.
+
+The two engines therefore agree to about the resolution the tables print.
+The precision engine's value is not that it moves the printed numbers; it
+is that its error budget is milliarcseconds and traceable to JPL, rather
+than the truncation error of an analytic series.
+
+## Known limitations
+
+- DE440s carries barycentres, not planet centres, for Mars, Jupiter and
+  Saturn; the satellite ephemerides would be needed for centres. The
+  offset reaches roughly 0.05 arcsecond for Saturn and 0.02 for Jupiter,
+  some three orders of magnitude below the 0.1 arcminute the tables print.
+- The star catalogue carries no parallax or radial velocity, so both are
+  passed to NOVAS as zero. The largest resulting error is about 0.75
+  arcsecond, for Rigil Kentaurus, the nearest navigation star; for most of
+  the 58 it is well under 0.1 arcsecond. This is below the printed
+  resolution but is the precision engine's weakest point, and is the
+  obvious thing to improve next.
+- Planetary magnitudes use the Mallama and Hilton (2018) phase functions,
+  including Saturn's ring opening angle. Magnitudes are a photometric
+  model, not an ephemeris quantity, and differ from printed almanac values
+  by a few hundredths.
+- DUT1 is assumed zero unless supplied, so UT1 is taken as UTC. This
+  affects GHA by up to 0.9 second of time, about 0.2 arcminute, and is a
+  property of the time argument rather than of either engine.
+- The ephemeris covers JD 2396752.5 to 2506352.5, about 1849 to 2150.
+  Outside that the precise engine refuses with a message naming the span
+  and suggesting `--engine classic`; the classic engine is unbounded.
+
+## Error paths
+
+Exercised and confirmed to report rather than fail silently: missing
+ephemeris file, explicit `--ephemeris` path that does not exist, date
+outside the ephemeris for the single-body, star and daily-table commands,
+unknown `--engine` name, and `--engine precise` on a `classic-only` build.
+`-v` reports the active engine, and on a build or installation without an
+ephemeris says so instead of erroring.
+
+## What these checks are not
+
+They establish that NAVALM's precise engine reproduces JPL's published
+coefficients and agrees with two independent implementations of the
+apparent-place reduction. They are not a safety certification, not a
+guarantee the program is free of defects, and not a substitute for the
+official printed almanac in safety-critical use. See SAFETY.md.
+
 # NAVALM 3.3c publication validation
 
 Checks performed on 23 September 2026 in the build sandbox.

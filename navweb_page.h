@@ -1,7 +1,8 @@
 /* generated from page.html by mkpage.sh - do not edit */
 #ifndef NAVWEB_PAGE_H
 #define NAVWEB_PAGE_H
-#define NAVALM_WEB_VERSION "3.3c"
+#include "nav_version.h"
+#define NAVALM_WEB_VERSION NAVALM_VERSION
 static const char navweb_page[] =
 "<!DOCTYPE html>\n"
 "<html lang=\"en\">\n"

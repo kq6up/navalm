@@ -101,3 +101,70 @@ archives, or the v2.8g release, which still contain the old engine.
 Their source and permission history remain in Git history. Use the
 current branch for the replacement implementation; do not treat an old
 release archive as MIT merely because today's README says MIT.
+
+## NAVALM 4.0p: the precision engine
+
+4.0p adds a second engine beside the XEphem one. Nothing was removed:
+nav_engine_x.c and libastro/ are still built and still selectable with
+`--engine classic`.
+
+| Added | Role |
+| --- | --- |
+| novas/ | NOVAS C3.1, vendored unmodified from the USNO release |
+| nav_engine_n.c | the nav_engine.h quantities computed through NOVAS |
+| nav_solsys440.c | NOVAS' solarsystem() hook, backed by DE440s |
+| nav_eph440.c/.h | reader and Chebyshev evaluation for the repacked file |
+| nav_engine_sel.c | engine selection, and the engine-independent parts |
+| nav_engine_impl.h | the internal interface each engine provides |
+| tools/mkde440.c | repacks JPL's SPK kernel into NAVALM's flat file |
+
+### NOVAS C3.1
+
+Naval Observatory Vector Astrometry Software, C Edition C3.1, March 2011,
+U.S. Naval Observatory, Astronomical Applications Department. A work of
+the United States Government and in the public domain in the United
+States.
+
+The complete distribution is vendored under `novas/` and was byte-compared
+against the USNO release: all 26 files identical. No NOVAS source file has
+been edited. Four are compiled: novas.c, novascon.c, nutation.c and
+readeph0.c. solsys1.c, solsys2.c, solsys3.c and eph_manager.c are present
+but deliberately not built, because NAVALM supplies its own
+`solarsystem()` from DE440s.
+
+NOVAS and libastro both export `nutation()` and `refract()`. Rather than
+patch either vendored tree, the Makefile compiles the NOVAS objects with
+`-Dnutation=novas_nutation -Drefract=novas_refract`.
+
+As a check on the vendored build, USNO's own `checkout-stars` validation
+program was compiled from these sources and reproduced
+`novas/checkout-stars-usno.txt` digit for digit.
+
+### JPL DE440s
+
+Jet Propulsion Laboratory, California Institute of Technology, under
+contract with NASA. Reference: Park, Folkner, Williams and Boggs 2021,
+*The JPL Planetary and Lunar Ephemerides DE440 and DE441*, AJ 161:105.
+
+    https://ssd.jpl.nasa.gov/ftp/eph/planets/bsp/de440s.bsp
+    32,726,016 bytes
+    SHA-256 c1c7feeab882263fc493a9d5a5b2ddd71b54826cdf65d8d17a76126b260a49f2
+    retrieved 14 October 2026
+
+DE440s is published only as a SPICE SPK kernel; there is no ASCII or
+classic-binary DE440s edition (those exist for the full DE440 only).
+`tools/mkde440.c` is an original reader written against NAIF's published
+DAF and SPK format documentation. No NAIF or SPICE toolkit code is used
+or included.
+
+The repacking copies the double-precision Chebyshev coefficients verbatim
+for nine bodies: the Mercury, Venus, Mars, Jupiter and Saturn barycentres,
+the Earth-Moon barycentre, the Sun, and the Moon and Earth relative to the
+EMB. Uranus, Neptune and Pluto are in the kernel but not carried, since
+NAVALM has no use for them. Positions read back through nav_eph440.c were
+compared against the independent `jplephem` package reading the original
+kernel and agreed to 2.4e-07 km.
+
+Neither NOVAS nor the JPL ephemeris is copyleft or carries a licence that
+conditions NAVALM's own terms. The tree remains MIT. See
+THIRD_PARTY_NOTICES.md for the acknowledgements both ask for.

@@ -45,4 +45,51 @@ const char *nav_star_name(size_t index);
 int nav_star_find(const char *name);
 int nav_star_almanac(size_t index,double jd_ut,NavStarAlmanac *out);
 
+/* ------------------------------------------------------------- engines
+ *
+ * navalm_p carries two astronomy engines behind the calls above:
+ *
+ *   NAV_ENGINE_PRECISE   NOVAS C3.1 reading JPL DE440s Chebyshev
+ *                        coefficients.  Milliarcsecond level.  Needs the
+ *                        ephemeris file built by tools/mkde440.
+ *   NAV_ENGINE_CLASSIC   XEphem libastro: VSOP87 and the Moshier lunar
+ *                        theory.  Arcsecond level, no data file.
+ *
+ * The precise engine is the default.  Select one before the first almanac
+ * call, then call nav_engine_init(), which is where a missing or unreadable
+ * ephemeris is reported.
+ */
+typedef enum { NAV_ENGINE_PRECISE = 0, NAV_ENGINE_CLASSIC = 1 } NavEngine;
+
+/* Accepts "precise", "novas", "de440s", "jpl", or "classic", "libastro",
+ * "xephem", "vsop87".  Returns 0 if the name was recognised and the engine
+ * is available in this build. */
+int nav_engine_select(const char *name);
+NavEngine nav_engine_current(void);
+const char *nav_engine_name(void);
+
+/* One line naming the engine and, for the precise engine, the ephemeris
+ * file and the dates it covers. */
+const char *nav_engine_detail(void);
+
+/* Overrides where the precise engine looks for its ephemeris.  Without
+ * this, $NAVALM_EPHEMERIS is tried, then de440s.nav in the current
+ * directory, ephem/, ~/.navalm/ and /usr/local/share/navalm/. */
+void nav_engine_set_ephemeris_path(const char *path);
+
+/* Prepares the selected engine.  Returns 0 on success; on failure writes a
+ * sentence to err saying what is missing and how to supply it. */
+int nav_engine_init(char *err, size_t errlen);
+void nav_engine_shutdown(void);
+
+/* Why the last nav_almanac() or nav_star_almanac() call failed, or "" if
+ * nothing has failed.  The commonest cause is a date outside the span of
+ * the ephemeris the precise engine is reading. */
+const char *nav_engine_last_error(void);
+
+/* Whether the selected engine can answer for this UT Julian date.  The
+ * classic engine covers any date; the precise engine is limited to its
+ * ephemeris file. */
+int nav_engine_covers(double jd_ut);
+
 #endif
