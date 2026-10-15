@@ -1,3 +1,16 @@
+# Changes in NAVALM 4.2
+
+- Added a universal plotting sheet to browser fixes, showing each sight's
+  assumed position, intercept, azimuth, perpendicular LOP, running-fix
+  advance, and a magnified cocked hat for three nonparallel lines.
+- Fixed duplicate displayed sight rows after editing: superseded list
+  requests can no longer append their rows to a newer refresh. Saving an
+  edit starts only one list refresh. Stored records were not duplicated.
+- Plot geometry uses the fix solver's longitude scale, adaptive grid
+  intervals near the poles, and the inset's actual magnification.
+- Added `make check-plot` and `make check-list` regression checks.
+- `v4.1a` preserves the plotting-sheet source before the display fix.
+
 # Changes in NAVALM 4.1
 
 - ICE F7-style paper-fix almanac in the browser and terminal: GHA, Dec,

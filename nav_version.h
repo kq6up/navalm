@@ -13,6 +13,6 @@
 #ifndef NAV_VERSION_H
 #define NAV_VERSION_H
 
-#define NAVALM_VERSION "4.1"
+#define NAVALM_VERSION "4.2"
 
 #endif

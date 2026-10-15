@@ -118,8 +118,11 @@ check-paper: tests/paper_almanac
 check-plot:
 	node tests/plotting_sheet.js
 
+check-list:
+	node tests/sight_list.js
+
 # Removes the generated ephemeris too, but never the downloaded .bsp.
 distclean: clean
 	rm -f $(EPHEM_NAV)
 
-.PHONY: all nogui classic-only ephem ephem-fetch stars page clean distclean check-paper check-plot
+.PHONY: all nogui classic-only ephem ephem-fetch stars page clean distclean check-paper check-plot check-list

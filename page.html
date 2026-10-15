@@ -682,14 +682,17 @@ async function dailyAlmanac(style){
 }
 
 /* ---------- stored sights ---------- */
+let listRequest=0;
 async function renderList(){
-  const arr=loadSights(), tb=$('listbody');
+  const request=++listRequest, arr=loadSights(), tb=$('listbody');
   tb.innerHTML='';
   if(!arr.length){ tb.innerHTML='<tr><td colspan="8" class="hint">No sights yet.</td></tr>'; return; }
   for(let i=0;i<arr.length;i++){
     const s=arr[i];
     let r={};
     try{ r=await (await fetch('/api/reduce?'+query(s))).json(); }catch(e){}
+    /* A newer refresh owns the table, even if this response arrived last. */
+    if(request!==listRequest) return;
     const tr=document.createElement('tr');
     if(s.sel) tr.className='sel';
     tr.innerHTML=`<td><input type="checkbox" ${s.sel?'checked':''}></td>
@@ -1098,7 +1101,7 @@ $('save').onclick=()=>{
     saveSights(arr);
     const n=editIndex+1;
     endEdit('Sight '+n+' updated.');
-    renderList(); renderMotion();
+    renderMotion();
     show('list');
     return;
   }

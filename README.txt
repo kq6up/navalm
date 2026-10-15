@@ -1,4 +1,9 @@
-NAVALM 4.1 - nautical almanac and sight worker
+NAVALM 4.2 - nautical almanac and sight worker
+
+4.2 adds a universal plotting sheet to browser fixes and corrects the
+duplicate displayed rows after editing a saved sight. See README.md for
+the plotting workflow; make check-list and make check-plot run the
+browser-logic regression checks (Node.js required for these tests only).
 
 4.1 adds an ICE F7-style paper-fix almanac in the browser and terminal.
 It uses the DR from Setup and the current UTC time, with editable date

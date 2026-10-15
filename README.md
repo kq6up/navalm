@@ -4,11 +4,11 @@
 
 NAVALM brings almanac calculations, worked sextant-sight reductions, and position fixes together in one C program. Use it from the command line, in a full-screen terminal, or through its built-in browser interface.
 
-Current version: **4.1**.
+Current version: **4.2**.
 
 **Informational and educational use only. Do not rely on NAVALM where an error could cause death, injury, or property damage. By using it, you accept the [safety and assumption-of-risk terms](SAFETY.md), to the extent permitted by law.**
 
-NAVALM 4.1 adds an ICE F7-style almanac for working a fix on paper. It retains the two astronomy engines introduced in 4.0p: XEphem libastro and NOVAS C3.1 with the JPL DE440s ephemeris; either can be selected at run time. The older v2.8g release still contains the legacy engine and is not covered by this license transition.
+NAVALM 4.2 adds a universal plotting sheet to browser fixes and fixes duplicated sight rows after editing. It includes the ICE F7-style almanac for working a fix on paper. It retains the two astronomy engines introduced in 4.0p: XEphem libastro and NOVAS C3.1 with the JPL DE440s ephemeris; either can be selected at run time. The older v2.8g release still contains the legacy engine and is not covered by this license transition.
 
 ## Features
 
@@ -21,7 +21,7 @@ NAVALM 4.1 adds an ICE F7-style almanac for working a fix on paper. It retains t
 
 ## Astronomy engines
 
-NAVALM 4.1 carries two engines and will use either on request.
+NAVALM carries two engines and will use either on request.
 
 | | `--engine precise` (default) | `--engine classic` |
 |---|---|---|
@@ -118,7 +118,7 @@ If you downloaded a source archive, extract it and enter its source directory, t
 
 **Run `make page` before `make`.** The first command runs `mkpage.sh` to convert `page.html` into `navweb_page.h`, embedding the browser interface in the program. The second compiles the C sources and creates the `navalm` executable. Plain `make` does not regenerate the page header automatically.
 
-The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 4.1`. The executable is built in the source directory and can be run there without an installation step.
+The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 4.2`. The executable is built in the source directory and can be run there without an installation step.
 
 ### Build without ncurses
 

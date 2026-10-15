@@ -1,3 +1,34 @@
+# NAVALM 4.2 publication validation
+
+Checks performed on 15 October 2026 for the browser plotting sheet and
+saved-sight display fix.
+
+- Reproduced the reported edit workflow in the actual browser: three
+  saved sights became six displayed rows after updating one. Two list
+  refreshes overlapped and appended the same rows. The underlying list
+  still contained three records.
+- Added a request generation guard to stop superseded list refreshes,
+  and removed the redundant refresh when saving an edit. Repeated browser
+  edits now leave three displayed rows and three exported records. An
+  unselected sight remains unselected after editing.
+- `make check-list` first failed on the old source with six rows instead
+  of three, then passed with the fix. It covers overlapping refreshes,
+  stale responses arriving last, empty-list updates, and failed requests.
+  These are controlled JavaScript/DOM-double checks, separate from the
+  live browser checks above.
+- `make page`, the ncurses build, `make check-paper`, and
+  `make check-plot` passed. The browser reports 4.2. Plotting checks compare
+  signed LOP residuals with recorded precise-engine stationary and running
+  fixes within 0.0002 NM, and cover two lines, parallel lines, small
+  advances, escaped names, invalid inputs and bounded near-pole grids.
+- Both stationary and running three-star plotting sheets were exercised
+  in the actual browser with synthetic observations. The running case
+  advances the earlier sights by 6.4 and 2.1 NM. The plot uses the same
+  mean assumed latitude as the solver for its longitude scale.
+- Astronomy engines, altitude corrections and fix solver are unchanged.
+  Ephemeris files remain ignored. `v4.1a` is the source checkpoint
+  made before the sight-list correction.
+
 # NAVALM 4.1 publication validation
 
 Checks performed on 14 October 2026 for the paper-fix almanac.
