@@ -114,8 +114,12 @@ tests/paper_almanac: tests/paper_almanac.c $(SRC) $(HDR) libastro.a novas.a
 check-paper: tests/paper_almanac
 	./tests/paper_almanac
 
+# Node.js is needed only for this browser-geometry regression check.
+check-plot:
+	node tests/plotting_sheet.js
+
 # Removes the generated ephemeris too, but never the downloaded .bsp.
 distclean: clean
 	rm -f $(EPHEM_NAV)
 
-.PHONY: all nogui classic-only ephem ephem-fetch stars page clean distclean check-paper
+.PHONY: all nogui classic-only ephem ephem-fetch stars page clean distclean check-paper check-plot

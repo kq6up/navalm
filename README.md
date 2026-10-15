@@ -238,6 +238,24 @@ NAVALM currently assumes DUT1 = 0.
 After building the precise engine and ephemeris, run `make check-paper`
 for the screenshot comparison and horizon, Moon, star, and input checks.
 
+### Browser plotting sheet
+
+Select two or more saved sights in **Sights**, then choose **Fix from
+selected**. The fix includes a universal plotting sheet: each sight's own
+HO 229 assumed position, an intercept arrow toward or away from the body,
+and its perpendicular line of position. Dotted segments show motion from
+course/speed and set/drift to the common fix time. Three nonparallel lines
+also get a cocked-hat inset, labeled with its actual magnification.
+
+The chart uses the fix solver's local plane and mean assumed latitude for
+longitude scaling. Grid intervals adapt to the spread of the sights and
+latitude. It is a regional plotting aid; it does not change the sight
+reduction or fix calculation. Exact poles cannot use this projection.
+
+Run `make check-plot` with Node.js installed to check plot geometry against
+recorded precise-engine stationary and running fixes. The fixture sights
+in `tests/fixtures/plotting.json` are synthetic test observations.
+
 ### Work with saved sights
 
 ```sh
