@@ -31,12 +31,23 @@ Charts + setup page show the selected engine and ephemeris details.
 
 - **Almanac:** UTC date/time, body or catalogue star, DR; paper almanac or a
   complete hourly table, with text export.
-- **Sight reduction:** decimal degrees or `degrees minutes`, separate latitude
+- **Sight reduction:** enter degrees, a space, then decimal minutes:
+  `94 37.2` for Hs, `34 02.5` latitude, `117 21.9` longitude. Fields display
+  this format after examples, defaults and saved-sight reloads. Decimal degrees
+  are also accepted (`34.0416667` is about `34 02.5`), with separate latitude
   and longitude hemispheres, sea/artificial horizon, limb, index error,
   atmosphere, optional vessel motion and current. The full worked reduction
   uses the same formatter as the CLI. Sun example loads the README observation.
 - **Saved sights + plotting:** select 2–16 observations, stationary or running
   fix, optional explicit UTC fix time, residuals, uncertainty, vector diagram.
+  The sheet follows the web app's colours, geometry, compass rose, AP markers,
+  intercept arrows, labels, scale bar and enlarged three-LOP cocked hat. Choose
+  **Detach sheet…** to move the sheet into its own resizable window. Use
+  **Reattach sheet** (or close that window) to return it to the workbench.
+  Zoom with **− / +**, the mouse wheel, or the `+` / `-` keys after clicking
+  the plot. Drag to pan; **Fit**, double-click, or `0` restores the full sheet.
+  Zoom ranges from 25% to 800% of Fit. Layer/opacity changes and recalculated
+  fixes update the detached view; exports always contain the complete sheet.
   Edit preserves a sight ID. Save as new deliberately adds a new ID.
 - **Charts + setup:** ephemeris file selection, state paths, chart roadmap.
   Chart downloads, a chart underlay, and chart compositing are future work.
@@ -49,16 +60,21 @@ log at a time; this first version does not lock logs between applications.
 
 ## Transparent geographic vector overlay
 
-`navfltk_plot.h` builds geographic paths independently of FLTK and of any chart
-provider. Every point has longitude/latitude coordinates. The FLTK renderer
-projects them to the same local tangent plane used by NAVALM's fix solver.
-Graticule/compass, LOPs/motion, labels, and fix/ellipse have separate visibility
-switches. Opacity is shared by the native view and SVG export.
+`navfltk_plot.h` holds the geographic fix data. `navfltk_sheet.h` ports the
+web app's 760 × 772 plotting-sheet drawing rules into shared vector primitives;
+FLTK and SVG use that same scene. Native text rasterization and thin stroke
+rounding can differ slightly from a browser. The original web source is unchanged.
+Graticule/compass, LOPs/motion, labels, and fix/detail have separate visibility
+switches. Opacity is shared by both native views and SVG export. The numerical
+fix report still includes the uncertainty ellipse dimensions.
 
-Transparent SVG export contains named groups and projection metadata, with no
-background rectangle. It is a local plotting sheet, not an automatically
-georeferenced chart image. GeoJSON exports the geographic line paths with
-layer, color, and dashed properties; display labels remain in the SVG scene.
+Transparent SVG export contains layer classes (`.graticule`, `.lines-of-position`, `.labels`,
+`.fix-and-detail`) and projection metadata, with no
+sheet-wide background fill. Small white label halos and the scale-bar plaque
+match the web sheet. It is a local plotting sheet, not an automatically
+georeferenced chart image. GeoJSON exports the main panel's geographic paths
+and labels, with style properties. The enlarged cocked hat and page furniture
+are excluded from geographic exports because they are not chart positions.
 The diagram uses mean AP latitude for longitude scaling, including advanced
 LOPs, so its signed LOP distances match the C solver's residuals.
 
@@ -95,6 +111,11 @@ notarized release.
 - Recorded synthetic stationary and running fixes; geographic vector LOP
   residuals agree with the C solver within 0.000001 NM. Tests also cover
   explicit fix time, layer visibility, opacity, SVG and GeoJSON generation.
+- Web/native parity checks compare LOPs, APs, intercepts, compass ticks,
+  geographic grid and enlarged cocked hat for both fixtures within 0.15 pixel
+  (web SVG coordinates are rounded to tenths). `check-desktop` needs Node.js.
+- Native detach/reattach, pointer-anchored zoom, zoom limits, Fit,
+  synchronized layer/opacity controls, and fix recalculation while detached.
 - Native callback checks completed with an empty stderr report after fixing
   display/buffer destruction order. See `.build/desktop-test/ui-checks.txt`.
 - Existing `make check-paper check-plot check-list` all passed.

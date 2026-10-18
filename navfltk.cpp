@@ -74,9 +74,83 @@ static std::string choose_file(const char *title, const char *filter, bool save,
 class Plot : public Fl_Widget {
   public:
     Overlay scene;
-    bool ready = false, visible[4] = {true, true, true, true};
-    double opacity = 1;
+    bool ready = false, layer_visible[4] = {true, true, true, true};
+    double opacity = 1, zoom = 1, pan_x = 0, pan_y = 0;
+    int drag_x = 0, drag_y = 0;
+    bool dragging = false;
+    std::function<void()> view_changed;
     Plot(int x, int y, int w, int h) : Fl_Widget(x, y, w, h) {}
+    void changed() {
+        redraw();
+        if (view_changed)
+            view_changed();
+    }
+    void fit_view() {
+        zoom = 1;
+        pan_x = pan_y = 0;
+        changed();
+    }
+    void zoom_at(double factor, double anchor_x, double anchor_y) {
+        double next = std::clamp(zoom * factor, .25, 8.0), ratio = next / zoom;
+        pan_x = anchor_x - (x() + w() / 2.) - (anchor_x - (x() + w() / 2.) - pan_x) * ratio;
+        pan_y = anchor_y - (y() + h() / 2.) - (anchor_y - (y() + h() / 2.) - pan_y) * ratio;
+        zoom = next;
+        changed();
+    }
+    void zoom_by(double factor) { zoom_at(factor, x() + w() / 2., y() + h() / 2.); }
+    int handle(int event) override {
+        if (!ready)
+            return Fl_Widget::handle(event);
+        switch (event) {
+        case FL_FOCUS:
+        case FL_UNFOCUS:
+        case FL_ENTER:
+            return 1;
+        case FL_PUSH:
+            if (Fl::event_button() != FL_LEFT_MOUSE)
+                return 0;
+            take_focus();
+            if (Fl::event_clicks()) {
+                fit_view();
+                return 1;
+            }
+            drag_x = Fl::event_x();
+            drag_y = Fl::event_y();
+            dragging = true;
+            return 1;
+        case FL_DRAG:
+            if (!dragging)
+                return 0;
+            pan_x += Fl::event_x() - drag_x;
+            pan_y += Fl::event_y() - drag_y;
+            drag_x = Fl::event_x();
+            drag_y = Fl::event_y();
+            changed();
+            return 1;
+        case FL_RELEASE:
+            dragging = false;
+            return 1;
+        case FL_MOUSEWHEEL:
+            zoom_at(std::pow(1.15, -Fl::event_dy()), Fl::event_x(), Fl::event_y());
+            return 1;
+        case FL_KEYDOWN:
+            if (Fl::event_key() == '+' || Fl::event_key() == '=' ||
+                Fl::event_key() == FL_KP + '+') {
+                zoom_by(1.25);
+                return 1;
+            }
+            if (Fl::event_key() == '-' || Fl::event_key() == FL_KP + '-') {
+                zoom_by(.8);
+                return 1;
+            }
+            if (Fl::event_key() == '0' || Fl::event_key() == FL_Home) {
+                fit_view();
+                return 1;
+            }
+            break;
+        }
+        return Fl_Widget::handle(event);
+    }
     void draw() override {
         fl_push_clip(x(), y(), w(), h());
         fl_color(paper);
@@ -89,40 +163,100 @@ class Plot : public Fl_Widget {
             fl_pop_clip();
             return;
         }
-        int side = std::min(w() - 36, h() - 36), left = x() + (w() - side) / 2,
-            top = y() + (h() - side) / 2;
-        fl_push_clip(left, top, side, side);
-        auto xy = [&](GeoPoint g) {
-            auto p = scene.plane(g);
-            return std::make_pair(left + side * .5 * (1 + p.first / scene.extent),
-                                  top + side * .5 * (1 - p.second / scene.extent));
+        auto sheet = make_sheet(scene);
+        double scale = std::min((w() - 16) / Sheet::width, (h() - 16) / Sheet::height) * zoom;
+        double left = x() + (w() - Sheet::width * scale) / 2 + pan_x;
+        double top = y() + (h() - Sheet::height * scale) / 2 + pan_y;
+        fl_color(FL_WHITE);
+        fl_rectf((int)left, (int)top, (int)(Sheet::width * scale), (int)(Sheet::height * scale));
+        auto color = [&](const std::string &hex, double alpha = 1) {
+            unsigned r = 0, g = 0, b = 0;
+            std::sscanf(hex.c_str(), "#%02x%02x%02x", &r, &g, &b);
+            fl_color(fl_color_average(fl_rgb_color(r, g, b), FL_WHITE, (float)(alpha * opacity)));
         };
-        auto color = [&](int n) {
-            const char *s = vector_color(n);
-            unsigned r, g, b;
-            std::sscanf(s, "#%02x%02x%02x", &r, &g, &b);
-            fl_color(fl_color_average(fl_rgb_color(r, g, b), paper, (float)opacity));
+        auto clip = [&](int index) {
+            if (index >= 0) {
+                auto b = sheet.clips[index];
+                fl_push_clip((int)std::ceil(left + b.x * scale), (int)std::ceil(top + b.y * scale),
+                             (int)std::floor(b.w * scale), (int)std::floor(b.h * scale));
+            }
         };
-        for (auto &p : scene.paths)
-            if (visible[p.layer]) {
-                color(p.color);
-                fl_line_style(p.dashed ? FL_DASH : FL_SOLID, p.layer == 0 ? 1 : 2);
-                for (size_t i = 1; i < p.points.size(); ++i) {
-                    auto a = xy(p.points[i - 1]), b = xy(p.points[i]);
-                    fl_line((int)a.first, (int)a.second, (int)b.first, (int)b.second);
+        for (auto item : sheet.order) {
+            int layer =
+                item.first ? sheet.captions[item.second].layer : sheet.marks[item.second].layer;
+            if (!layer_visible[layer])
+                continue;
+            if (!item.first) {
+                const auto &mark = sheet.marks[item.second];
+                if (mark.points.empty())
+                    continue;
+                clip(mark.clip);
+                fl_push_matrix();
+                fl_translate(left, top);
+                fl_scale(scale, scale);
+                if (mark.ink.fill != "none") {
+                    color(mark.ink.fill, mark.ink.alpha * mark.ink.fill_alpha);
+                    fl_begin_polygon();
+                    for (auto p : mark.points)
+                        fl_vertex(p.x, p.y);
+                    fl_end_polygon();
                 }
+                if (mark.ink.stroke != "none") {
+                    color(mark.ink.stroke, mark.ink.alpha);
+                    char dash[3] = {};
+                    if (!mark.ink.dash.empty()) {
+                        int on = 0, off = 0;
+                        std::sscanf(mark.ink.dash.c_str(), "%d %d", &on, &off);
+                        dash[0] = (char)std::max(1, (int)std::round(on * scale));
+                        dash[1] = (char)std::max(1, (int)std::round(off * scale));
+                    }
+                    fl_line_style(FL_SOLID, std::max(1, (int)std::round(mark.ink.width * scale)),
+                                  dash[0] ? dash : nullptr);
+                    if (mark.closed)
+                        fl_begin_loop();
+                    else
+                        fl_begin_line();
+                    for (auto p : mark.points)
+                        fl_vertex(p.x, p.y);
+                    if (mark.closed)
+                        fl_end_loop();
+                    else
+                        fl_end_line();
+                }
+                fl_pop_matrix();
+                if (mark.clip >= 0)
+                    fl_pop_clip();
+            } else {
+                fl_line_style(FL_SOLID);
+                const auto &label = sheet.captions[item.second];
+                clip(label.clip);
+                Fl_Font font = label.mono ? FL_COURIER : FL_HELVETICA;
+                if (label.bold)
+                    font += 1;
+                if (label.italic)
+                    font += 2;
+                fl_font(font, std::max(5, (int)std::round(label.size * scale)));
+                double tx = left + label.point.x * scale, ty = top + label.point.y * scale;
+                if (label.anchor == "middle")
+                    tx -= fl_width(label.text.c_str()) / 2;
+                if (label.anchor == "end")
+                    tx -= fl_width(label.text.c_str());
+                if (label.halo) {
+                    fl_color(FL_WHITE);
+                    for (int i = 0; i < 8; ++i) {
+                        double a = i * M_PI / 4;
+                        fl_draw(label.text.c_str(),
+                                (int)std::round(tx + 1.75 * scale * std::cos(a)),
+                                (int)std::round(ty + 1.75 * scale * std::sin(a)));
+                    }
+                }
+                color(label.color);
+                fl_draw(label.text.c_str(), (int)std::round(tx), (int)std::round(ty));
+                if (label.clip >= 0)
+                    fl_pop_clip();
             }
+        }
         fl_line_style(FL_SOLID);
-        fl_font(FL_HELVETICA, 11);
-        for (auto &l : scene.labels)
-            if (visible[l.layer]) {
-                color(l.color);
-                auto a = xy(l.point);
-                fl_draw(l.text.c_str(), (int)a.first + 4, (int)a.second - 5);
-            }
-        fl_pop_clip();
-        fl_color(fl_rgb_color(160, 179, 184));
-        fl_rect(left, top, side, side);
         fl_pop_clip();
     }
 };
@@ -141,6 +275,10 @@ class Workbench {
     Fl_Value_Slider *opacity;
     Fl_Multi_Browser *saved;
     Plot *plot;
+    std::unique_ptr<Fl_Double_Window> expanded_window;
+    Plot *expanded_plot = nullptr;
+    Fl_Box *detached_hint, *zoom_readout = nullptr, *expanded_zoom_readout = nullptr;
+    Fl_Button *detach_button;
     Fl_Text_Buffer al_buffer, report_buffer, fix_buffer, chart_buffer;
     Fl_Text_Display *al_display, *report_display, *fix_display, *chart_display;
     SightStore store{};
@@ -158,6 +296,9 @@ class Workbench {
         Fl::foreground(25, 47, 60);
         Fl::set_font(FL_HELVETICA, "Helvetica");
         Fl::set_font(FL_COURIER, "Menlo");
+        Fl::set_font(FL_COURIER_BOLD, "Menlo-Bold");
+        Fl::set_font(FL_COURIER_ITALIC, "Menlo-Italic");
+        Fl::set_font(FL_COURIER_BOLD_ITALIC, "Menlo-BoldItalic");
         win.begin();
         auto *header = new Fl_Box(0, 0, 1180, 82);
         header->box(FL_FLAT_BOX);
@@ -188,14 +329,19 @@ class Workbench {
                          "Sun|Moon|Mercury|Venus|Mars|Jupiter|Saturn|Aries|Navigation star");
         al_star = choice(826, 166, 315, "Navigation star", "");
         fill_stars(al_star);
-        al_lat = input(36, 232, 190, "DR latitude · deg min");
+        al_lat = input(36, 232, 190, "DR latitude · DD MM.m");
         al_lat_hemi = choice(236, 232, 68, "", "N|S");
-        al_lon = input(324, 232, 190, "DR longitude · deg min");
+        al_lon = input(324, 232, 190, "DR longitude · DDD MM.m");
         al_lon_hemi = choice(524, 232, 68, "", "E|W");
         button(616, 232, 160, "Calculate almanac", [this] { almanac(false); }, true);
         button(792, 232, 160, "Hourly table", [this] { almanac(true); });
         button(968, 232, 173, "Export text…", [this] { export_text(al_buffer, "almanac.txt"); });
         al_display = display(36, 300, 1105, 475, al_buffer);
+        auto *al_angle_hint = new Fl_Box(36, 270, 1105, 24,
+                                         "Angles: degrees, a SPACE, then minutes (34 02.5 / 117 "
+                                         "21.9). Decimal degrees also accepted.");
+        al_angle_hint->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+        al_angle_hint->labelsize(12);
         almanac_tab->resizable(al_display);
         almanac_tab->end();
         sight_tab = new Fl_Group(16, 130, 1148, 672, "Sight reduction");
@@ -205,12 +351,12 @@ class Workbench {
         fill_stars(star);
         date = input(36, 230, 210, "UTC date · YYYY-MM-DD");
         time = input(266, 230, 210, "UTC time · HH:MM:SS");
-        hs = input(36, 292, 210, "Sextant Hs · deg min");
+        hs = input(36, 292, 210, "Sextant Hs · DD MM.m");
         label = input(266, 292, 210, "Sight label");
         label->maximum_size(NAVSIGHT_LABEL - 1);
-        lat = input(36, 354, 132, "DR latitude · deg min");
+        lat = input(36, 354, 132, "DR latitude · DD MM.m");
         lat_hemi = choice(178, 354, 68, "", "N|S");
-        lon = input(266, 354, 132, "DR longitude · deg min");
+        lon = input(266, 354, 132, "DR longitude · DDD MM.m");
         lon_hemi = choice(408, 354, 68, "", "E|W");
         horizon = choice(36, 416, 210, "Horizon", "Sea horizon|Artificial horizon (halve Hs)");
         limb = choice(266, 416, 210, "Limb", "Lower limb|Center|Upper limb");
@@ -241,9 +387,9 @@ class Workbench {
         report_display = display(505, 188, 632, 540, report_buffer);
         button(505, 744, 180, "Export worked report…",
                [this] { export_text(report_buffer, "sight-reduction.txt"); });
-        auto *input_hint = new Fl_Box(
-            703, 738, 434, 45,
-            "Angles accept decimal degrees or degrees and minutes.\nAll dates and times are UTC.");
+        auto *input_hint = new Fl_Box(703, 738, 434, 45,
+                                      "Angles: degrees SPACE minutes, e.g. 117 21.9.\nDecimal "
+                                      "degrees also accepted. All times are UTC.");
         input_hint->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
         input_hint->labelsize(12);
         sight_tab->resizable(report_display);
@@ -275,14 +421,22 @@ class Workbench {
         button(256, 579, 210, "Export fix report…", [this] { export_text(fix_buffer, "fix.txt"); });
         fix_display = display(36, 629, 430, 146, fix_buffer);
         fix_display->textsize(12);
-        const char *names[] = {"Grid / compass", "LOPs / motion", "Labels", "Fix / ellipse"};
+        const char *names[] = {"Grid / compass", "LOPs / motion", "Labels", "Fix / detail"};
         for (int i = 0; i < 4; ++i) {
             layers[i] = new Fl_Check_Button(493 + i * 163, 143, 163, 28, names[i]);
             layers[i]->labelsize(12);
             layers[i]->value(1);
             bind(layers[i], [this] { update_layers(); });
         }
+        detached_hint = new Fl_Box(
+            493, 183, 645, 512,
+            "Plot detached into its own window.\nChoose Reattach sheet to return it here.");
+        detached_hint->labelsize(15);
+        detached_hint->hide();
         plot = new Plot(493, 183, 645, 512);
+        plot->tooltip(
+            "Mouse wheel: zoom at pointer. Drag: pan. Double-click or 0: fit. + / -: zoom.");
+        plot->view_changed = [this] { update_zoom_readout(); };
         opacity = new Fl_Value_Slider(560, 711, 204, 27, "Opacity");
         opacity->type(FL_HOR_NICE_SLIDER);
         opacity->align(FL_ALIGN_LEFT);
@@ -293,10 +447,19 @@ class Workbench {
         bind(opacity, [this] { update_layers(); });
         button(787, 708, 171, "Transparent SVG…", [this] { export_overlay(false); });
         button(969, 708, 169, "Geographic vectors…", [this] { export_overlay(true); });
-        auto *plot_hint = new Fl_Box(
-            493, 749, 645, 31,
-            "Local tangent plane · equal NM scale · vector overlay · no chart underlay yet");
-        plot_hint->labelsize(12);
+        detach_button = button(493, 749, 155, "Detach sheet…", [this] {
+            if (expanded_window && expanded_window->shown())
+                reattach_plot();
+            else
+                expand_plot();
+        });
+        button(663, 749, 45, "−", [this] { active_plot()->zoom_by(.8); });
+        button(716, 749, 65, "Fit", [this] { active_plot()->fit_view(); });
+        button(789, 749, 45, "+", [this] { active_plot()->zoom_by(1.25); });
+        zoom_readout = new Fl_Box(842, 749, 78, 34, "100%");
+        zoom_readout->labelsize(13);
+        auto *plot_hint = new Fl_Box(925, 749, 213, 34, "Wheel zoom · drag to pan");
+        plot_hint->labelsize(11);
         fix_tab->resizable(plot);
         fix_tab->end();
         chart_tab = new Fl_Group(16, 130, 1148, 672, "Charts + setup");
@@ -313,8 +476,9 @@ class Workbench {
         chart_buffer.text(
             "CHARTS + UNIVERSAL PLOTTING CHART\n\nThe plotting sheet is an independent geographic "
             "vector overlay.\nIt carries graticule, compass circle, assumed positions, "
-            "intercepts,\nlines of position, motion advances, labels, fix and uncertainty "
-            "ellipse.\n\nLayer visibility and opacity are available in Saved sights + "
+            "intercepts,\nlines of position, motion advances, labels, fix and enlarged cocked hat."
+            "\nUncertainty ellipse dimensions remain in the numeric fix report.\n\nLayer "
+            "visibility and opacity are available in Saved sights + "
             "plotting.\nExport a transparent SVG for artwork, or GeoJSON paths for a chart "
             "renderer.\nSVG uses a local tangent plane; its metadata records the origin and "
             "scale.\nA chart renderer must reproject the geographic vectors to its own "
@@ -336,11 +500,26 @@ class Workbench {
         win.resizable(tabs);
         win.size_range(1180, 850);
         win.end();
-        win.callback([](Fl_Widget *w, void *) { w->hide(); });
+        win.callback(
+            [](Fl_Widget *w, void *p) {
+                auto *app = static_cast<Workbench *>(p);
+                if (app->expanded_window)
+                    app->expanded_window->hide();
+                w->hide();
+            },
+            this);
         new_sight();
         now(al_date, al_time);
-        al_lat->value("0");
-        al_lon->value("0");
+        al_lat->value("00 00.0");
+        al_lon->value("000 00.0");
+        for (auto *field : {lat, al_lat})
+            field->tooltip("Degrees SPACE minutes: 34 02.5 = 34 degrees 2.5 minutes.\nDecimal "
+                           "degrees are also accepted. Select N or S separately.");
+        for (auto *field : {lon, al_lon})
+            field->tooltip("Degrees SPACE minutes: 117 21.9 = 117 degrees 21.9 minutes.\nDecimal "
+                           "degrees are also accepted. Select E or W separately.");
+        hs->tooltip("Degrees SPACE minutes: 94 37.2 = 94 degrees 37.2 minutes.\nDecimal degrees "
+                    "are also accepted. For an artificial horizon enter the full sextant angle.");
         now(fix_date, fix_time);
         bind(body, [this] { body_state(); });
         bind(al_body, [this] { body_state(); });
@@ -506,10 +685,10 @@ class Workbench {
         date->value(b);
         std::snprintf(b, sizeof b, "%02d:%02d:%06.3f", s.h, s.mi, s.s);
         time->value(b);
-        hs->value(fmt(s.hs_deg, 9).c_str());
+        hs->value(angle_entry(s.hs_deg, 2).c_str());
         label->value(s.label);
-        lat->value(fmt(std::fabs(s.dr_lat), 9).c_str());
-        lon->value(fmt(std::fabs(s.dr_lon), 9).c_str());
+        lat->value(angle_entry(s.dr_lat, 2).c_str());
+        lon->value(angle_entry(s.dr_lon, 3).c_str());
         lat_hemi->value(s.dr_lat < 0);
         lon_hemi->value(s.dr_lon < 0);
         horizon->value(s.artificial);
@@ -593,6 +772,10 @@ class Workbench {
     void clear_fix() {
         plot->ready = false;
         plot->redraw();
+        if (expanded_plot) {
+            expanded_plot->ready = false;
+            expanded_plot->redraw();
+        }
         fix_buffer.text("");
         fix_sights.clear();
         fix_red.clear();
@@ -790,7 +973,12 @@ class Workbench {
         fix_red = r;
         plot->scene = overlay(s, r, f);
         plot->ready = true;
-        plot->redraw();
+        plot->fit_view();
+        if (expanded_plot) {
+            expanded_plot->scene = plot->scene;
+            expanded_plot->ready = true;
+            expanded_plot->fit_view();
+        }
         fix_buffer.text(capture([&](FILE *p) {
                             char a[64], b[64];
                             std::fprintf(
@@ -808,11 +996,83 @@ class Workbench {
         message("Fix calculated · " + std::to_string(s.size()) +
                 " LOPs · plotting vectors anchored to latitude / longitude.");
     }
+    Plot *active_plot() {
+        return expanded_window && expanded_window->shown() ? expanded_plot : plot;
+    }
+    void update_zoom_readout() {
+        if (!zoom_readout)
+            return;
+        std::string text = std::to_string((int)std::round(active_plot()->zoom * 100)) + "%";
+        zoom_readout->copy_label(text.c_str());
+        if (expanded_zoom_readout)
+            expanded_zoom_readout->copy_label(text.c_str());
+    }
+    void reattach_plot() {
+        if (expanded_window)
+            expanded_window->hide();
+        plot->show();
+        detached_hint->hide();
+        detach_button->copy_label("Detach sheet…");
+        if (expanded_plot) {
+            double base =
+                std::min((plot->w() - 16) / Sheet::width, (plot->h() - 16) / Sheet::height);
+            double from = std::min((expanded_plot->w() - 16) / Sheet::width,
+                                   (expanded_plot->h() - 16) / Sheet::height);
+            plot->zoom = expanded_plot->zoom;
+            plot->pan_x = expanded_plot->pan_x * base / from;
+            plot->pan_y = expanded_plot->pan_y * base / from;
+        }
+        plot->changed();
+    }
+    void expand_plot() {
+        if (!plot->ready)
+            throw std::runtime_error("Calculate a fix before detaching the sheet.");
+        if (!expanded_window) {
+            expanded_window =
+                std::make_unique<Fl_Double_Window>(800, 830, "NAVALM — Universal Plotting Sheet");
+            expanded_window->begin();
+            button(12, 8, 44, "−", [this] { expanded_plot->zoom_by(.8); });
+            button(64, 8, 64, "Fit", [this] { expanded_plot->fit_view(); });
+            button(136, 8, 44, "+", [this] { expanded_plot->zoom_by(1.25); });
+            expanded_zoom_readout = new Fl_Box(188, 8, 80, 34, "100%");
+            auto *help = new Fl_Box(280, 8, 330, 34, "Wheel zoom · drag pan · double-click fit");
+            help->labelsize(12);
+            button(636, 8, 152, "Reattach sheet", [this] { reattach_plot(); });
+            expanded_plot = new Plot(0, 50, 800, 780);
+            expanded_plot->view_changed = [this] { update_zoom_readout(); };
+            expanded_plot->tooltip(
+                "Wheel: zoom at pointer. Drag: pan. Double-click / 0: fit. + / -: zoom.");
+            expanded_window->resizable(expanded_plot);
+            expanded_window->size_range(800, 520);
+            expanded_window->end();
+            expanded_window->callback(
+                [](Fl_Widget *, void *p) { static_cast<Workbench *>(p)->reattach_plot(); }, this);
+        }
+        expanded_plot->scene = plot->scene;
+        expanded_plot->ready = true;
+        double base = std::min((plot->w() - 16) / Sheet::width, (plot->h() - 16) / Sheet::height);
+        double to = std::min((expanded_plot->w() - 16) / Sheet::width,
+                             (expanded_plot->h() - 16) / Sheet::height);
+        expanded_plot->zoom = plot->zoom;
+        expanded_plot->pan_x = plot->pan_x * to / base;
+        expanded_plot->pan_y = plot->pan_y * to / base;
+        plot->hide();
+        detached_hint->show();
+        detach_button->copy_label("Reattach sheet");
+        update_layers();
+        expanded_window->show();
+        expanded_plot->take_focus();
+        update_zoom_readout();
+    }
     void update_layers() {
-        for (int i = 0; i < 4; ++i)
-            plot->visible[i] = layers[i]->value();
-        plot->opacity = opacity->value();
-        plot->redraw();
+        for (Plot *target : {plot, expanded_plot}) {
+            if (!target)
+                continue;
+            for (int i = 0; i < 4; ++i)
+                target->layer_visible[i] = layers[i]->value();
+            target->opacity = opacity->value();
+            target->redraw();
+        }
     }
     void export_text(Fl_Text_Buffer &b, const char *name) {
         if (b.length() == 0)
@@ -836,7 +1096,7 @@ class Workbench {
         if (path.empty())
             return;
         write_file(path,
-                   geo ? geojson(plot->scene) : svg(plot->scene, plot->visible, plot->opacity));
+                   geo ? geojson(plot->scene) : svg(plot->scene, plot->layer_visible, plot->opacity));
         message("Exported " + path);
     }
     void engine_info() {
@@ -903,6 +1163,7 @@ static fs::path runtime_root(const char *arg) {
         return root.parent_path().parent_path().parent_path();
     return root;
 }
+static Overlay checked_scene;
 static int self_test();
 int main(int argc, char **argv) {
     bool checks = std::string(argv[0]).find("navalm-checks") != std::string::npos;
@@ -940,16 +1201,19 @@ int main(int argc, char **argv) {
             int code = self_test();
             nav_engine_shutdown();
             if (checks) {
-                Fl_Double_Window result(740, 260, "NAVALM desktop checks passed");
-                Fl_Box text(24, 24, 692, 205,
-                            "All desktop checks passed.\n\nSun reduction · save / edit / reload · "
-                            "star and hourly almanacs\nStationary and running fixes · vector "
-                            "geometry · layer controls\nTransparent SVG / geographic exports · "
-                            "engine switching\n\nReport: .build/desktop-test/ui-checks.txt");
-                text.align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-                text.labelsize(15);
+                Fl_Double_Window result(800, 870,
+                                        "NAVALM desktop checks passed — synthetic running fix");
+                Fl_Box text(16, 8, 768, 40,
+                            "All desktop checks passed · synthetic running fix preview\n"
+                            "Report: .build/desktop-test/ui-checks.txt");
+                text.labelsize(13);
+                Plot preview(0, 50, 800, 820);
+                preview.scene = checked_scene;
+                preview.ready = true;
+                result.resizable(preview);
                 result.end();
                 result.show();
+                preview.take_focus();
                 Fl::run();
             }
             return code;
@@ -1015,7 +1279,31 @@ static int self_test() {
     app.win.show();
     Fl::check();
     app.example();
+    require(std::string(app.hs->value()) == "94 37.2" &&
+                std::string(app.lat->value()) == "34 02.5" &&
+                std::string(app.lon->value()) == "117 21.9",
+            "example displays degrees/minutes");
     auto s = app.read_sight();
+    app.lat->value("34 02.5");
+    app.lon->value("117 21.9");
+    app.hs->value("94 37.2");
+    auto spaced = app.read_sight();
+    require(std::fabs(spaced.dr_lat - (34 + 2.5 / 60)) < 1e-10 &&
+                std::fabs(spaced.dr_lon + (117 + 21.9 / 60)) < 1e-10 &&
+                std::fabs(spaced.hs_deg - (94 + 37.2 / 60)) < 1e-10,
+            "DR and Hs fields accept a space between degrees and minutes");
+    app.lat->value("34.0416666666667");
+    app.lon->value("117.365");
+    app.hs->value("94.62");
+    auto decimal_input = app.read_sight();
+    require(std::fabs(decimal_input.dr_lat - spaced.dr_lat) < 1e-10 &&
+                std::fabs(decimal_input.dr_lon - spaced.dr_lon) < 1e-10 &&
+                std::fabs(decimal_input.hs_deg - spaced.hs_deg) < 1e-10,
+            "decimal degrees and spaced degrees/minutes produce identical inputs");
+    app.fill_sight(decimal_input);
+    require(std::string(app.lat->value()) == "34 02.5" &&
+                std::string(app.lon->value()) == "117 21.9",
+            "loaded DR stays in degrees/minutes");
     auto r = reduce(s);
     require(std::fabs(r.intercept_nm - 6.8) < .06, "README Sun intercept");
     app.save_button->do_callback();
@@ -1054,7 +1342,7 @@ static int self_test() {
     app.al_body->value(8);
     app.almanac(false);
     std::puts("PASS native callbacks: Sun reduction, add, edit/update, reload, defaults, "
-              "star/hourly almanac");
+              "star/hourly almanac, spaced DR/Hs and display roundtrip");
     app.engine->value(1);
     app.change_engine();
     require(nav_engine_current() == NAV_ENGINE_CLASSIC, "engine selector Classic");
@@ -1075,6 +1363,7 @@ static int self_test() {
         require(app.plot->ready, "fix plot readiness");
         auto f = app.fix_result;
         auto &o = app.plot->scene;
+        checked_scene = o;
         auto lines = geometry(app.fix_red, f);
         for (size_t i = 0; i < lines.size(); ++i) {
             auto &l = lines[i];
@@ -1088,7 +1377,8 @@ static int self_test() {
         bool visible[] = {true, true, true, true};
         auto svgtext = svg(o, visible, .55);
         require(svgtext.find("opacity=\"0.55\"") != std::string::npos, "SVG opacity");
-        require(svgtext.find("<rect width=\"1000\" height=\"1000\"/>") != std::string::npos,
+        require(svgtext.find("<rect x=\"46\" y=\"46\" width=\"668\" height=\"496\"/>") !=
+                    std::string::npos,
                 "clip rectangle");
         require(svgtext.find("<rect fill=") == std::string::npos, "SVG has no painted background");
         auto vectors = geojson(o);
@@ -1096,19 +1386,50 @@ static int self_test() {
                 "GeoJSON geographic vectors");
         write_file((output / (std::string(name) + ".svg")).string(), svgtext);
         write_file((output / (std::string(name) + ".geojson")).string(), vectors);
+        app.expand_plot();
+        Fl::check();
+        require(app.expanded_window->shown() && app.expanded_plot->ready && !app.plot->visible(),
+                "detached sheet opens and leaves the dock");
+        auto *detached = app.expanded_plot;
+        detached->fit_view();
+        double anchor_x = detached->x() + 210, anchor_y = detached->y() + 180;
+        double before_x = anchor_x - (detached->x() + detached->w() / 2.);
+        double before_y = anchor_y - (detached->y() + detached->h() / 2.);
+        detached->zoom_at(2, anchor_x, anchor_y);
+        require(std::fabs((before_x - detached->pan_x) / detached->zoom - before_x) < 1e-9 &&
+                    std::fabs((before_y - detached->pan_y) / detached->zoom - before_y) < 1e-9,
+                "wheel zoom preserves the point beneath the pointer");
+        require(std::string(app.zoom_readout->label()) == "200%", "zoom readout");
+        detached->zoom_by(100);
+        require(detached->zoom == 8, "zoom upper bound");
+        detached->zoom_by(.0001);
+        require(detached->zoom == .25, "zoom lower bound");
+        detached->fit_view();
+        require(detached->zoom == 1 && detached->pan_x == 0 && detached->pan_y == 0,
+                "Fit resets zoom and pan");
+        app.expanded_window->do_callback();
+        require(!app.expanded_window->shown() && app.plot->visible(),
+                "closing detached window reattaches sheet");
+        app.expand_plot();
+        require(app.expanded_plot == detached && app.expanded_window->shown(),
+                "detach reuses the linked window");
         app.layers[0]->value(0);
         app.opacity->value(.55);
         app.update_layers();
-        require(!app.plot->visible[0] && app.plot->opacity == .55, "layer controls");
+        require(!app.plot->layer_visible[0] && app.plot->opacity == .55 &&
+                    !app.expanded_plot->layer_visible[0] && app.expanded_plot->opacity == .55,
+                "layer controls update embedded and expanded sheets");
         app.layers[0]->value(1);
         app.fix_at->value(1);
         app.fix_date->value("2026-09-20");
         app.fix_time->value("04:00:00");
         app.calculate_fix();
-        require(app.fix_result.fh == 4, "explicit fix UTC");
+        require(app.fix_result.fh == 4 && app.expanded_plot->ready &&
+                    app.expanded_plot->scene.fix.fh == 4 && app.expanded_window->shown(),
+                "explicit fix UTC updates the detached plot without closing it");
         app.fix_at->value(0);
         std::printf("PASS %s fix: %.8f %.8f; vector residuals, geographic anchors, SVG/GeoJSON, "
-                    "layers, explicit UTC\n",
+                    "layers, detach/reattach, anchored zoom, Fit, explicit UTC\n",
                     name, f.lat, f.lon);
     }
     app.engine->value(1);

@@ -57,7 +57,7 @@ DESKTOP_OBJ = $(addprefix .build/desktop/,$(DESKTOP_SRC:.c=.o))
 	@mkdir -p .build/desktop
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-navalm-fltk: navfltk.cpp navfltk_model.h navfltk_plot.h $(DESKTOP_OBJ) libastro.a novas.a
+navalm-fltk: navfltk.cpp navfltk_model.h navfltk_plot.h navfltk_sheet.h $(DESKTOP_OBJ) libastro.a novas.a
 	@command -v $(FLTK_CONFIG) >/dev/null || { echo 'FLTK missing: run make fltk-deps, or set FLTK_CONFIG.'; exit 1; }
 	$(CXX) $(CXXFLAGS) -I. `$(FLTK_CONFIG) --cxxflags` -o $@ navfltk.cpp \
 	  $(DESKTOP_OBJ) libastro.a novas.a `$(FLTK_CONFIG) --ldflags`
@@ -70,11 +70,12 @@ fltk-deps:
 desktop-app: navalm-fltk
 	sh tools/package-desktop.sh
 
-.build/desktop-core: tests/desktop_core.cpp navfltk_model.h navfltk_plot.h $(DESKTOP_OBJ) libastro.a novas.a
+.build/desktop-core: tests/desktop_core.cpp navfltk_model.h navfltk_plot.h navfltk_sheet.h $(DESKTOP_OBJ) libastro.a novas.a
 	$(CXX) $(CXXFLAGS) -I. -o $@ tests/desktop_core.cpp $(DESKTOP_OBJ) libastro.a novas.a $(LDLIBS)
 
 check-desktop: .build/desktop-core
 	./.build/desktop-core
+	node tests/desktop_sheet.js
 
 # Launch this bundle through Finder/Launch Services for native callback checks.
 # Results appear in .build/desktop-test/ui-checks.txt and ui-errors.txt.

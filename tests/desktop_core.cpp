@@ -49,7 +49,14 @@ int main() {
             rejects([&] { date_time(d, "12:00:00", s); });
         for (const char *t : {"24:00:00", "12:60:00", "12:00:nan", "12:00:60", "12:00:00x"})
             rejects([&] { date_time("2026-10-18", t, s); });
-        std::puts("PASS desktop input validation");
+        require(angle_entry(34 + 2.5 / 60, 2) == "34 02.5" && angle_entry(117.365) == "117 21.9" &&
+                    angle_entry(94.62, 2) == "94 37.2" &&
+                    angle_entry(12 + 59.99999999 / 60) == "013 00.0",
+                "degrees/minutes display and minute carry");
+        for (double value : {0., 0.000000001, 34.0416666666667, 89.999999999, 117.365, 180.})
+            require(std::fabs(angle(angle_entry(value), "angle", 180) - value) < 1e-9,
+                    "angle display roundtrip preserves precision");
+        std::puts("PASS desktop input validation and degrees/minutes display roundtrip");
         nav_engine_set_ephemeris_path("ephem/de440s.nav");
         char err[512]{};
         nav_engine_select("precise");
@@ -109,12 +116,35 @@ int main() {
                 require(std::fabs(p.first - l.e) < 1e-8 && std::fabs(p.second - l.n) < 1e-8,
                         "geographic projection round trip");
             }
+            auto sheet = make_sheet(o);
+            auto count = [](const Sheet &d, const char *role) {
+                return std::count_if(d.marks.begin(), d.marks.end(),
+                                     [&](const Mark &m) { return m.role == role; });
+            };
+            require(count(sheet, "compass-tick") == 72 && count(sheet, "detail-lop") == 3 &&
+                        count(sheet, "assumed-position") == 3 &&
+                        count(sheet, "intercept-arrow") == 3,
+                    "web sheet compass, AP markers, arrows and enlarged cocked hat");
+            auto two = o;
+            two.sights.pop_back();
+            two.reductions.pop_back();
+            require(count(make_sheet(two), "detail-lop") == 0, "two LOPs have no cocked hat inset");
+            auto parallel = o;
+            for (auto &v : parallel.reductions)
+                v.zn = 90;
+            require(count(make_sheet(parallel), "detail-lop") == 0,
+                    "parallel LOPs have no cocked hat inset");
+            auto polar = o;
+            polar.lat = polar.grid_lat = 89.9999;
+            for (auto &v : polar.reductions)
+                v.ap_lat = 89.9999;
+            require(make_sheet(polar).marks.size() < 400, "near-pole grid remains bounded");
             bool visible[] = {true, true, true, true};
             auto image = svg(o, visible, .55);
             require(image.find("opacity=\"0.55\"") != std::string::npos, "SVG opacity");
             require(image.find("<rect fill=") == std::string::npos, "SVG transparency");
             visible[0] = false;
-            require(svg(o, visible, 1).find("id=\"graticule\"") == std::string::npos,
+            require(svg(o, visible, 1).find("class=\"graticule\"") == std::string::npos,
                     "hide grid layer");
             auto prefix = fs::path(".build/desktop-test") / name;
             std::ofstream(prefix.string() + ".svg") << image;

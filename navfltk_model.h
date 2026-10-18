@@ -48,6 +48,23 @@ inline double angle(const std::string &s, const char *name, double limit) {
         throw std::runtime_error(std::string(name) + ": out of range.");
     return d;
 }
+/* Keep entry fields in degrees and decimal minutes, including after reload.
+   Up to seven fractional minute digits retain the old decimal display's
+   precision; ordinary sextant entries stay short (e.g. 94 37.2). */
+inline std::string angle_entry(double value, int degree_width = 3) {
+    double whole = std::floor(std::fabs(value));
+    double minutes = std::round((std::fabs(value) - whole) * 60 * 1e7) / 1e7;
+    if (minutes >= 60) {
+        whole += 1;
+        minutes = 0;
+    }
+    char b[64];
+    std::snprintf(b, sizeof b, "%0*d %010.7f", degree_width, (int)whole, minutes);
+    std::string text(b);
+    while (text.back() == '0' && text[text.size() - 2] != '.')
+        text.pop_back();
+    return text;
+}
 inline void date_time(const std::string &date, const std::string &time, Sight &s) {
     int n = 0;
     if (std::sscanf(date.c_str(), "%d-%d-%d%n", &s.y, &s.mo, &s.d, &n) != 3 ||
