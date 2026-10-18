@@ -4,6 +4,7 @@
  */
 /* navalm 2.1 - setup defaults in ~/.navalmrc */
 
+#include "navfile.h"
 #include "navrc.h"
 
 #include <stdio.h>
@@ -96,7 +97,7 @@ int navrc_save(const NavDefaults *d,char *err,size_t errn){
         fprintf(f,"drift=%.2f\n",d->drift);
     }
     fclose(f);
-    if(rename(tmp,path)){ snprintf(err,errn,"cannot rename %s to %s",tmp,path); return 1; }
+    if(nav_replace_file(tmp,path)){ snprintf(err,errn,"cannot rename %s to %s",tmp,path); return 1; }
     return 0;
 }
 

@@ -1,0 +1,3 @@
+// Private offline data embedded in the portable executable.
+901 RCDATA "@NAVALM_EPHEMERIS_FILE@"
+902 RCDATA "@NAVALM_MAP_FILE@"

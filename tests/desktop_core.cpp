@@ -2,9 +2,9 @@
 #include "navfltk_plot.h"
 #include <functional>
 
+#include "navplatform.h"
 #include <filesystem>
 #include <fstream>
-#include <unistd.h>
 namespace fs = std::filesystem;
 using namespace desktop;
 static void require(bool ok, const char *s) {
@@ -19,13 +19,10 @@ static void rejects(std::function<void()> f) {
     }
     throw std::runtime_error("invalid input was accepted");
 }
+#include "desktop_map.h"
 int main() {
     try {
-        char pattern[] = "/tmp/navalm-core-test-XXXXXX";
-        char *dir = mkdtemp(pattern);
-        if (!dir)
-            throw std::runtime_error("mkdtemp failed");
-        fs::path tmp = dir;
+        fs::path tmp = nav_temp_dir();
         struct Cleanup {
             fs::path path;
             ~Cleanup() {
@@ -33,9 +30,10 @@ int main() {
                 fs::remove_all(path, e);
             }
         } cleanup{tmp};
+        map_checks(tmp);
         auto logfile = tmp / "sights.save";
-        setenv("NAVALM_SAVE", logfile.c_str(), 1);
-        setenv("NAVALMRC", (tmp / "defaults.rc").c_str(), 1);
+        nav_setenv("NAVALM_SAVE", logfile.u8string().c_str(), 1);
+        nav_setenv("NAVALMRC", (tmp / "defaults.rc").u8string().c_str(), 1);
         require(std::fabs(angle("94 37.2", "Hs", 180) - (94 + 37.2 / 60)) < 1e-10,
                 "degrees and minutes");
         for (const char *s : {"", "nan", "inf", "1x", "-1", "91", "34 60", "34.5 12", "34 1 junk"})

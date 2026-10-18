@@ -17,6 +17,7 @@
  * double-second-difference column).
  */
 
+#include "navfile.h"
 #include "navsight.h"
 #include "nav_engine.h"
 
@@ -797,7 +798,7 @@ int navsight_store_save(const SightStore *st,char *err,size_t errn){
         fputc('\n',f);
     }
     fclose(f);
-    if(rename(tmp,path)){ snprintf(err,errn,"cannot rename %s to %s",tmp,path); return 1; }
+    if(nav_replace_file(tmp,path)){ snprintf(err,errn,"cannot rename %s to %s",tmp,path); return 1; }
     return 0;
 }
 

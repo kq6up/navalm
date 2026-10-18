@@ -49,8 +49,12 @@ Charts + setup page show the selected engine and ephemeris details.
   Zoom ranges from 25% to 800% of Fit. Layer/opacity changes and recalculated
   fixes update the detached view; exports always contain the complete sheet.
   Edit preserves a sight ID. Save as new deliberately adds a new ID.
-- **Charts + setup:** ephemeris file selection, state paths, chart roadmap.
-  Chart downloads, a chart underlay, and chart compositing are future work.
+- **Charts + setup:** ephemeris selection, state paths, an offline coastline
+  underlay, cancellable world-map download, OpenCPN coastline import, and a
+  WGS84 land shapefile picker. **Map** independently toggles the underlay in both
+  plotting views. The included Natural Earth map works offline. See MAPS.md.
+- **Windows portable build:** see WINDOWS.md and tools/build-windows.sh. The x64
+  executable statically links FLTK/C++ support and embeds the map and ephemeris.
 
 State is isolated from your usual CLI files: `.local/desktop-sights.save` and
 `.local/desktop-defaults.rc`, beside the executable or beside `NAVALM.app`.
@@ -78,14 +82,11 @@ are excluded from geographic exports because they are not chart positions.
 The diagram uses mean AP latitude for longitude scaling, including advanced
 LOPs, so its signed LOP distances match the C solver's residuals.
 
-Future chart work should add these independent components:
-
-1. Provider/catalogue adapters with explicit region selection and source terms.
-2. A cancellable background download queue with temporary files and atomic
-   completion, independent of the FLTK event loop.
-3. A local chart index holding coverage, edition, projection, and file paths.
-4. A chart canvas that projects chart content and these geographic vectors into
-   one viewport, drawing the vectors in a separate compositing layer.
+The first offline underlay and background downloader are implemented. The next
+chart work is a regional catalogue, coverage index, and raster/ENC decoder.
+Natural Earth and OpenCPN coastline polygons use the same local plane as the
+UGP; depths and nautical chart symbols are not rendered. Downloads validate
+polygon structure before atomically replacing the previous map.
 
 The geographic paths must be reprojected for the chart projection, especially
 Mercator; placing a local-tangent SVG over a chart without reprojection will
@@ -116,6 +117,11 @@ notarized release.
   (web SVG coordinates are rounded to tenths). `check-desktop` needs Node.js.
 - Native detach/reattach, pointer-anchored zoom, zoom limits, Fit,
   synchronized layer/opacity controls, and fix recalculation while detached.
+- Offline SHP parsing, holes, clipping, malformed-file rejection and geographic
+  map/vector alignment; real Natural Earth and installed OpenCPN coastlines.
+- Native background HTTPS download, cancellation preserving the prior map,
+  map visibility in both views, and a synthetic coastal fix preview. The
+  dedicated Checks.app performs a real map download; check-desktop is offline.
 - Native callback checks completed with an empty stderr report after fixing
   display/buffer destruction order. See `.build/desktop-test/ui-checks.txt`.
 - Existing `make check-paper check-plot check-list` all passed.
@@ -123,8 +129,10 @@ notarized release.
 - Existing `./navalm -d 18842` started normally; the browser interface and
   its computed almanac rendered successfully.
 
-The CLI/terminal/web source and the astronomy engine were not modified.
+The CLI/terminal/web interface and astronomy calculations are preserved. Shared
+saved-file code now uses a platform-specific atomic replacement on Windows;
+POSIX continues to use rename().
 The ncurses interface remains in the normal build; this change did not perform
-an interactive terminal-interface walkthrough. Chart downloading and chart
-underlay rendering remain unimplemented. Native file-picker exports are wired
+an interactive terminal-interface walkthrough. The offline coastline underlay is implemented; nautical ENC/raster chart
+rendering remains future work. Native file-picker exports are wired
 but have not been exercised through every system-dialog path.

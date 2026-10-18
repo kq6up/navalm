@@ -8,7 +8,9 @@ This sandbox also has an optional **native FLTK workbench**: `make desktop`
 builds `./navalm-fltk`, and `make desktop-app` packages `NAVALM.app` on macOS.
 It includes sight reductions, saved observations, fixes, and a geographic
 vector plotting overlay with transparent SVG export. See [DESKTOP.md](DESKTOP.md)
-for building, state paths, validation, and the future chart-layer design.
+for building, state paths, validation, and the offline coastline underlay.
+See [MAPS.md](MAPS.md) for downloads/OpenCPN coastlines and [WINDOWS.md](WINDOWS.md)
+for the portable Windows x64 desktop build.
 The existing CLI, `--gui`, and `-d` browser interface remain available.
 
 Current version: **4.2**.

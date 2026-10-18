@@ -5,8 +5,12 @@ test "$(uname -s)" = Darwin || { echo 'desktop-app creates a macOS bundle. Use m
 app=NAVALM.app/Contents
 mkdir -p "$app/MacOS" "$app/Resources"
 cp navalm-fltk "$app/MacOS/navalm-fltk"
-cp LICENSE THIRD_PARTY_NOTICES.md SAFETY.md DESKTOP.md "$app/Resources/"
+cp LICENSE THIRD_PARTY_NOTICES.md SAFETY.md DESKTOP.md PROVENANCE.md "$app/Resources/"
+cp libastro/LICENSE.XEphem "$app/Resources/"
 cp .deps/fltk-1.4.5/COPYING "$app/Resources/FLTK-COPYING" 2>/dev/null || true
+mkdir -p "$app/Resources/maps"
+if [ -f .local/maps/ne_10m_land.shp ]; then cp .local/maps/ne_10m_land.shp "$app/Resources/maps/"; fi
+if [ -f MAPS.md ]; then cp MAPS.md "$app/Resources/"; fi
 if [ -f ephem/de440s.nav ]; then cp ephem/de440s.nav "$app/Resources/"; fi
 cat > "$app/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

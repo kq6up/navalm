@@ -14,7 +14,7 @@ GUI_LIBS   = -lncurses
 SRC = navalm.c navsight.c navcmd.c navrc.c navweb.c \
       nav_engine_sel.c nav_engine_x.c nav_engine_n.c \
       nav_solsys440.c nav_eph440.c nav_stars_x.c
-HDR = nav_notice.h nav_version.h nav_engine.h nav_engine_impl.h nav_stars_x.h \
+HDR = navfile.h nav_notice.h nav_version.h nav_engine.h nav_engine_impl.h nav_stars_x.h \
       navsight.h navrc.h navweb_page.h air_daily.inc nav_eph440.h nav_solsys440.h
 
 # NOVAS C3.1, U.S. Naval Observatory, vendored unmodified under novas/.
@@ -57,9 +57,9 @@ DESKTOP_OBJ = $(addprefix .build/desktop/,$(DESKTOP_SRC:.c=.o))
 	@mkdir -p .build/desktop
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-navalm-fltk: navfltk.cpp navfltk_model.h navfltk_plot.h navfltk_sheet.h $(DESKTOP_OBJ) libastro.a novas.a
+navalm-fltk: navfltk.cpp navfltk_model.h navfltk_plot.h navfltk_sheet.h navfltk_map.h navplatform.h navdownload.cpp navdownload.h $(DESKTOP_OBJ) libastro.a novas.a
 	@command -v $(FLTK_CONFIG) >/dev/null || { echo 'FLTK missing: run make fltk-deps, or set FLTK_CONFIG.'; exit 1; }
-	$(CXX) $(CXXFLAGS) -I. `$(FLTK_CONFIG) --cxxflags` -o $@ navfltk.cpp \
+	$(CXX) $(CXXFLAGS) -I. `$(FLTK_CONFIG) --cxxflags` -o $@ navfltk.cpp navdownload.cpp \
 	  $(DESKTOP_OBJ) libastro.a novas.a `$(FLTK_CONFIG) --ldflags`
 
 desktop: navalm-fltk
@@ -70,7 +70,7 @@ fltk-deps:
 desktop-app: navalm-fltk
 	sh tools/package-desktop.sh
 
-.build/desktop-core: tests/desktop_core.cpp navfltk_model.h navfltk_plot.h navfltk_sheet.h $(DESKTOP_OBJ) libastro.a novas.a
+.build/desktop-core: tests/desktop_core.cpp tests/desktop_map.h navfltk_model.h navfltk_plot.h navfltk_sheet.h navfltk_map.h navplatform.h navdownload.cpp navdownload.h $(DESKTOP_OBJ) libastro.a novas.a
 	$(CXX) $(CXXFLAGS) -I. -o $@ tests/desktop_core.cpp $(DESKTOP_OBJ) libastro.a novas.a $(LDLIBS)
 
 check-desktop: .build/desktop-core

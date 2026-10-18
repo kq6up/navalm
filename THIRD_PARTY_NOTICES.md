@@ -1,8 +1,9 @@
 # Third-party notices
 
-NAVALM's own source is MIT (see [LICENSE](LICENSE)). Nothing vendored here
-changes that: the components below are either MIT or public domain, and
-none of them is copyleft or imposes conditions on NAVALM's own terms.
+NAVALM's own source is MIT (see [LICENSE](LICENSE)). The astronomy components
+are MIT or public domain. The optional desktop also links FLTK under its
+LGPL license with a static-linking exception; Windows builds include LLVM
+and MinGW runtime components under their accompanying notices.
 
 | Component | Status | What NAVALM owes |
 |---|---|---|
@@ -10,6 +11,9 @@ none of them is copyleft or imposes conditions on NAVALM's own terms.
 | NOVAS C3.1 (USNO) | Public domain, US Government work | Nothing required; acknowledgement requested |
 | JPL DE440s ephemeris | Public domain, US Government data | Nothing required; citation customary |
 | SKY2000 / navigation-star data | MIT, via XEphem | Keep the XEphem notice |
+| FLTK 1.4.5 (optional desktop) | LGPL-2.0-or-later with static-linking exception | Include COPYING and preserve the exception |
+| Natural Earth land map (optional desktop) | Public domain | Source credit included in MAPS.md |
+| LLVM / MinGW support (Windows desktop) | Apache-2.0 with LLVM exception and runtime-specific notices | Include the runtime notices |
 
 ## XEphem / libastro
 
@@ -141,3 +145,19 @@ customary courtesy and cost nothing to keep.
 Metcalf and NAV48/NAV50 are acknowledged as historical inspiration in
 PROVENANCE.md. Their legacy permission statements are not presented as
 the license of XEphem, of NOVAS, or of this source tree.
+
+## Optional native desktop dependencies
+
+FLTK 1.4.5: https://www.fltk.org/ and https://github.com/fltk/fltk/tree/release-1.4.5
+Its LGPL-2.0-or-later license includes an exception for static linking of the
+library into applications. The unmodified FLTK COPYING file accompanies native
+binary distributions. No FLTK source files are modified by this workbench.
+
+Natural Earth land data are public domain. See MAPS.md for the pinned source,
+checksum and geographic limitations. OpenCPN/OSM coastlines remain user-supplied;
+they are read locally and are not included in NAVALM's binary packages.
+
+The Windows build uses LLVM-MinGW. Its statically linked libc++, libc++abi,
+libunwind and compiler support carry LLVM's Apache-2.0 license with LLVM
+exceptions, plus MinGW runtime notices. The portable ZIP includes these notices
+in licenses/. Toolchain source: https://github.com/mstorsjo/llvm-mingw

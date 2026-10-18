@@ -1,7 +1,12 @@
 /* SPDX-License-Identifier: MIT
  * Native FLTK workbench over NAVALM's unchanged C calculation engine.
  */
+#include "navplatform.h"
+
 #include "nav_version.h"
+#include "navdownload.h"
+#include "navfile.h"
+#include "navfltk_map.h"
 #include "navfltk_plot.h"
 #include <FL/Fl.H>
 #include <FL/Fl_Box.H>
@@ -18,6 +23,7 @@
 #include <FL/Fl_Value_Slider.H>
 #include <FL/fl_ask.H>
 #include <FL/fl_draw.H>
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -25,11 +31,13 @@
 #include <fstream>
 #include <functional>
 #include <memory>
-#include <unistd.h>
+#include <thread>
+
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
 namespace fs = std::filesystem;
+static fs::path application_root, application_resources;
 using namespace desktop;
 static Fl_Color navy = fl_rgb_color(21, 43, 57), teal = fl_rgb_color(0, 119, 128),
                 paper = fl_rgb_color(245, 247, 246);
@@ -74,6 +82,11 @@ static std::string choose_file(const char *title, const char *filter, bool save,
 class Plot : public Fl_Widget {
   public:
     Overlay scene;
+    std::shared_ptr<LandMap> land_map;
+    bool map_visible = true;
+    const LandMap *cached_map = nullptr;
+    std::array<double, 6> cached_key{};
+    LandContours land_cache;
     bool ready = false, layer_visible[4] = {true, true, true, true};
     double opacity = 1, zoom = 1, pan_x = 0, pan_y = 0;
     int drag_x = 0, drag_y = 0;
@@ -181,6 +194,52 @@ class Plot : public Fl_Widget {
                              (int)std::floor(b.w * scale), (int)std::floor(b.h * scale));
             }
         };
+        if (land_map && map_visible) {
+            std::array<double, 6> key{scene.lat, scene.lon, scene.grid_lat,
+                                      sheet.ce,  sheet.cn,  sheet.scale};
+            if (cached_map != land_map.get() || key != cached_key) {
+                land_cache = map_contours(*land_map, scene, sheet);
+                cached_map = land_map.get();
+                cached_key = key;
+            }
+            clip(0);
+            fl_push_matrix();
+            fl_translate(left, top);
+            fl_scale(scale, scale);
+            auto b = sheet.clips[0];
+            fl_color(fl_rgb_color(230, 241, 246));
+            fl_begin_polygon();
+            fl_vertex(b.x, b.y);
+            fl_vertex(b.x + b.w, b.y);
+            fl_vertex(b.x + b.w, b.y + b.h);
+            fl_vertex(b.x, b.y + b.h);
+            fl_end_polygon();
+            for (const auto &polygon : land_cache) {
+                fl_color(fl_rgb_color(227, 222, 199));
+                fl_begin_complex_polygon();
+                for (const auto &ring : polygon) {
+                    for (auto p : ring)
+                        fl_vertex(p.x, p.y);
+                    fl_gap();
+                }
+                fl_end_complex_polygon();
+                fl_color(fl_rgb_color(105, 122, 115));
+                fl_line_style(FL_SOLID, 1);
+                for (const auto &ring : polygon) {
+                    fl_begin_loop();
+                    for (auto p : ring)
+                        fl_vertex(p.x, p.y);
+                    fl_end_loop();
+                }
+            }
+            fl_line_style(FL_SOLID);
+            fl_pop_matrix();
+            fl_pop_clip();
+            sheet.text({46, 718}, land_map->name, 0, -1, 9.5, "#5a6b74");
+            sheet.text({46, 733},
+                       "Offline geographic context; depth and hazard symbols are not included.", 0,
+                       -1, 9, "#5a6b74");
+        }
         for (auto item : sheet.order) {
             int layer =
                 item.first ? sheet.captions[item.second].layer : sheet.marks[item.second].layer;
@@ -271,14 +330,22 @@ class Workbench {
     Fl_Input *date, *time, *hs, *label, *lat, *lon, *ie, *height, *temp, *press, *course, *speed,
         *set, *drift;
     Fl_Input *al_date, *al_time, *al_lat, *al_lon, *fix_date, *fix_time;
-    Fl_Check_Button *motion, *fix_at, *layers[4];
+    Fl_Check_Button *motion, *fix_at, *layers[4], *map_toggle;
     Fl_Value_Slider *opacity;
     Fl_Multi_Browser *saved;
     Plot *plot;
     std::unique_ptr<Fl_Double_Window> expanded_window;
     Plot *expanded_plot = nullptr;
     Fl_Box *detached_hint, *zoom_readout = nullptr, *expanded_zoom_readout = nullptr;
-    Fl_Button *detach_button;
+    Fl_Button *detach_button, *download_map_button, *cancel_map_button;
+    Fl_Box *map_information;
+    std::shared_ptr<LandMap> land_map;
+    std::thread map_worker;
+    std::atomic<bool> map_cancel{false}, map_done{false};
+    std::atomic<uint64_t> map_bytes{0};
+    bool map_downloading = false;
+    std::string map_download_error;
+    std::shared_ptr<LandMap> downloaded_map;
     Fl_Text_Buffer al_buffer, report_buffer, fix_buffer, chart_buffer;
     Fl_Text_Display *al_display, *report_display, *fix_display, *chart_display;
     SightStore store{};
@@ -294,11 +361,23 @@ class Workbench {
         Fl::background(245, 247, 246);
         Fl::background2(255, 255, 255);
         Fl::foreground(25, 47, 60);
+#ifdef _WIN32
+        // FLTK GDI font names start with a style marker: space, B, I or P.
+        Fl::set_font(FL_HELVETICA, " Segoe UI");
+        Fl::set_font(FL_HELVETICA_BOLD, "BSegoe UI");
+        Fl::set_font(FL_HELVETICA_ITALIC, "ISegoe UI");
+        Fl::set_font(FL_HELVETICA_BOLD_ITALIC, "PSegoe UI");
+        Fl::set_font(FL_COURIER, " Consolas");
+        Fl::set_font(FL_COURIER_BOLD, "BConsolas");
+        Fl::set_font(FL_COURIER_ITALIC, "IConsolas");
+        Fl::set_font(FL_COURIER_BOLD_ITALIC, "PConsolas");
+#else
         Fl::set_font(FL_HELVETICA, "Helvetica");
         Fl::set_font(FL_COURIER, "Menlo");
         Fl::set_font(FL_COURIER_BOLD, "Menlo-Bold");
         Fl::set_font(FL_COURIER_ITALIC, "Menlo-Italic");
         Fl::set_font(FL_COURIER_BOLD_ITALIC, "Menlo-BoldItalic");
+#endif
         win.begin();
         auto *header = new Fl_Box(0, 0, 1180, 82);
         header->box(FL_FLAT_BOX);
@@ -398,6 +477,10 @@ class Workbench {
         auto *hint = new Fl_Box(36, 140, 430, 40,
                                 "Select 2–16 sights for a stationary or running fix.\nUse Command "
                                 "/ Shift to select multiple rows.");
+#ifdef _WIN32
+        hint->copy_label("Select 2–16 sights for a stationary or running fix.\nUse Control / Shift "
+                         "to select multiple rows.");
+#endif
         hint->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
         hint->labelsize(13);
         saved = new Fl_Multi_Browser(36, 190, 430, 215);
@@ -421,9 +504,16 @@ class Workbench {
         button(256, 579, 210, "Export fix report…", [this] { export_text(fix_buffer, "fix.txt"); });
         fix_display = display(36, 629, 430, 146, fix_buffer);
         fix_display->textsize(12);
-        const char *names[] = {"Grid / compass", "LOPs / motion", "Labels", "Fix / detail"};
+        map_toggle = new Fl_Check_Button(493, 143, 82, 28, "Map");
+        map_toggle->labelsize(12);
+        map_toggle->value(1);
+        bind(map_toggle, [this] {
+            update_map_views();
+            save_map_setting();
+        });
+        const char *names[] = {"Grid / rose", "LOPs / motion", "Labels", "Fix / detail"};
         for (int i = 0; i < 4; ++i) {
-            layers[i] = new Fl_Check_Button(493 + i * 163, 143, 163, 28, names[i]);
+            layers[i] = new Fl_Check_Button(575 + i * 141, 143, 141, 28, names[i]);
             layers[i]->labelsize(12);
             layers[i]->value(1);
             bind(layers[i], [this] { update_layers(); });
@@ -470,27 +560,40 @@ class Workbench {
         paths = new Fl_Box(303, 211, 838, 80);
         paths->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE | FL_ALIGN_WRAP);
         paths->labelsize(12);
-        chart_display = display(36, 309, 1105, 466, chart_buffer);
+        download_map_button =
+            button(36, 310, 210, "Download world map", [this] { start_map_download(); }, true);
+        button(262, 310, 210, "Use OpenCPN coastline", [this] { use_opencpn_map(); });
+        button(488, 310, 210, "Load land map (.shp)…", [this] {
+            auto path =
+                choose_file("Choose a WGS84 land polygon shapefile", "Shapefile\t*.shp", false);
+            if (!path.empty())
+                set_land_map(load_land_map(path));
+        });
+        cancel_map_button = button(714, 310, 120, "Cancel", [this] { map_cancel = true; });
+        cancel_map_button->deactivate();
+        map_information = new Fl_Box(36, 352, 1105, 66);
+        map_information->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE | FL_ALIGN_WRAP);
+        map_information->labelsize(13);
+        chart_display = display(36, 430, 1105, 345, chart_buffer);
         auto *charts = chart_display;
-        charts->textsize(15);
+        charts->textsize(14);
         chart_buffer.text(
-            "CHARTS + UNIVERSAL PLOTTING CHART\n\nThe plotting sheet is an independent geographic "
-            "vector overlay.\nIt carries graticule, compass circle, assumed positions, "
-            "intercepts,\nlines of position, motion advances, labels, fix and enlarged cocked hat."
-            "\nUncertainty ellipse dimensions remain in the numeric fix report.\n\nLayer "
-            "visibility and opacity are available in Saved sights + "
-            "plotting.\nExport a transparent SVG for artwork, or GeoJSON paths for a chart "
-            "renderer.\nSVG uses a local tangent plane; its metadata records the origin and "
-            "scale.\nA chart renderer must reproject the geographic vectors to its own "
-            "projection.\n\nNEXT: chart catalogue → download manager → local chart database → "
-            "chart canvas.\nThe chart canvas can draw the plotting vectors above its chart "
-            "layer.\nDownloading, chart rendering and georeferenced chart compositing are "
-            "not\nimplemented in this version. The existing CLI and browser remain "
-            "available.\n\nDESKTOP STATE\nThis sandbox keeps saved observations and defaults in "
-            "its .local directory.\nNAVALM_SAVE and NAVALMRC override those paths. Save as new "
-            "adds a sight;\nUpdate edited replaces the selected ID. Calculations use the same C "
-            "engine\nas the command-line program. Changes to engine or log clear the old "
-            "fix.\n\nUse this experimental workbench alongside independently checked navigation.");
+            "OFFLINE MAP UNDER THE UNIVERSAL PLOTTING SHEET\n\n"
+            "Download world map installs Natural Earth 1:10 million land and coastline\n"
+            "(about 7 MB). Once installed, it works without an internet connection.\n"
+            "Natural Earth is public domain: naturalearthdata.com.\n\n"
+            "Use OpenCPN coastline reads OpenCPN's chart folders and loads its OSM\n"
+            "medium/low basemap without changing OpenCPN or copying its ENC charts.\n"
+            "Load land map accepts WGS84 Polygon/PolygonZ .shp files up to 256 MB.\n"
+            "Large full-resolution files are intentionally excluded; choose medium or low.\n\n"
+            "Map, UGP grid and sight vectors share the solver's local geographic plane.\n"
+            "The Map checkbox toggles the underlay in both docked and detached views.\n"
+            "Pan/zoom and fix recalculation keep them aligned. Transparent SVG and\n"
+            "GeoJSON exports still contain the plotting vectors without a background map.\n\n"
+            "This is a land/coastline map, not an ENC/BSB chart renderer: it has no\n"
+            "depths, soundings, aids to navigation or chart updates.\n\n"
+            "Saved sights and defaults stay in the .local folder beside the app.\n"
+            "Calculations continue to use NAVALM's existing C engine.");
         chart_tab->resizable(charts);
         chart_tab->end();
         tabs->end();
@@ -530,8 +633,13 @@ class Workbench {
         load_store();
         engine->value(nav_engine_current() == NAV_ENGINE_PRECISE ? 0 : 1);
         engine_info();
+        load_map_setting();
     }
     ~Workbench() {
+        Fl::remove_timeout(map_download_tick, this);
+        map_cancel = true;
+        if (map_worker.joinable())
+            map_worker.join();
         al_display->buffer(nullptr);
         report_display->buffer(nullptr);
         fix_display->buffer(nullptr);
@@ -996,6 +1104,173 @@ class Workbench {
         message("Fix calculated · " + std::to_string(s.size()) +
                 " LOPs · plotting vectors anchored to latitude / longitude.");
     }
+    void update_map_views() {
+        for (Plot *target : {plot, expanded_plot})
+            if (target) {
+                target->land_map = land_map;
+                target->map_visible = map_toggle->value();
+                target->cached_map = nullptr;
+                target->redraw();
+            }
+        std::string info = land_map ? land_map->name + "\n" + land_map->path
+                                    : "No map installed. Download the world map, load a .shp, or "
+                                      "use your OpenCPN coastline.";
+        if (map_information)
+            map_information->copy_label(info.c_str());
+    }
+    void save_map_setting() {
+        if (testing || !land_map)
+            return;
+        auto path = fs::u8path(land_map->path);
+        auto relative = path.lexically_relative(application_root);
+        std::string stored = !relative.empty() && *relative.begin() != ".."
+                                 ? relative.generic_u8string()
+                                 : path.u8string();
+        write_file((application_root / ".local/basemap.path").u8string(),
+                   std::to_string(map_toggle->value()) + "\n" + stored + "\n");
+    }
+    void set_land_map(std::shared_ptr<LandMap> map, bool persist = true) {
+        land_map = std::move(map);
+        map_toggle->value(1);
+        update_map_views();
+        if (persist)
+            save_map_setting();
+        message("Offline coastline map loaded. Calculate a fix to see it beneath the UGP.");
+    }
+    void load_map_setting() {
+        if (const char *override = std::getenv("NAVALM_BASEMAP")) {
+            try {
+                set_land_map(load_land_map(override), false);
+            } catch (const std::exception &e) {
+                message(e.what());
+            }
+            return;
+        }
+        std::ifstream setting(application_root / ".local/basemap.path");
+        std::string enabled, saved_path;
+        std::getline(setting, enabled);
+        std::getline(setting, saved_path);
+        if (!saved_path.empty()) {
+            auto p = fs::u8path(saved_path);
+            if (p.is_relative())
+                p = application_root / p;
+            try {
+                set_land_map(load_land_map(p.u8string()), false);
+                map_toggle->value(enabled != "0");
+                update_map_views();
+                return;
+            } catch (const std::exception &) {
+            }
+        }
+        for (const auto &p : {application_root / ".local/maps/ne_10m_land.shp",
+                              application_root / "maps/ne_10m_land.shp",
+                              application_resources / "maps/ne_10m_land.shp"})
+            if (fs::exists(p)) {
+                try {
+                    set_land_map(load_land_map(p.u8string()), false);
+                    return;
+                } catch (const std::exception &) {
+                }
+            }
+        update_map_views();
+    }
+    void use_opencpn_map() {
+        const char *home = std::getenv("HOME");
+        const char *appdata = std::getenv("APPDATA");
+        std::vector<fs::path> configs;
+        if (home) {
+            configs.push_back(fs::u8path(home) / "Library/Preferences/opencpn/opencpn.ini");
+            configs.push_back(fs::u8path(home) / ".opencpn/opencpn.conf");
+        }
+        if (appdata)
+            configs.push_back(fs::u8path(appdata) / "opencpn/opencpn.ini");
+        for (const auto &ini : configs)
+            for (const auto &p : opencpn_map_paths(ini.u8string()))
+                if (fs::exists(fs::u8path(p))) {
+                    try {
+                        auto map = load_land_map(p);
+                        map->name = "OpenCPN OSM coastline — offline";
+                        set_land_map(map);
+                        return;
+                    } catch (const std::exception &) {
+                    }
+                }
+        throw std::runtime_error("No compatible OpenCPN medium/low coastline found. Use Load land "
+                                 "map or Download world map.");
+    }
+    static void map_download_tick(void *p) {
+        auto *app = static_cast<Workbench *>(p);
+        try {
+            app->poll_map_download();
+        } catch (const std::exception &e) {
+            app->message(e.what(), true);
+        }
+    }
+    void start_map_download() {
+        if (map_downloading)
+            return;
+        auto dir = testing ? fs::u8path(std::getenv("NAVALM_SAVE")).parent_path() / "maps"
+                           : application_root / ".local/maps";
+        fs::create_directories(dir);
+        auto target = dir / "ne_10m_land.shp",
+             part = dir /
+                    ("ne_10m_land-" +
+                     std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) +
+                     ".part");
+        map_cancel = false;
+        map_done = false;
+        map_bytes = 0;
+        map_download_error.clear();
+        downloaded_map.reset();
+        map_downloading = true;
+        download_map_button->deactivate();
+        cancel_map_button->activate();
+        message("Downloading Natural Earth world coastline…");
+        map_worker = std::thread([this, target, part] {
+            try {
+                download_https(world_map_url, part, map_cancel, map_bytes);
+                auto result = load_land_map(part.u8string());
+                if (map_cancel)
+                    throw std::runtime_error("Download cancelled.");
+                // Replace only after complete download and structural validation.
+                if (nav_replace_file(part.u8string().c_str(), target.u8string().c_str()))
+                    throw std::runtime_error("Cannot install downloaded map.");
+                result->path = target.u8string();
+                result->name = "Natural Earth 1:10 million — land and coastline";
+                downloaded_map = std::move(result);
+            } catch (const std::exception &e) {
+                map_download_error = e.what();
+                std::error_code ignored;
+                fs::remove(part, ignored);
+            }
+            map_done.store(true, std::memory_order_release);
+        });
+        Fl::add_timeout(.1, map_download_tick, this);
+    }
+    void poll_map_download() {
+        if (!map_downloading)
+            return;
+        if (!map_done.load(std::memory_order_acquire)) {
+            std::string progress =
+                "Downloading Natural Earth: " + fmt(map_bytes.load() / 1048576., 1) +
+                " MB — the workbench remains available.";
+            map_information->copy_label(progress.c_str());
+            Fl::repeat_timeout(.1, map_download_tick, this);
+            return;
+        }
+        if (map_worker.joinable())
+            map_worker.join();
+        map_downloading = false;
+        download_map_button->activate();
+        cancel_map_button->deactivate();
+        if (downloaded_map) {
+            set_land_map(downloaded_map);
+            message("World map installed — available offline beneath the plotting vectors.");
+        } else {
+            update_map_views();
+            message(map_download_error, !map_cancel);
+        }
+    }
     Plot *active_plot() {
         return expanded_window && expanded_window->shown() ? expanded_plot : plot;
     }
@@ -1060,6 +1335,7 @@ class Workbench {
         detached_hint->show();
         detach_button->copy_label("Reattach sheet");
         update_layers();
+        update_map_views();
         expanded_window->show();
         expanded_plot->take_focus();
         update_zoom_readout();
@@ -1095,8 +1371,8 @@ class Workbench {
                                 geo ? "navalm-overlay.geojson" : "navalm-overlay.svg");
         if (path.empty())
             return;
-        write_file(path,
-                   geo ? geojson(plot->scene) : svg(plot->scene, plot->layer_visible, plot->opacity));
+        write_file(path, geo ? geojson(plot->scene)
+                             : svg(plot->scene, plot->layer_visible, plot->opacity));
         message("Exported " + path);
     }
     void engine_info() {
@@ -1151,12 +1427,17 @@ class Workbench {
     }
 };
 static fs::path runtime_root(const char *arg) {
-    fs::path executable = fs::absolute(arg);
+    fs::path executable = fs::absolute(fs::u8path(arg));
 #ifdef __APPLE__
     char path[4096];
     uint32_t n = sizeof path;
     if (_NSGetExecutablePath(path, &n) == 0)
         executable = fs::weakly_canonical(path);
+#elif defined(_WIN32)
+    wchar_t path[32768];
+    DWORD n = GetModuleFileNameW(nullptr, path, 32768);
+    if (n && n < 32768)
+        executable = fs::path(std::wstring(path, n));
 #endif
     auto root = executable.parent_path();
     if (root.filename() == "MacOS" && root.parent_path().filename() == "Contents")
@@ -1164,30 +1445,41 @@ static fs::path runtime_root(const char *arg) {
     return root;
 }
 static Overlay checked_scene;
+static std::shared_ptr<LandMap> checked_map;
 static int self_test();
 int main(int argc, char **argv) {
     bool checks = std::string(argv[0]).find("navalm-checks") != std::string::npos;
     try {
         auto root = runtime_root(argv[0]);
+        application_root = root;
+        application_resources = fs::absolute(fs::u8path(argv[0])).parent_path() / "../Resources";
         fs::create_directories(root / ".local");
+#ifdef NAVALM_EMBEDDED_DATA
+        nav_unpack_resource(901, root / ".local/ephem/de440s.nav");
+        nav_unpack_resource(902, root / ".local/maps/ne_10m_land.shp");
+#endif
         if (checks) {
             fs::current_path(root);
             fs::create_directories(root / ".build/desktop-test");
-            std::freopen((root / ".build/desktop-test/ui-checks.txt").c_str(), "w", stdout);
-            std::freopen((root / ".build/desktop-test/ui-errors.txt").c_str(), "w", stderr);
+            std::freopen((root / ".build/desktop-test/ui-checks.txt").u8string().c_str(), "w",
+                         stdout);
+            std::freopen((root / ".build/desktop-test/ui-errors.txt").u8string().c_str(), "w",
+                         stderr);
             setvbuf(stdout, nullptr, _IONBF, 0);
         }
         if (!std::getenv("NAVALM_SAVE"))
-            setenv("NAVALM_SAVE", (root / ".local/desktop-sights.save").c_str(), 0);
+            nav_setenv("NAVALM_SAVE", (root / ".local/desktop-sights.save").u8string().c_str(), 0);
         if (!std::getenv("NAVALMRC"))
-            setenv("NAVALMRC", (root / ".local/desktop-defaults.rc").c_str(), 0);
+            nav_setenv("NAVALMRC", (root / ".local/desktop-defaults.rc").u8string().c_str(), 0);
         if (!std::getenv("NAVALM_EPHEMERIS")) {
             auto ep = root / "ephem/de440s.nav";
+            if (!fs::exists(ep))
+                ep = root / ".local/ephem/de440s.nav";
             auto bundle = fs::path(argv[0]).parent_path() / "../Resources/de440s.nav";
             if (fs::exists(ep))
-                nav_engine_set_ephemeris_path(ep.c_str());
+                nav_engine_set_ephemeris_path(ep.u8string().c_str());
             else if (fs::exists(bundle))
-                nav_engine_set_ephemeris_path(bundle.c_str());
+                nav_engine_set_ephemeris_path(bundle.u8string().c_str());
         }
         nav_engine_select("precise");
         char err[512]{};
@@ -1198,17 +1490,20 @@ int main(int argc, char **argv) {
             nav_engine_init(nullptr, 0);
         }
         if (checks || (argc > 1 && !std::strcmp(argv[1], "--self-test"))) {
+            if (checks)
+                nav_setenv("NAVALM_TEST_DOWNLOAD", "1", 0);
             int code = self_test();
             nav_engine_shutdown();
             if (checks) {
                 Fl_Double_Window result(800, 870,
-                                        "NAVALM desktop checks passed — synthetic running fix");
+                                        "NAVALM desktop checks passed — synthetic coastal fix");
                 Fl_Box text(16, 8, 768, 40,
-                            "All desktop checks passed · synthetic running fix preview\n"
+                            "All desktop checks passed · synthetic coastal fix preview\n"
                             "Report: .build/desktop-test/ui-checks.txt");
                 text.labelsize(13);
                 Plot preview(0, 50, 800, 820);
                 preview.scene = checked_scene;
+                preview.land_map = checked_map;
                 preview.ready = true;
                 result.resizable(preview);
                 result.end();
@@ -1227,6 +1522,9 @@ int main(int argc, char **argv) {
         return code;
     } catch (const std::exception &e) {
         std::fprintf(stderr, "NAVALM desktop: %s\n", e.what());
+#ifdef _WIN32
+        MessageBoxA(nullptr, e.what(), "NAVALM could not start", MB_OK | MB_ICONERROR);
+#endif
         return 1;
     }
 }
@@ -1244,11 +1542,7 @@ static int self_test() {
         }
         require(false, "invalid input was accepted");
     };
-    char pattern[] = "/tmp/navalm-desktop-test-XXXXXX";
-    char *dir = mkdtemp(pattern);
-    if (!dir)
-        throw std::runtime_error("Cannot create test directory.");
-    fs::path testdir = dir;
+    fs::path testdir = nav_temp_dir();
     struct Cleanup {
         fs::path path;
         ~Cleanup() {
@@ -1257,8 +1551,8 @@ static int self_test() {
         }
     } cleanup{testdir};
     auto log = (testdir / "sights.save").string(), rc = (testdir / "defaults.rc").string();
-    setenv("NAVALM_SAVE", log.c_str(), 1);
-    setenv("NAVALMRC", rc.c_str(), 1);
+    nav_setenv("NAVALM_SAVE", log.c_str(), 1);
+    nav_setenv("NAVALMRC", rc.c_str(), 1);
     require(std::fabs(angle("94 37.2", "Hs", 180) - (94 + 37.2 / 60)) < 1e-10,
             "degrees/minutes parse");
     for (const char *s : {"", "nan", "inf", "1x", "-1", "91"})
@@ -1432,6 +1726,74 @@ static int self_test() {
                     "layers, detach/reattach, anchored zoom, Fit, explicit UTC\n",
                     name, f.lat, f.lon);
     }
+    // Exercise the actual background downloader through the FLTK event loop.
+    // Its output and all test navigation state stay in the private test directory.
+    require(app.land_map != nullptr, "bundled offline map is available");
+    if (std::getenv("NAVALM_TEST_DOWNLOAD")) {
+        app.start_map_download();
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(45);
+        while (app.map_downloading && std::chrono::steady_clock::now() < deadline)
+            Fl::wait(.05);
+        require(!app.map_downloading && app.downloaded_map &&
+                    fs::exists(testdir / "maps/ne_10m_land.shp"),
+                "background HTTPS download installs a valid offline map");
+        auto installed = app.land_map;
+        app.start_map_download();
+        app.map_cancel = true;
+        deadline = std::chrono::steady_clock::now() + std::chrono::seconds(20);
+        while (app.map_downloading && std::chrono::steady_clock::now() < deadline)
+            Fl::wait(.05);
+        require(!app.map_downloading && !app.downloaded_map && app.land_map == installed,
+                "cancelling a download preserves the installed map");
+        std::puts("PASS background HTTPS install and cancellation preserves installed map");
+    }
+    auto installed = app.land_map;
+    const char *test_home = std::getenv("HOME");
+    if (test_home &&
+        fs::exists(fs::u8path(test_home) / "Library/Preferences/opencpn/opencpn.ini")) {
+        app.use_opencpn_map();
+        require(app.land_map && app.land_map->points > 1000, "read-only OpenCPN coastline import");
+        std::puts("PASS read-only import of installed OpenCPN coastline");
+    }
+    app.set_land_map(installed, false);
+    app.map_toggle->value(0);
+    app.map_toggle->do_callback();
+    require(!app.plot->map_visible && !app.expanded_plot->map_visible,
+            "map visibility synchronizes in both views");
+    app.map_toggle->value(1);
+    app.map_toggle->do_callback();
+    require(app.plot->land_map == app.expanded_plot->land_map && app.plot->map_visible,
+            "detached view shares the same geographic underlay");
+    // Generate a coastal fixture using real reductions, with synthetic sextant
+    // altitudes chosen for a small fix near Los Angeles harbour.
+    auto coastal = checked_scene.sights;
+    std::vector<Reduction> coastal_red;
+    for (size_t i = 0; i < coastal.size(); ++i) {
+        auto &v = coastal[i];
+        v.dr_lat = 33.7;
+        v.dr_lon = -118.1;
+        v.has_motion = 0;
+        for (int k = 0; k < 5; ++k) {
+            auto red = reduce(v);
+            double desired = (33.7 - red.ap_lat) * 60 * std::cos(red.zn * M_PI / 180) +
+                             (-118.1 - red.ap_lon) * 60 * std::cos(red.ap_lat * M_PI / 180) *
+                                 std::sin(red.zn * M_PI / 180);
+            v.hs_deg += (desired - red.intercept_nm + (i == 1 ? .03 : 0)) / 60;
+        }
+        coastal_red.push_back(reduce(v));
+    }
+    FixResult coastal_fix{};
+    char coastal_error[512]{};
+    require(!navsight_fix(coastal.data(), coastal_red.data(), coastal.size(), 0, 0, 0, 0, 0, 0, 0,
+                          &coastal_fix, coastal_error, sizeof coastal_error),
+            "synthetic coastal fix calculates");
+    require(std::fabs(coastal_fix.lat - 33.7) < .005 && std::fabs(coastal_fix.lon + 118.1) < .005,
+            "coastal fixture lands at the requested geographic position");
+    checked_scene = overlay(coastal, coastal_red, coastal_fix);
+    checked_map = installed;
+    require(!map_contours(*installed, checked_scene, make_sheet(checked_scene)).empty(),
+            "coastal underlay contains visible land contours");
+    std::puts("PASS offline map: linked visibility and synthetic coastal fix");
     app.engine->value(1);
     app.change_engine();
     require(!app.plot->ready && app.fix_buffer.length() == 0, "engine change clears stale fix");
