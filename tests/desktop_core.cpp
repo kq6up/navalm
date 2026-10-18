@@ -71,6 +71,45 @@ int main() {
         s.dr_lon = -(117 + 21.9 / 60);
         auto red = reduce(s);
         require(std::fabs(red.intercept_nm - 6.8) < .06, "README intercept");
+        auto zero = s;
+        zero.dr_lat = zero.dr_lon = 0;
+        require(!navsight_validate(&zero, err, sizeof err), "zero/zero coordinates are valid");
+        Reduction invalid_red{};
+        require(navsight_reduce(&zero, &invalid_red, err, sizeof err) != 0 &&
+                    std::string(err).find("below the horizon") != std::string::npos,
+                "unsuitable zero DR returns a reduction error");
+        for (int bad = 0; bad < 5; ++bad) {
+            auto invalid = s;
+            if (bad == 0)
+                invalid.dr_lat = std::numeric_limits<double>::quiet_NaN();
+            if (bad == 1)
+                invalid.dr_lon = 181;
+            if (bad == 2)
+                invalid.mo = 0;
+            if (bad == 3)
+                invalid.s = std::numeric_limits<double>::infinity();
+            if (bad == 4)
+                invalid.hs_deg = std::numeric_limits<double>::quiet_NaN();
+            require(navsight_reduce(&invalid, &invalid_red, err, sizeof err) != 0,
+                    "shared reducer rejects invalid saved inputs before numeric conversions");
+            rejects([&] { reduce(invalid); });
+        }
+        Sight pair[] = {s, s};
+        Reduction parallel[] = {red, red};
+        FixResult no_fix{};
+        require(navsight_fix(pair, parallel, 2, 0, 0, 0, 0, 0, 0, 0, &no_fix, err, sizeof err) !=
+                        0 &&
+                    std::string(err).find("parallel") != std::string::npos,
+                "no solution returns a polite error");
+        parallel[1].zn = std::numeric_limits<double>::quiet_NaN();
+        require(navsight_fix(pair, parallel, 2, 0, 0, 0, 0, 0, 0, 0, &no_fix, err, sizeof err) != 0,
+                "nonfinite LOP cannot reach the solver");
+        parallel[1].zn = red.zn + 40;
+        require(navsight_fix(pair, parallel, 2, 1, 2026, 0, 19, 12, 0, 0, &no_fix, err,
+                             sizeof err) != 0,
+                "invalid explicit fix UTC is rejected");
+        std::puts("PASS fix input regression: valid zero/zero, unsuitable DR, invalid stored data, "
+                  "parallel LOPs and fix UTC");
         SightStore store{};
         int id = navsight_store_add(&store, &s);
         require(id == 1 && store.n == 1, "add observation");

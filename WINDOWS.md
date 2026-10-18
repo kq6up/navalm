@@ -7,7 +7,8 @@ WinHTTP and normal graphics/window libraries.
 
 The executable contains the precise JPL ephemeris and Natural Earth offline map.
 Put it in a writable folder (for example Documents/NAVALM), then double-click.
-First launch creates `.local/` beside it and unpacks the data there. It works
+First launch creates `.local/` beside it and shows preparation progress while
+unpacking the bundled data there. This step does not download anything. It works
 offline immediately. Keep `.local/` with the program when moving it to preserve
 your saved sights, defaults, selected map and extracted data. Copying the exe
 alone starts a fresh workspace. Do not run directly inside the ZIP.
@@ -15,6 +16,22 @@ alone starts a fresh workspace. Do not run directly inside the ZIP.
 The portable ZIP includes the executable, instructions and third-party notices.
 This is an unsigned sandbox build. The existing Unix CLI and `-d` web server
 remain in the normal Makefile build; this Windows artifact is the native GUI.
+
+## Fix calculation update
+
+New sight forms leave DR blank until you enter it or load saved defaults.
+Latitude 0, longitude 0 remains a valid position. Unsuitable DRs, invalid saved
+inputs and parallel LOPs return an explanation; you can correct the sights and
+calculate again. Windows uses a native error dialog and records handled errors
+and unexpected fault details locally in `.local/desktop-errors.log`.
+
+The coastline fill now handles thousands of contours without FLTK's Windows
+complex-polygon routine, which has a fixed 20-contour buffer. Broad views could
+overrun that buffer. Islands and holes still use even/odd filling.
+
+To update an existing workspace, close NAVALM and replace `NAVALM.exe`, keeping
+your existing `.local/` folder. Preparation progress appears only when bundled
+data needs to be extracted.
 
 ## Build from macOS or Linux
 
@@ -55,9 +72,12 @@ embedded in the executable. Defaults match the script's prepared inputs.
 
 The Windows executable was cross-compiled on macOS, and its PE structure,
 imports and embedded resources were inspected. The shared desktop/map tests and
-native callback/download checks passed on macOS. **It has not been launched on a
-real Windows machine or under Wine.** A Windows launch, data extraction, HTTPS
-download, file picker and save/reopen test are still needed before a release.
+native callback/download checks passed on macOS. The previous build was tested
+by the user on Windows 10: the almanac and a fix with the intended DR worked;
+a fix with DR 0,0 crashed. **This updated build still needs a Windows runtime
+retest.** Preparation progress, native dialogs and the new coastline drawing
+have not been exercised on a Windows host here. Windows download, file picker
+and save/reopen checks are also still needed before a release.
 
 The cross-build also produces `desktop-core-check.exe` for a Windows test host;
 run it from the source directory with `ephem/de440s.nav` present. The desktop's

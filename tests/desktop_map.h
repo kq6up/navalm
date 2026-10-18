@@ -67,6 +67,50 @@ static void map_checks(const fs::path &tmp) {
     auto position = sheet.geographic(o, pixel);
     require(std::fabs(position.lat - q[1]) < 1e-10 && std::fabs(position.lon - q[0]) < 1e-10,
             "map and vector projection share geographic anchors");
+    // Regress the Windows contour-array overflow with 64 disconnected islands,
+    // each containing a water hole (128 contours in one polygon).
+    std::vector<std::vector<Point>> islands;
+    for (int row = 0; row < 8; ++row)
+        for (int column = 0; column < 8; ++column) {
+            double x = column * 20, y = row * 20;
+            islands.push_back({{x, y}, {x + 16, y}, {x + 16, y + 16}, {x, y + 16}});
+            islands.push_back({{x + 5, y + 5}, {x + 11, y + 5}, {x + 11, y + 11}, {x + 5, y + 11}});
+        }
+    auto mask = [&](const auto &rings, double left = 0, double top = 0, double scale = 1) {
+        std::vector<bool> filled(160 * 160);
+        for (auto span : map_fill_spans(rings, {0, 0, 160, 160}, left, top, scale)) {
+            require(span.x0 >= 0 && span.x1 < 160 && span.y >= 0 && span.y < 160,
+                    "fill spans stay in the native viewport");
+            for (int x = span.x0; x <= span.x1; ++x)
+                filled[span.y * 160 + x] = true;
+        }
+        return filled;
+    };
+    auto pixels = mask(islands);
+    require(std::count(pixels.begin(), pixels.end(), true) == 64 * (16 * 16 - 6 * 6),
+            "128-contour fill retains all islands and water holes");
+    for (int y = 0; y < 160; ++y)
+        for (int x = 0; x < 160; ++x)
+            require(pixels[y * 160 + x] ==
+                        (x % 20 < 16 && y % 20 < 16 &&
+                         !(x % 20 >= 5 && x % 20 < 11 && y % 20 >= 5 && y % 20 < 11)),
+                    "raster agrees with the independent island/lagoon geometry");
+    for (auto &ring : islands)
+        std::reverse(ring.begin(), ring.end());
+    require(mask(islands) == pixels, "land fill does not depend on ring winding");
+    auto zoomed = mask(islands, -15, 17, 2);
+    for (int y = 0; y < 160; ++y)
+        for (int x = 0; x < 160; ++x) {
+            double xx = (x + .5 + 15) / 2, yy = (y + .5 - 17) / 2;
+            bool inside = xx >= 0 && yy >= 0 && xx < 160 && yy < 160;
+            double rx = std::fmod(xx, 20), ry = std::fmod(yy, 20);
+            bool expected =
+                inside && rx < 16 && ry < 16 && !(rx >= 5 && rx < 11 && ry >= 5 && ry < 11);
+            require(zoomed[y * 160 + x] == expected,
+                    "zoom/pan clips the same geographic land and holes");
+        }
+    std::puts("PASS Windows map regression: 128 contours, island/lagoon mask, winding, zoom and "
+              "clipped pan");
     // Bad headers, unbounded coordinates, open rings and corrupt indices fail closed.
     auto valid = bytes;
     for (int failure = 0; failure < 6; ++failure) {
@@ -99,8 +143,20 @@ static void map_checks(const fs::path &tmp) {
                 "real Natural Earth land data");
         auto coastal = map_contours(*world, o, sheet);
         require(!coastal.empty(), "real California coast intersects geographic viewport");
-        std::printf("PASS Natural Earth: %zu polygons, %zu coordinates\n", world->polygons.size(),
-                    world->points);
+        Overlay origin;
+        Sheet wide;
+        wide.scale = .035;
+        auto broad = map_contours(*world, origin, wide);
+        size_t max_contours = 0, span_count = 0;
+        for (const auto &polygon : broad) {
+            max_contours = std::max(max_contours, polygon.size());
+            span_count += map_fill_spans(polygon, wide.clips[0]).size();
+        }
+        require(max_contours > 20 && span_count > 0,
+                "real world view exceeds Windows legacy contour limit and fills safely");
+        std::printf("PASS Natural Earth: %zu polygons, %zu coordinates; broad zero-origin view %zu "
+                    "contours (old Windows limit 20), %zu spans\n",
+                    world->polygons.size(), world->points, max_contours, span_count);
     }
     std::puts("PASS offline map: multipart/holes, clipping, geographic anchors, malformed files, "
               "OpenCPN paths");

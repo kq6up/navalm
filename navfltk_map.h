@@ -172,6 +172,72 @@ inline LandContours map_contours(const LandMap &map, const Overlay &o, const She
         }
     return contours;
 }
+// Fill arbitrary multipart polygons using even/odd scanlines. FLTK's Windows
+// complex-polygon implementation has counts[20] and writes past it at gap 21.
+// Keep holes and disconnected islands without sending contours to that API.
+struct LandSpan {
+    int x0, x1, y;
+};
+inline std::vector<LandSpan> map_fill_spans(const std::vector<std::vector<Point>> &polygon,
+                                            Box clip, double left = 0, double top = 0,
+                                            double scale = 1) {
+    std::vector<LandSpan> spans;
+    if (clip.w <= 0 || clip.h <= 0 || !std::isfinite(scale) || scale <= 0)
+        return spans;
+    int y0 = (int)std::ceil(clip.y - .5), y1 = (int)std::ceil(clip.y + clip.h - .5);
+    int x0 = (int)std::ceil(clip.x - .5), x1 = (int)std::ceil(clip.x + clip.w - .5);
+    if (y1 <= y0 || x1 <= x0)
+        return spans;
+    struct Edge {
+        int stop;
+        double x, step;
+    };
+    std::vector<std::vector<Edge>> starts(y1 - y0);
+    for (const auto &ring : polygon) {
+        if (ring.size() < 3)
+            continue;
+        auto a = ring.back();
+        for (auto b : ring) {
+            Point p{left + a.x * scale, top + a.y * scale},
+                q{left + b.x * scale, top + b.y * scale};
+            a = b;
+            if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(q.x) ||
+                !std::isfinite(q.y))
+                throw std::runtime_error("Nonfinite coastline geometry.");
+            if (p.y > q.y)
+                std::swap(p, q);
+            if (p.y == q.y || q.y <= y0 + .5 || p.y > y1 - .5)
+                continue;
+            int first = std::max(y0, (int)std::ceil(p.y - .5));
+            int last = std::min(y1, (int)std::ceil(q.y - .5));
+            if (first >= last)
+                continue;
+            double step = (q.x - p.x) / (q.y - p.y);
+            starts[first - y0].push_back({last, p.x + (first + .5 - p.y) * step, step});
+        }
+    }
+    std::vector<Edge> active;
+    for (int y = y0; y < y1; ++y) {
+        active.erase(std::remove_if(active.begin(), active.end(),
+                                    [&](const Edge &e) { return e.stop <= y; }),
+                     active.end());
+        active.insert(active.end(), starts[y - y0].begin(), starts[y - y0].end());
+        std::sort(active.begin(), active.end(),
+                  [](const Edge &a, const Edge &b) { return a.x < b.x; });
+        for (size_t k = 0; k + 1 < active.size(); k += 2) {
+            double l = std::max(double(x0), active[k].x - .5);
+            double r = std::min(double(x1), active[k + 1].x - .5);
+            if (l < r) {
+                int first = std::max(x0, (int)std::ceil(l)), last = std::min(x1, (int)std::ceil(r));
+                if (first < last)
+                    spans.push_back({first, last - 1, y});
+            }
+        }
+        for (auto &edge : active)
+            edge.x += edge.step;
+    }
+    return spans;
+}
 inline std::vector<std::string> opencpn_map_paths(const std::string &ini) {
     std::ifstream file(ini);
     std::vector<std::string> out;

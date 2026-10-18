@@ -87,9 +87,11 @@ inline void check_engine(const Sight &s) {
                                  "another ephemeris file.");
 }
 inline Reduction reduce(const Sight &s) {
+    char err[512]{};
+    if (navsight_validate(&s, err, sizeof err))
+        throw std::runtime_error(err);
     check_engine(s);
     Reduction r{};
-    char err[512]{};
     if (navsight_reduce(&s, &r, err, sizeof err))
         throw std::runtime_error(err);
     return r;

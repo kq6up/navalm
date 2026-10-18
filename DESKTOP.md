@@ -38,6 +38,8 @@ Charts + setup page show the selected engine and ephemeris details.
   and longitude hemispheres, sea/artificial horizon, limb, index error,
   atmosphere, optional vessel motion and current. The full worked reduction
   uses the same formatter as the CLI. Sun example loads the README observation.
+  New sights leave DR blank when there are no saved DR defaults. Both fields
+  are required; an explicitly entered latitude 0, longitude 0 is valid.
 - **Saved sights + plotting:** select 2–16 observations, stationary or running
   fix, optional explicit UTC fix time, residuals, uncertainty, vector diagram.
   The sheet follows the web app's colours, geometry, compass rose, AP markers,
@@ -49,6 +51,8 @@ Charts + setup page show the selected engine and ephemeris details.
   Zoom ranges from 25% to 800% of Fit. Layer/opacity changes and recalculated
   fixes update the detached view; exports always contain the complete sheet.
   Edit preserves a sight ID. Save as new deliberately adds a new ID.
+  Invalid saved inputs, below-horizon reductions and parallel LOPs return an
+  explanation and let you edit the sights and try again.
 - **Charts + setup:** ephemeris selection, state paths, an offline coastline
   underlay, cancellable world-map download, OpenCPN coastline import, and a
   WGS84 land shapefile picker. **Map** independently toggles the underlay in both

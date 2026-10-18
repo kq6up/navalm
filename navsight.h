@@ -76,6 +76,11 @@ typedef struct {
     double intercept_nm;          /* + toward, - away */
 } Reduction;
 
+/* Validate stored/API inputs before any astronomy or integer conversions.
+ * Zero latitude/longitude are valid; absent GUI coordinates must be rejected
+ * before a Sight is constructed. Returns non-zero with a message in err. */
+int  navsight_validate(const Sight *si, char *err, size_t errn);
+
 /* Reduce a sight.  Returns 0 on success, non-zero with a message in err. */
 int  navsight_reduce(const Sight *si, Reduction *r, char *err, size_t errn);
 

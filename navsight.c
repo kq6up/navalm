@@ -322,6 +322,42 @@ void navsight_print_paper(FILE *out,const NavPaper *p,int width){
 
 /* --------------------------------------------------------- the reducer */
 
+int navsight_validate(const Sight *si,char *err,size_t errn){
+    int days[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
+    if(!si){ snprintf(err,errn,"no sight supplied"); return 1; }
+    if(!memchr(si->body,0,sizeof si->body) || !memchr(si->star,0,sizeof si->star)){
+        snprintf(err,errn,"invalid saved body or star name"); return 1;
+    }
+    if(!isfinite(si->dr_lat) || fabs(si->dr_lat)>90.0){
+        snprintf(err,errn,"DR latitude is missing or invalid; enter a latitude from -90 to 90 degrees"); return 1;
+    }
+    if(!isfinite(si->dr_lon) || fabs(si->dr_lon)>180.0){
+        snprintf(err,errn,"DR longitude is missing or invalid; enter a longitude from -180 to 180 degrees"); return 1;
+    }
+    if(si->y<1600 || si->y>2399 || si->mo<1 || si->mo>12){
+        snprintf(err,errn,"invalid sight UTC date (use years 1600 through 2399)"); return 1;
+    }
+    if(si->y%4==0 && (si->y%100!=0 || si->y%400==0)) days[1]=29;
+    if(si->d<1 || si->d>days[si->mo-1] || si->h<0 || si->h>23 || si->mi<0 || si->mi>59 ||
+       !isfinite(si->s) || si->s<0 || si->s>=60){
+        snprintf(err,errn,"invalid sight UTC date or time"); return 1;
+    }
+    if(!isfinite(si->hs_deg) || si->hs_deg<0 || si->hs_deg>(si->artificial?180.0:90.0)){
+        snprintf(err,errn,"invalid sextant altitude; check Hs and the horizon setting"); return 1;
+    }
+    if(!isfinite(si->ie_min) || fabs(si->ie_min)>120 || !isfinite(si->he) || si->he<0 || si->he>10000 ||
+       !isfinite(si->temp_c) || si->temp_c<-100 || si->temp_c>100 ||
+       !isfinite(si->press_mb) || si->press_mb<0 || si->press_mb>1200){
+        snprintf(err,errn,"invalid index error, height of eye, temperature or pressure"); return 1;
+    }
+    if(si->has_motion && (!isfinite(si->course) || si->course<0 || si->course>360 ||
+       !isfinite(si->speed) || si->speed<0 || si->speed>100 || !isfinite(si->set) ||
+       si->set<0 || si->set>360 || !isfinite(si->drift) || si->drift<0 || si->drift>100)){
+        snprintf(err,errn,"invalid vessel motion or current"); return 1;
+    }
+    return 0;
+}
+
 int navsight_reduce(const Sight *si,Reduction *r,char *err,size_t errn){
     double jd_exact,jd_hour,frac;
     int b=-1,star_index=-1;
@@ -330,6 +366,7 @@ int navsight_reduce(const Sight *si,Reduction *r,char *err,size_t errn){
     double h,tC,pMB;
 
     memset(r,0,sizeof *r);
+    if(navsight_validate(si,err,errn)) return 1;
 
     if(!strcmp(si->body,"star")){
         int m[2];
@@ -814,10 +851,25 @@ int navsight_fix(const Sight *sel,const Reduction *red,size_t n,
     size_t i;
 
     if(n < 2 || n > 16){ snprintf(err,errn,"a fix needs 2 to 16 LOPs"); return 1; }
+    if(!sel || !red || !out){ snprintf(err,errn,"missing fix data"); return 1; }
+    for(i=0;i<n;i++){
+        if(navsight_validate(&sel[i],err,errn)) return 1;
+        if(!isfinite(red[i].ap_lat) || fabs(red[i].ap_lat)>90 ||
+           !isfinite(red[i].ap_lon) || fabs(red[i].ap_lon)>180 ||
+           !isfinite(red[i].zn) || !isfinite(red[i].intercept_nm)){
+            snprintf(err,errn,"invalid reduced sight; check its DR and reduce it again"); return 1;
+        }
+    }
+
 
     memset(out,0,sizeof *out);
 
-    if(have_at) jd_fix = nav_julian_date(ay,amo,ad,ah,ami,as);
+    if(have_at){
+        Sight at = sel[0];
+        at.y=ay; at.mo=amo; at.d=ad; at.h=ah; at.mi=ami; at.s=as;
+        if(navsight_validate(&at,err,errn)) return 1;
+        jd_fix = navsight_jd(&at);
+    }
     else for(i=0;i<n;i++){
         double jd = navsight_jd(&sel[i]);
         if(jd > jd_fix) jd_fix = jd;
@@ -880,6 +932,10 @@ int navsight_fix(const Sight *sel,const Reduction *red,size_t n,
             ss += out->residual_nm[i]*out->residual_nm[i];
         }
         out->rms_nm = sqrt(ss/(double)n);
+        if(!isfinite(out->lat) || !isfinite(out->lon) || !isfinite(out->rms_nm)){
+            snprintf(err,errn,"fix cannot be calculated from these sights; check the DR and motion"); return 1;
+        }
+
 
         if(n >= 3){
             double s2 = ss/(double)(n-2);

@@ -17,6 +17,7 @@
 #include <FL/Fl_Input.H>
 #include <FL/Fl_Multi_Browser.H>
 #include <FL/Fl_Native_File_Chooser.H>
+#include <FL/Fl_Progress.H>
 #include <FL/Fl_Tabs.H>
 #include <FL/Fl_Text_Buffer.H>
 #include <FL/Fl_Text_Display.H>
@@ -165,6 +166,8 @@ class Plot : public Fl_Widget {
         return Fl_Widget::handle(event);
     }
     void draw() override {
+        if (ready)
+            nav_set_desktop_action("Drawing plotting sheet");
         fl_push_clip(x(), y(), w(), h());
         fl_color(paper);
         fl_rectf(x(), y(), w(), h());
@@ -214,15 +217,20 @@ class Plot : public Fl_Widget {
             fl_vertex(b.x + b.w, b.y + b.h);
             fl_vertex(b.x, b.y + b.h);
             fl_end_polygon();
+            fl_pop_matrix();
+            double map_left = std::max(double(x()), left + b.x * scale),
+                   map_top = std::max(double(y()), top + b.y * scale),
+                   map_right = std::min(double(x() + w()), left + (b.x + b.w) * scale),
+                   map_bottom = std::min(double(y() + h()), top + (b.y + b.h) * scale);
+            Box raster_clip{map_left, map_top, map_right - map_left, map_bottom - map_top};
+            fl_color(fl_rgb_color(227, 222, 199));
+            for (const auto &polygon : land_cache)
+                for (auto span : map_fill_spans(polygon, raster_clip, left, top, scale))
+                    fl_rectf(span.x0, span.y, span.x1 - span.x0 + 1, 1);
+            fl_push_matrix();
+            fl_translate(left, top);
+            fl_scale(scale, scale);
             for (const auto &polygon : land_cache) {
-                fl_color(fl_rgb_color(227, 222, 199));
-                fl_begin_complex_polygon();
-                for (const auto &ring : polygon) {
-                    for (auto p : ring)
-                        fl_vertex(p.x, p.y);
-                    fl_gap();
-                }
-                fl_end_complex_polygon();
                 fl_color(fl_rgb_color(105, 122, 115));
                 fl_line_style(FL_SOLID, 1);
                 for (const auto &ring : polygon) {
@@ -647,7 +655,8 @@ class Workbench {
         navsight_store_free(&store);
     }
     void bind(Fl_Widget *w, std::function<void()> fn) {
-        auto f = std::make_unique<std::function<void()>>([this, fn] {
+        auto f = std::make_unique<std::function<void()>>([this, w, fn] {
+            nav_set_desktop_action(w->label());
             try {
                 fn();
             } catch (const std::exception &e) {
@@ -696,8 +705,13 @@ class Workbench {
     void message(const std::string &s, bool error = false) {
         status->copy_label(s.c_str());
         status->labelcolor(error ? fl_rgb_color(172, 49, 53) : navy);
-        if (error && !testing)
+        if (error && !testing) {
+#ifdef _WIN32
+            nav_windows_error(s.c_str());
+#else
             fl_alert("%s", s.c_str());
+#endif
+        }
     }
     void fill_stars(Fl_Choice *p) {
         for (size_t i = 0; i < nav_star_count_get(); ++i)
@@ -743,8 +757,14 @@ class Workbench {
         }
     }
     void coordinates(Fl_Input *la, Fl_Choice *lah, Fl_Input *lo, Fl_Choice *loh, Sight &s) {
-        s.dr_lat = angle(la->value(), "Latitude", 90) * (lah->value() ? -1 : 1);
-        s.dr_lon = angle(lo->value(), "Longitude", 180) * (loh->value() ? -1 : 1);
+        if (std::string(la->value()).find_first_not_of(" \t\r\n") == std::string::npos)
+            throw std::runtime_error(
+                "DR latitude is required. Enter degrees SPACE minutes and choose N or S.");
+        if (std::string(lo->value()).find_first_not_of(" \t\r\n") == std::string::npos)
+            throw std::runtime_error(
+                "DR longitude is required. Enter degrees SPACE minutes and choose E or W.");
+        s.dr_lat = angle(la->value(), "DR latitude", 90) * (lah->value() ? -1 : 1);
+        s.dr_lon = angle(lo->value(), "DR longitude", 180) * (loh->value() ? -1 : 1);
     }
     Sight read_sight() {
         if (body->value() < 0 || body->value() > 7)
@@ -793,10 +813,10 @@ class Workbench {
         date->value(b);
         std::snprintf(b, sizeof b, "%02d:%02d:%06.3f", s.h, s.mi, s.s);
         time->value(b);
-        hs->value(angle_entry(s.hs_deg, 2).c_str());
+        hs->value(std::isfinite(s.hs_deg) ? angle_entry(s.hs_deg, 2).c_str() : "");
         label->value(s.label);
-        lat->value(angle_entry(s.dr_lat, 2).c_str());
-        lon->value(angle_entry(s.dr_lon, 3).c_str());
+        lat->value(std::isfinite(s.dr_lat) ? angle_entry(s.dr_lat, 2).c_str() : "");
+        lon->value(std::isfinite(s.dr_lon) ? angle_entry(s.dr_lon, 3).c_str() : "");
         lat_hemi->value(s.dr_lat < 0);
         lon_hemi->value(s.dr_lon < 0);
         horizon->value(s.artificial);
@@ -836,6 +856,10 @@ class Workbench {
         s.mi = g.tm_min;
         s.s = g.tm_sec;
         fill_sight(s);
+        if (!d.have_dr) {
+            lat->value("");
+            lon->value("");
+        }
     }
     void example() {
         Sight s{};
@@ -871,6 +895,8 @@ class Workbench {
         headline->copy_label(title.c_str());
     }
     void reduce_sight() {
+        report_buffer.text("");
+        headline->copy_label("Check the sight inputs");
         auto s = read_sight();
         auto r = reduce(s);
         show_reduction(s, r);
@@ -1059,7 +1085,13 @@ class Workbench {
         double lo = 180, hi = -180;
         for (int i : rows) {
             s.push_back(store.v[i]);
-            r.push_back(reduce(s.back()));
+            try {
+                r.push_back(reduce(s.back()));
+            } catch (const std::exception &e) {
+                throw std::runtime_error("Saved sight #" + std::to_string(s.back().id) + ": " +
+                                         e.what() +
+                                         "\nSelect it and choose Edit selected to correct it.");
+            }
             lo = std::min(lo, r.back().ap_lon);
             hi = std::max(hi, r.back().ap_lon);
         }
@@ -1454,9 +1486,41 @@ int main(int argc, char **argv) {
         application_root = root;
         application_resources = fs::absolute(fs::u8path(argv[0])).parent_path() / "../Resources";
         fs::create_directories(root / ".local");
+        nav_enable_diagnostics(root / ".local");
 #ifdef NAVALM_EMBEDDED_DATA
-        nav_unpack_resource(901, root / ".local/ephem/de440s.nav");
-        nav_unpack_resource(902, root / ".local/maps/ne_10m_land.shp");
+        auto ephemeris_target = root / ".local/ephem/de440s.nav";
+        auto map_target = root / ".local/maps/ne_10m_land.shp";
+        if (!fs::exists(ephemeris_target) || !fs::exists(map_target)) {
+            Fl_Double_Window preparing(520, 170, "Preparing NAVALM — first launch");
+            Fl_Box note(20, 18, 480, 56,
+                        "Preparing bundled offline data.\nNo download is required.");
+            note.labelsize(14);
+            Fl_Progress progress(24, 110, 472, 30);
+            progress.minimum(0);
+            progress.maximum(1);
+            progress.labelsize(12);
+            preparing.end();
+            preparing.show();
+            Fl::check();
+            for (auto item : {std::pair<int, fs::path>{901, ephemeris_target}, {902, map_target}}) {
+                if (fs::exists(item.second))
+                    continue;
+                note.copy_label(
+                    item.first == 901
+                        ? "Preparing the precise JPL ephemeris…\nFrom the bundled data; no "
+                          "download."
+                        : "Preparing the offline world map…\nFrom the bundled data; no download.");
+                nav_unpack_resource(item.first, item.second, [&](size_t done, size_t total) {
+                    progress.value(total ? double(done) / total : 0);
+                    progress.copy_label(
+                        (fmt(done / 1048576., 1) + " / " + fmt(total / 1048576., 1) + " MB")
+                            .c_str());
+                    preparing.redraw();
+                    Fl::check();
+                });
+            }
+            preparing.hide();
+        }
 #endif
         if (checks) {
             fs::current_path(root);
@@ -1572,7 +1636,30 @@ static int self_test() {
     app.testing = true;
     app.win.show();
     Fl::check();
+    require(std::string(app.lat->value()).empty() && std::string(app.lon->value()).empty(),
+            "new form without DR defaults has explicitly empty coordinates");
     app.example();
+    auto before_missing = app.store.n;
+    app.lat->value("");
+    app.lon->value("");
+    app.reduce_button->do_callback();
+    require(std::string(app.status->label()).find("DR latitude is required") != std::string::npos &&
+                app.report_buffer.length() == 0,
+            "blank DR callback reports a friendly error and clears stale results");
+    app.save_button->do_callback();
+    require(app.store.n == before_missing, "invalid DR does not save a sight");
+    app.lat->value("00 00.0");
+    app.lon->value("000 00.0");
+    app.lon_hemi->value(0);
+    auto zero = app.read_sight();
+    require(zero.dr_lat == 0 && zero.dr_lon == 0, "explicit zero/zero remains a valid DR input");
+    app.reduce_button->do_callback();
+    require(std::string(app.status->label()).find("below the horizon") != std::string::npos &&
+                app.report_buffer.length() == 0,
+            "unsuitable zero DR is handled without an uncaught callback exception");
+    app.example();
+    std::puts("PASS native input callbacks: blank DR, no invalid save, explicit zero/zero and "
+              "below-horizon rejection");
     require(std::string(app.hs->value()) == "94 37.2" &&
                 std::string(app.lat->value()) == "34 02.5" &&
                 std::string(app.lon->value()) == "117 21.9",
@@ -1653,8 +1740,29 @@ static int self_test() {
         for (int i = 1; i <= app.saved->size(); ++i)
             app.saved->select(i);
         app.fix_at->value(0);
-        app.calculate_fix();
-        require(app.plot->ready, "fix plot readiness");
+        auto valid_sights = std::vector<Sight>(app.store.v, app.store.v + app.store.n);
+        for (size_t i = 0; i < app.store.n; ++i)
+            app.store.v[i].dr_lat = app.store.v[i].dr_lon = 0;
+        app.fix_button->do_callback();
+        require(!app.plot->ready && app.fix_buffer.length() == 0 &&
+                    std::string(app.status->label()).find("Saved sight #") != std::string::npos,
+                "Calculate selected fix rejects this unsuitable zero-DR fixture without drawing a "
+                "result");
+        std::copy(valid_sights.begin(), valid_sights.end(), app.store.v);
+        app.store.v[1] = app.store.v[0];
+        for (int i = 1; i <= app.saved->size(); ++i)
+            app.saved->select(i, i <= 2);
+        app.fix_button->do_callback();
+        require(!app.plot->ready &&
+                    std::string(app.status->label()).find("parallel") != std::string::npos,
+                "Calculate selected fix handles no solution politely");
+        std::copy(valid_sights.begin(), valid_sights.end(), app.store.v);
+        for (int i = 1; i <= app.saved->size(); ++i)
+            app.saved->select(i);
+        app.fix_button->do_callback();
+        require(app.plot->ready, "fix succeeds again after correcting inputs");
+        std::puts("PASS Calculate selected fix callbacks: unsuitable zero/zero, parallel/no "
+                  "solution, recovery");
         auto f = app.fix_result;
         auto &o = app.plot->scene;
         checked_scene = o;
