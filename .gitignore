@@ -23,3 +23,11 @@
 # Build tools
 /tools/mkde440
 /tests/paper_almanac
+
+# Optional FLTK desktop and private dependencies/state.
+/navalm-fltk
+/.deps/
+/.build/
+/.local/
+/NAVALM.app/
+/NAVALM Checks.app/

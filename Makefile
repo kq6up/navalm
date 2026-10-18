@@ -1,6 +1,9 @@
 CC ?= cc
 CFLAGS ?= -O2 -Wall -Wextra -std=c99
 LDLIBS ?= -lm
+CXX ?= c++
+CXXFLAGS ?= -O2 -Wall -Wextra -std=c++17
+FLTK_CONFIG ?= $(if $(wildcard .deps/fltk/bin/fltk-config),.deps/fltk/bin/fltk-config,fltk-config)
 
 # The ncurses interface (./navalm --gui) is built by default.
 # If curses is unavailable:  make nogui
@@ -43,6 +46,46 @@ EPHEM_NAV ?= ephem/de440s.nav
 EPHEM_URL  = https://ssd.jpl.nasa.gov/ftp/eph/planets/bsp/de440s.bsp
 
 all: navalm
+
+# Optional native desktop. C objects are shared directly, without a subprocess
+# or a web server. The normal CLI build remains independent of FLTK.
+DESKTOP_SRC = navsight.c navrc.c nav_engine_sel.c nav_engine_x.c nav_engine_n.c \
+              nav_solsys440.c nav_eph440.c nav_stars_x.c
+DESKTOP_OBJ = $(addprefix .build/desktop/,$(DESKTOP_SRC:.c=.o))
+
+.build/desktop/%.o: %.c $(HDR)
+	@mkdir -p .build/desktop
+	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
+navalm-fltk: navfltk.cpp navfltk_model.h navfltk_plot.h $(DESKTOP_OBJ) libastro.a novas.a
+	@command -v $(FLTK_CONFIG) >/dev/null || { echo 'FLTK missing: run make fltk-deps, or set FLTK_CONFIG.'; exit 1; }
+	$(CXX) $(CXXFLAGS) -I. `$(FLTK_CONFIG) --cxxflags` -o $@ navfltk.cpp \
+	  $(DESKTOP_OBJ) libastro.a novas.a `$(FLTK_CONFIG) --ldflags`
+
+desktop: navalm-fltk
+
+fltk-deps:
+	sh tools/bootstrap-fltk.sh
+
+desktop-app: navalm-fltk
+	sh tools/package-desktop.sh
+
+.build/desktop-core: tests/desktop_core.cpp navfltk_model.h navfltk_plot.h $(DESKTOP_OBJ) libastro.a novas.a
+	$(CXX) $(CXXFLAGS) -I. -o $@ tests/desktop_core.cpp $(DESKTOP_OBJ) libastro.a novas.a $(LDLIBS)
+
+check-desktop: .build/desktop-core
+	./.build/desktop-core
+
+# Launch this bundle through Finder/Launch Services for native callback checks.
+# Results appear in .build/desktop-test/ui-checks.txt and ui-errors.txt.
+desktop-checks-app: desktop-app
+	rm -rf 'NAVALM Checks.app'
+	cp -R NAVALM.app 'NAVALM Checks.app'
+	mv 'NAVALM Checks.app/Contents/MacOS/navalm-fltk' 'NAVALM Checks.app/Contents/MacOS/navalm-checks'
+	/usr/libexec/PlistBuddy -c 'Set :CFBundleExecutable navalm-checks' 'NAVALM Checks.app/Contents/Info.plist'
+	/usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier org.navalm.desktop.checks' 'NAVALM Checks.app/Contents/Info.plist'
+	/usr/libexec/PlistBuddy -c 'Set :CFBundleName NAVALM Checks' 'NAVALM Checks.app/Contents/Info.plist'
+	codesign --force --deep --sign - 'NAVALM Checks.app'
 
 libastro/%.o: libastro/%.c
 	$(CC) $(ASTRO_CFLAGS) -c -o $@ $<
@@ -105,6 +148,8 @@ page: page.html
 
 clean:
 	rm -f navalm libastro.a novas.a $(ASTRO_OBJ) $(NOVAS_OBJ) tools/mkde440 tests/paper_almanac
+	rm -f navalm-fltk
+	rm -rf .build
 
 tests/paper_almanac: tests/paper_almanac.c $(SRC) $(HDR) libastro.a novas.a
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ tests/paper_almanac.c navsight.c \
@@ -126,3 +171,4 @@ distclean: clean
 	rm -f $(EPHEM_NAV)
 
 .PHONY: all nogui classic-only ephem ephem-fetch stars page clean distclean check-paper check-plot check-list
+.PHONY: desktop fltk-deps desktop-app check-desktop desktop-checks-app

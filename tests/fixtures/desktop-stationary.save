@@ -1,0 +1,4 @@
+# Synthetic observations from plotting.json; not real sextant observations.
+lop id=1 body=star star=Alpheratz time=2026-09-20T03:15:30.000 hs=29.900000000000 ie=0 iearc=off horizon=sea he=0 heunit=ft limb=center temp=10 press=1010 drlat=34.04 drlon=-117.36 course=0 speed=0 set=0 drift=0 label="Synthetic stationary Alpheratz"
+lop id=2 body=star star=Nunki time=2026-09-20T03:17:00.000 hs=29.396666666667 ie=0 iearc=off horizon=sea he=0 heunit=ft limb=center temp=10 press=1010 drlat=34.04 drlon=-117.36 course=0 speed=0 set=0 drift=0 label="Synthetic stationary Nunki"
+lop id=3 body=star star=Alkaid time=2026-09-20T03:18:30.000 hs=28.631666666667 ie=0 iearc=off horizon=sea he=0 heunit=ft limb=center temp=10 press=1010 drlat=34.04 drlon=-117.36 course=0 speed=0 set=0 drift=0 label="Synthetic stationary Alkaid"

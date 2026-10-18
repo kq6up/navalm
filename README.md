@@ -4,6 +4,13 @@
 
 NAVALM brings almanac calculations, worked sextant-sight reductions, and position fixes together in one C program. Use it from the command line, in a full-screen terminal, or through its built-in browser interface.
 
+This sandbox also has an optional **native FLTK workbench**: `make desktop`
+builds `./navalm-fltk`, and `make desktop-app` packages `NAVALM.app` on macOS.
+It includes sight reductions, saved observations, fixes, and a geographic
+vector plotting overlay with transparent SVG export. See [DESKTOP.md](DESKTOP.md)
+for building, state paths, validation, and the future chart-layer design.
+The existing CLI, `--gui`, and `-d` browser interface remain available.
+
 Current version: **4.2**.
 
 **Informational and educational use only. Do not rely on NAVALM where an error could cause death, injury, or property damage. By using it, you accept the [safety and assumption-of-risk terms](SAFETY.md), to the extent permitted by law.**
@@ -45,7 +52,8 @@ dates outside the DE440s span.
 The engine is chosen with a command-line flag, and the flag is the only
 place it lives: there is no engine setting in `~/.navalmrc`, on the
 terminal Setup screen, or in the browser interface. `--engine` works with
-every command and every interface.
+every command and every interface in the `navalm` executable. The separate
+FLTK workbench has its own runtime engine selector.
 
 ```sh
 ./navalm sun 2026 9 9 12 0 0                    # precise, the default
