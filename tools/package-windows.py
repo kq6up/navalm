@@ -15,6 +15,8 @@ parser.add_argument('--toolchain', required=True, type=Path)
 parser.add_argument('--output', required=True, type=Path)
 args = parser.parse_args()
 root = Path(__file__).resolve().parent.parent
+version = re.search(r'^#define NAVALM_VERSION "([^"]+)"',
+                    (root / 'nav_version.h').read_text(), re.M).group(1)
 exe = root / '.build/windows-x64/NAVALM.exe'
 data = exe.read_bytes()
 
@@ -66,7 +68,10 @@ for ident, source in assets:
     payload = resource(10, ident)
     assert payload == source.read_bytes(), f'Embedded asset mismatch: {source.name}'
     asset_notes.append(f'{source.name}: {len(payload):,} bytes, SHA256 {hashlib.sha256(payload).hexdigest()}')
-assert b'UTF-8' in resource(24, 1), 'Missing UTF-8 application manifest'
+manifest = resource(24, 1)
+assert b'UTF-8' in manifest, 'Missing UTF-8 application manifest'
+assert f'version="{version}.0.0"'.encode() in manifest, 'Manifest version mismatch'
+assert (version + '\0').encode('utf-16le') in resource(16, 1), 'PE product version mismatch'
 
 readobj = args.toolchain / 'bin/llvm-readobj'
 imports = subprocess.check_output([str(readobj), '--coff-imports', str(exe)], text=True)
@@ -83,7 +88,7 @@ out.mkdir(parents=True, exist_ok=True)
 stage = out / 'NAVALM-Windows-x64'
 stage.mkdir(exist_ok=True)
 shutil.copy2(exe, stage / 'NAVALM.exe')
-for name in ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'PROVENANCE.md', 'SAFETY.md',
+for name in ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'PROVENANCE.md', 'SAFETY.md', 'CHANGELOG.md',
              'WINDOWS.md', 'DESKTOP.md', 'MAPS.md']:
     shutil.copy2(root / name, stage / name)
 license_dir = stage / 'licenses'
@@ -96,7 +101,7 @@ shutil.copy2(fltk_license, license_dir / 'FLTK-COPYING')
 shutil.copy2(args.toolchain / 'LICENSE.TXT', license_dir / 'LLVM-LICENSE.TXT')
 for source in (args.toolchain / 'x86_64-w64-mingw32/share/mingw32').glob('COPYING*'):
     shutil.copy2(source, license_dir / source.name)
-report = ('NAVALM Windows x64 build inspection\n\n'
+report = (f'NAVALM {version} Windows x64 build inspection\n\n'
           'PE32+ x86-64; Windows GUI subsystem.\n'
           'FLTK/C++ support linked statically; DLL imports are Windows system components.\n'
           'Map and precise ephemeris are embedded byte-for-byte and unpack on first launch.\n'
@@ -105,20 +110,21 @@ report = ('NAVALM Windows x64 build inspection\n\n'
           + '\n\nNAVALM.exe SHA256: ' + hashlib.sha256(data).hexdigest() + '\n')
 (stage / 'BUILD-VALIDATION.txt').write_text(report)
 (stage / 'START-HERE.txt').write_text(
-    'NAVALM - Windows 10/11 x64\n\n'
+    f'NAVALM {version} - Windows 10/11 x64\n\n'
     'Extract this folder into Documents or another writable location.\n'
     'Double-click NAVALM.exe. No installation or runtime package is needed.\n'
     'It includes the offline world land map and the precise JPL ephemeris.\n'
-    'First launch creates .local beside the exe. Keep it to preserve your sights.\n\n'
+    'First launch shows bundled-data preparation progress and creates .local.\n'
+    'Keep .local beside the exe to preserve your sights when updating.\n\n'
     'Charts + setup: download a map, use an OpenCPN coastline, or load a land .shp.\n'
     'Saved sights + plotting: calculate a fix, then toggle Map or Detach sheet.\n'
     'Wheel/+/- zoom; drag pans; Fit or 0 restores the sheet.\n\n'
-    'This unsigned sandbox build was cross-compiled on macOS. It still needs\n'
+    'This unsigned build was cross-compiled on macOS. It still needs\n'
     'a real Windows launch and save/reopen test. See WINDOWS.md.\n')
 archive = out / 'NAVALM-Windows-x64.zip'
 # Explicit file list avoids carrying state from any previous staging-directory run.
 files = [stage / n for n in ['NAVALM.exe', 'LICENSE', 'THIRD_PARTY_NOTICES.md',
-         'PROVENANCE.md', 'SAFETY.md', 'WINDOWS.md', 'DESKTOP.md', 'MAPS.md',
+         'PROVENANCE.md', 'SAFETY.md', 'CHANGELOG.md', 'WINDOWS.md', 'DESKTOP.md', 'MAPS.md',
          'START-HERE.txt', 'BUILD-VALIDATION.txt']]
 files += list(license_dir.iterdir())
 with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:

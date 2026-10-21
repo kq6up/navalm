@@ -48,7 +48,7 @@ void download_https(const std::string &url, const std::filesystem::path &output,
         throw std::runtime_error("Invalid download URL.");
     std::wstring host(u.lpszHostName, u.dwHostNameLength), path(u.lpszUrlPath, u.dwUrlPathLength);
     path.append(u.lpszExtraInfo, u.dwExtraInfoLength);
-    Handle session{WinHttpOpen(L"NAVALM/4.2", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+    Handle session{WinHttpOpen(L"NAVALM/5.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
                                WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0)};
     if (!session.h)
         throw std::runtime_error("Cannot start HTTPS download.");

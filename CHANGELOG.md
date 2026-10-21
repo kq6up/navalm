@@ -1,3 +1,43 @@
+# Changes in NAVALM 5.0
+
+Released 21 October 2026.
+
+- Added a native FLTK workbench with almanac and hourly tables, worked sight
+  reductions, saved-sight editing, stationary/running fixes, and engine setup.
+  The CLI, ncurses terminal interface and `-d` browser interface remain available
+  and share the existing C astronomy and sight-reduction engines.
+- Matched the browser's universal plotting sheet in the native view: assumed
+  positions, intercept arrows, LOPs, running advances, grid, compass rose and
+  enlarged cocked hat. Added detachable/reattachable plotting, anchored zoom,
+  pan, Fit, layer visibility and opacity controls.
+- Added transparent SVG and geographic GeoJSON vector exports for chart overlays.
+- Added an offline Natural Earth land/coastline underlay, a cancellable world-map
+  downloader, WGS84 land-shapefile loading and OpenCPN coastline import. This
+  provides geographic context; it does not display chart depths, hazards or ENC
+  symbols, and it is not a complete OpenCPN chart catalogue/downloader.
+- Native DR and Hs fields display degrees SPACE decimal minutes, with decimal
+  degrees also accepted. New DR fields remain blank without saved defaults;
+  explicitly entered latitude 0, longitude 0 is still valid.
+- Invalid stored inputs, below-horizon reductions and parallel/no-solution LOPs
+  return recoverable errors. Correcting the inputs allows another calculation.
+- Fixed a Windows coastline-rendering overflow: broad map views could exceed
+  FLTK's 20-contour buffer. The replacement fill preserves islands and holes
+  without that buffer. Added local Windows diagnostic logging.
+- Added a portable Windows 10/11 x64 executable with FLTK/C++ support linked
+  statically and the JPL DE440s ephemeris and world map embedded. First launch
+  shows progress while extracting bundled data; no download is required.
+  Windows system DLLs are still used. Keep `.local/` beside the executable to
+  preserve saved sights and settings when updating or moving the program.
+
+Validation: shared core, input, stationary/running fix, map, web/native vector
+parity, CLI and live web API checks passed on macOS. Native callbacks, map
+installation/cancellation, OpenCPN import and plotting were exercised on macOS;
+map/input regressions also passed AddressSanitizer and UndefinedBehaviorSanitizer.
+The Windows x64 PE, system-DLL imports and exact embedded data were inspected.
+The previous Windows build ran its almanac and a fix with the intended DR for
+the user; the updated Windows renderer, error dialogs and startup progress still
+need a Windows runtime retest. This unsigned download carries that limitation.
+
 # Changes in NAVALM 4.2
 
 - Added a universal plotting sheet to browser fixes, showing each sight's

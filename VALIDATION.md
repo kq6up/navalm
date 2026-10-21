@@ -1,3 +1,42 @@
+# NAVALM 5.0 publication validation
+
+Release checks performed on 21 October 2026 for the native FLTK workbench and
+portable Windows package. The release retains the CLI, terminal and web builds.
+
+- `make page`, the ncurses executable, the macOS FLTK bundle, and
+  `make check-desktop check-paper check-plot check-list` passed. CLI and live
+  `/api/version` responses report 5.0; the macOS bundle, CMake project and Windows
+  version resources were updated together.
+- Both precise and classic CLI engines reduced the README artificial-horizon
+  Sun example to the expected 6.8 NM Toward. A separate live `-d` web server
+  handled the same valid observation, rejected invalid date/DR input and then
+  successfully reduced the valid observation again.
+- The native Checks application exercised real FLTK callbacks: missing DR,
+  explicit zero/zero, below-horizon reduction, invalid save rejection,
+  parallel/no-solution fixes and recovery after correction. Almanac/hourly
+  output, sight editing and persistence, stationary/running fixes, SVG/GeoJSON,
+  layers, detach/reattach, zoom/pan and Fit passed with synthetic fixtures.
+- Native background HTTPS map installation and cancellation, read-only OpenCPN
+  coastline import, and the geographic map/plot overlay passed. The displayed
+  synthetic coastal preview was inspected on macOS.
+- Web/native plotting geometry agrees within 0.15 pixels and recorded fix
+  residuals within 0.0002 NM. Map tests cover multipart polygons, holes, winding,
+  viewport clipping, zoom/pan and invalid shapefiles. A broad Natural Earth view
+  has 2,604 contours in one polygon, beyond the old Windows 20-contour buffer;
+  the replacement scanline fill passes this case and a 128-contour island/lagoon
+  regression. The unchanged map/input implementation also passed AddressSanitizer
+  and UndefinedBehaviorSanitizer on 18 October.
+- The Windows 10/11 x64 executable was rebuilt for 5.0 with static FLTK/C++
+  support. PE architecture, GUI subsystem, product/manifest versions, system-DLL
+  imports and byte-for-byte embedded JPL ephemeris and land-map data were checked.
+  The release ZIP includes the executable, changelog, instructions and licenses;
+  private `.local/` settings and saved sights are excluded.
+- Windows runtime limitation: the user tested the previous build's almanac and
+  a fix with the intended DR on Windows 10, and reported a crash with DR 0,0.
+  The updated renderer, native errors and first-launch preparation progress
+  have not been run on Windows here and still need a Windows retest. A clean
+  cross-build is not Windows runtime proof.
+
 # NAVALM 4.2 publication validation
 
 Checks performed on 15 October 2026 for the browser plotting sheet and

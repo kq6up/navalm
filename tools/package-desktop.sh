@@ -21,7 +21,7 @@ cat > "$app/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>NAVALM</string>
 <key>CFBundleDisplayName</key><string>NAVALM</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>4.2</string>
+<key>CFBundleShortVersionString</key><string>5.0</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>

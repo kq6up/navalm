@@ -1,4 +1,11 @@
-NAVALM 4.2 - nautical almanac and sight worker
+NAVALM 5.0 - nautical almanac and sight worker
+
+5.0 adds a native FLTK workbench with saved sights, reductions, almanac,
+detachable plotting sheet, zoom/pan, transparent SVG/GeoJSON exports,
+and offline coastline maps. The portable Windows 10/11 x64 ZIP includes
+the JPL ephemeris and world land map. See DESKTOP.md, MAPS.md, WINDOWS.md
+and CHANGELOG.md. Existing CLI, terminal and -d web interfaces remain.
+Windows download: https://github.com/kq6up/navalm/releases/tag/v5.0
 
 4.2 adds a universal plotting sheet to browser fixes and corrects the
 duplicate displayed rows after editing a saved sight. See README.md for
@@ -21,7 +28,8 @@ error could cause death, injury, or property damage. By using it, you
 accept the safety and assumption-of-risk terms in SAFETY.md, to the
 maximum extent permitted by law. No express or implied warranty is given.
 
-It is for Linux/Unix console use and does not require GCC4TI.
+The console and web interfaces build on Unix/Linux; the FLTK desktop also
+supports macOS and Windows. NAVALM does not require GCC4TI.
 
 Build:
   make page

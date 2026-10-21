@@ -14,7 +14,7 @@ your saved sights, defaults, selected map and extracted data. Copying the exe
 alone starts a fresh workspace. Do not run directly inside the ZIP.
 
 The portable ZIP includes the executable, instructions and third-party notices.
-This is an unsigned sandbox build. The existing Unix CLI and `-d` web server
+This is an unsigned build. The existing Unix CLI and `-d` web server
 remain in the normal Makefile build; this Windows artifact is the native GUI.
 
 ## Fix calculation update
