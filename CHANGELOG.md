@@ -3,7 +3,7 @@
 - Combined rear GHA increments and v/d corrections on one page per elapsed
   minute, including a seconds-adjustment table and a worked GHA example. Rate
   magnitudes remain 0.0–30.5 in 0.1 arcminute/hour steps; correction components
-  print to hundredths before their sum is rounded to 0.1 arcminute.
+  print to 0.1 arcminute, with explicit half-up rounding.
 - Made exact half-step GHA increment rounding deterministic, avoiding binary
   floating-point ties that could round some printed entries downward.
 - Extended optional row shading to increments, rate/altitude corrections and

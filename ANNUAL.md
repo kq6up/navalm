@@ -87,8 +87,10 @@ section retains rate magnitudes 0.0–30.5 arcminutes/hour in **0.1 steps**.
 Read the whole-minute correction beside the rate, add the seconds component
 (interpolating the small table in rate and seconds), round the sum to 0.1
 arcminute, then apply the original v/d sign. For declination, omit the GHA
-increment. Correction components print to 0.01 arcminute with half-up rounding;
-their sum can differ from the unrounded calculation by up to 0.01 arcminute.
+increment. Correction components print to **0.1 arcminute** with half-up rounding.
+Rounding the components separately can affect the last digit; before final
+rounding, the component rounding and seconds interpolation can together differ
+from the unrounded calculation by up to 0.1 arcminute.
 The seconds table includes 60s as an interpolation endpoint, not another minute.
 The unrounded correction is rate * (60 * minute + seconds) / 3600. GHA increments
 also use explicit half-up rounding so exact half-step entries are consistent.

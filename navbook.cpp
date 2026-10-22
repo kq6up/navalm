@@ -598,7 +598,7 @@ static void sun_moon_page(PDF &p, const std::vector<Day> &days, size_t first, si
 
 static void increments(PDF &p, bool shaded) {
     // One page per elapsed minute keeps GHA, v/d and seconds in one lookup.
-    // Hundredths in the two correction components avoid premature 0.1 rounding.
+    // Both correction components print to the requested tenth of an arcminute.
     for(int minute=0;minute<60;++minute) {
         p.start("INCREMENTS AND CORRECTIONS | Minute "+hour(minute),
                 minute==0?"Increments and corrections (minutes/seconds)":"");
@@ -627,8 +627,8 @@ static void increments(PDF &p, bool shaded) {
             for(int row=0;row<51;++row) {
                 int tenths=col*51+row; double y=92+row*9.2;
                 p.right(x+18,y,num(tenths/10.),8.5);
-                // Exact positive half-up rounding to hundredths of an arcminute.
-                p.right(x+46,y,num(((tenths*minute*10+30)/60)/100.,2),8.5);
+                // Exact positive half-up rounding to tenths of an arcminute.
+                p.right(x+46,y,num(((tenths*minute+30)/60)/10.),8.5);
                 if(row%10==9) p.line(x,y+2,46,.15);
             }
         }
@@ -638,7 +638,7 @@ static void increments(PDF &p, bool shaded) {
             "For v or d, read the rate magnitude above and add the seconds correction at right. "
             "Interpolate that small table in rate and seconds. Round the sum to 0.1', "
             "then apply the original v/d sign. For declination omit the GHA increment.",220,8.5,10);
-        p.text(24,654,"Check: 34m56s, v +2.4'/h: 1.36' + 0.04' = +1.4'.",8);
+        p.text(24,654,"Check: 34m56s, v +2.4'/h: 1.4' + 0.0' = +1.4'.",8);
         p.text(24,667,"GHA 123 45.6 + 008 44.0 + 1.4' = 132 31.0.",8);
         p.text(258,575,"SECONDS CORRECTION (arcminutes)",8.5,1);
         p.text(258,587,"Add to whole-minute correction; use same rate.",7.5);
@@ -650,9 +650,9 @@ static void increments(PDF &p, bool shaded) {
             double yy=617+row++*9;
             p.right(278,yy,num(tenths/10.),8.5);
             j=0;for(int sec:{0,10,20,30,40,50,60})
-                p.right(304+j++*29,yy,num(((tenths*sec+180)/360)/100.,2),8.5);
+                p.right(304+j++*29,yy,num(((tenths*sec+1800)/3600)/10.),8.5);
         }
-        p.text(24,684,"Correction components rounded to 0.01'; their sum can differ from exact by up to 0.01'. GHA modulo 360.",8);
+        p.text(24,684,"Corrections in 0.1'; rounded components can change the last digit. Reduce final GHA modulo 360.",8);
     }
 }
 static double refraction(double ha) { return (1/std::tan((ha+7.31/(ha+4.4))*pi/180)); }
