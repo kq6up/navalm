@@ -1,5 +1,8 @@
 # NAVALM 5.1 development preview (unreleased)
 
+- Refined the rear v/d correction tables from 0.5 to 0.1 arcminute/hour rate
+  steps, retaining the 0.0–30.5 range in five readable pages. Printed correction
+  magnitudes use explicit half-up rounding to 0.1 arcminute.
 - Extended optional row shading to increments, rate/altitude corrections and
   compact Ageton tables, using the same checkbox and gray level.
 - Moved Annual book to the final desktop tab and increased optional hourly-row

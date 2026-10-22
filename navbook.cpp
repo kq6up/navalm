@@ -621,25 +621,35 @@ static void increments(PDF &p, bool shaded) {
         p.text(24,642,"Use the minute block and seconds row. Add the body's increment to the whole-hour GHA.",9);
         p.text(24,658,"Add signed v * elapsed fraction of hour; reduce GHA modulo 360. Rate table follows.",9);
     }
-    p.start("SIGNED HOURLY-RATE CORRECTIONS");
-    p.text(24,62,"v or d in arcminutes/hour. Multiply by elapsed minutes / 60.",10);
-    p.text(24,79,"Use the original sign. Seconds: add rate * seconds / 3600.",10);
-    for(int col=0;col<2;++col) {
-        double x=24+col*232;
-        p.right(x+22,103,"Rate",9,1);
-        int j=0; for(int m:{5,10,15,20,30,40,50}) p.right(x+54+j++*26,103,std::to_string(m)+"m",9,1);
-        p.line(x,109,218);
-        if(shaded) p.striped_rows(x,124,218,16,31,4);
-        for(int r=0;r<=30;++r) {
-            double rate=(col*31+r)/2., y=124+r*16;
-            p.right(x+22,y,num(rate),10);
-            j=0; for(int m:{5,10,15,20,30,40,50}) p.right(x+54+j++*26,y,num(rate*m/60),10);
-            if(r%5==4) p.line(x,y+4,218,.15);
+    // Match the daily v/d precision: 0.0..30.5 arcminutes/hour in 0.1 steps.
+    // Two 31-row blocks per page retain the existing readable table size.
+    for(int first=0;first<=305;first+=62) {
+        p.start("v/d CORRECTIONS | "+num(first/10.)+"-"+num(std::min(first+61,305)/10.)+" arcmin/hour",
+                first==0?"v/d hourly-rate corrections":"");
+        p.text(24,62,"Use the rate magnitude; apply its original v or d sign to the correction.",9);
+        p.text(24,79,"Corrections in arcminutes, rounded to 0.1 (half up). Seconds: rate * seconds / 3600.",8.5);
+        for(int col=0;col<2;++col) {
+            double x=24+col*232;
+            int start=first+col*31, rows=std::min(31,306-start);
+            if(rows<=0) continue;
+            p.right(x+22,103,"Rate",9,1);
+            int j=0; for(int m:{5,10,15,20,30,40,50}) p.right(x+54+j++*26,103,std::to_string(m)+"m",9,1);
+            p.line(x,109,218);
+            if(shaded) p.striped_rows(x,124,218,16,rows,4);
+            for(int r=0;r<rows;++r) {
+                int tenths=start+r;
+                double y=124+r*16;
+                p.right(x+22,y,num(tenths/10.),10);
+                // Integer rounding avoids binary floating-point ties in printed entries.
+                j=0; for(int m:{5,10,15,20,30,40,50})
+                    p.right(x+54+j++*26,y,num(((tenths*m+30)/60)/10.),10);
+                if(r%5==4) p.line(x,y+4,218,.15);
+            }
         }
+        p.text(24,641,"Example at 12:34:56 UTC: use minute 34, seconds 56, and the 12:00 whole-hour GHA.",9);
+        p.text(24,657,"Sun/planet increment 008 44.0; v +2.4'/h adds 1.4'. GHA 123 45.6 becomes 132 31.0.",9);
+        p.text(24,673,"For declination, add signed d * elapsed fraction of hour. No GHA increment is used.",9);
     }
-    p.text(24,641,"Example at 12:34:56 UTC: use minute 34, seconds 56, and the 12:00 whole-hour GHA.",9);
-    p.text(24,657,"Sun/planet increment 008 44.0; v +2.4'/h adds 1.4'. GHA 123 45.6 becomes 132 31.0.",9);
-    p.text(24,673,"For declination, add signed d * elapsed fraction of hour. No GHA increment is used.",9);
 }
 static double refraction(double ha) { return (1/std::tan((ha+7.31/(ha+4.4))*pi/180)); }
 static void corrections(PDF &p, bool shaded) {

@@ -58,7 +58,7 @@ regenerating overwrites source edits. Latin Modern advances are measured for
 wrapping and column alignment; no font programs are bundled with NAVALM.
 
 The 2027 LaTeX comparison compiled with both the desktop TeX compiler and
-pdfLaTeX. The exported PDF has embedded fonts, 295 pages and 17 bookmarks.
+pdfLaTeX. The exported PDF has embedded fonts, 299 pages and 18 bookmarks.
 Representative page styles were rendered for visual inspection. Both export
 formats are covered by generator and native-worker checks.
 
@@ -81,9 +81,13 @@ instructions and worksheets clear. Leave it unchecked for plain white pages; the
 is `--shade-rows`. Refraction, dip and parallax are at the
 front; the minute/second **Increments and Corrections** tables are at the back,
 with a worked GHA example.
-Increments use three minute blocks per page (20 pages), and the dip, refraction
-and parallax component tables share one page. A complete 2027 preview is
-**295 pages**: 2 introductory, 244 daily, 21 increments/rates, 1 corrections,
+Increments use three minute blocks per page (20 pages). The v/d correction tables
+follow at the back, with rate magnitudes 0.0–30.5 arcminutes/hour in **0.1 steps**
+over five pages. Corrections for the listed elapsed minutes are rounded to 0.1
+arcminute, with half steps rounded upward before applying the original sign.
+The dip, refraction and parallax component tables share one page.
+A complete 2027 preview is
+**299 pages**: 2 introductory, 244 daily, 25 increments/rates, 1 corrections,
 1 calculator guide, 25 Ageton, and 1 section index. PDF bookmarks identify months
 and reference sections. Leap years and the final partial daily group are handled.
 
