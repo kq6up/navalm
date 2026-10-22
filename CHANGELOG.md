@@ -2,6 +2,9 @@
 
 - Added a selectable annual PDF practice-book builder in a new FLTK Annual book
   tab and separate `navalm-book` command, preserving existing CLI/web entry points.
+- Added optional standalone LaTeX source export with Latin Modern fonts and the
+  same compact page geometry. Compile separately with TeX; direct PDF export
+  continues to need no TeX installation.
 - Added hourly three-day spreads, navigational stars, Greenwich events,
   increments/rates, correction components and an optional calculator guide.
 - Added an independently generated compact Ageton variant: half-minute rows,

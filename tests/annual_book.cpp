@@ -58,6 +58,17 @@ int main() {
         auto pdf=navbook::generate(o);
         require(pdf.find("%PDF-1.4")==0,"Native PDF header");
         require(pdf.find("/Count 28 ")!=std::string::npos,"Two opening pages, 25 Ageton pages and index");
+        o.format=navbook::Format::Latex;
+        auto tex=navbook::generate(o);
+        require(tex.find("\\documentclass[10pt]{article}")!=std::string::npos &&
+                tex.find("\\end{document}")!=std::string::npos,"Standalone LaTeX document");
+        size_t pictures=0,position=0;
+        while((position=tex.find("\\begin{picture}",position))!=std::string::npos) {++pictures;++position;}
+        require(pictures==28,"LaTeX preserves compact Ageton page count");
+        require(tex.find("\\_")!=std::string::npos && tex.find("{-}{-}")!=std::string::npos,
+                "LaTeX worksheet underscores and literal hyphens escaped");
+        require(tex.find("\\pdfbookmark[0]")!=std::string::npos,"LaTeX section bookmarks");
+        o.format=navbook::Format::Pdf;
         bool cancelled=false;
         try { navbook::generate(o,[](int,const std::string &){return false;}); }
         catch(const std::exception&) {cancelled=true;}
@@ -88,6 +99,6 @@ int main() {
                     "Failed install removes temporary file");
         } catch(...) {std::filesystem::remove_all(dir);throw;}
         std::filesystem::remove_all(dir);
-        std::puts("Annual book numerical and PDF structure checks passed.");
+        std::puts("Annual book numerical, PDF and LaTeX structure checks passed.");
     } catch(const std::exception &e) {std::fprintf(stderr,"FAIL: %s\n",e.what());return 1;}
 }

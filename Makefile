@@ -57,17 +57,17 @@ DESKTOP_OBJ = $(addprefix .build/desktop/,$(DESKTOP_SRC:.c=.o))
 	@mkdir -p .build/desktop
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-navalm-fltk: navfltk.cpp navfltk_model.h navfltk_plot.h navfltk_sheet.h navfltk_map.h navplatform.h navdownload.cpp navdownload.h navbook.cpp navbook.h $(DESKTOP_OBJ) libastro.a novas.a
+navalm-fltk: navfltk.cpp navfltk_model.h navfltk_plot.h navfltk_sheet.h navfltk_map.h navplatform.h navdownload.cpp navdownload.h navbook.cpp navbook.h navbook_lm_metrics.h $(DESKTOP_OBJ) libastro.a novas.a
 	@command -v $(FLTK_CONFIG) >/dev/null || { echo 'FLTK missing: run make fltk-deps, or set FLTK_CONFIG.'; exit 1; }
 	$(CXX) $(CXXFLAGS) -I. `$(FLTK_CONFIG) --cxxflags` -o $@ navfltk.cpp navdownload.cpp navbook.cpp \
 	  $(DESKTOP_OBJ) libastro.a novas.a `$(FLTK_CONFIG) --ldflags`
 
 desktop: navalm-fltk
 
-navalm-book: navbook_main.cpp navbook.cpp navbook.h $(DESKTOP_OBJ) libastro.a novas.a
+navalm-book: navbook_main.cpp navbook.cpp navbook.h navbook_lm_metrics.h $(DESKTOP_OBJ) libastro.a novas.a
 	$(CXX) $(CXXFLAGS) -I. -o $@ navbook_main.cpp navbook.cpp $(DESKTOP_OBJ) libastro.a novas.a $(LDLIBS)
 
-.build/annual-book-check: tests/annual_book.cpp navbook.cpp navbook.h $(DESKTOP_OBJ) libastro.a novas.a
+.build/annual-book-check: tests/annual_book.cpp navbook.cpp navbook.h navbook_lm_metrics.h $(DESKTOP_OBJ) libastro.a novas.a
 	$(CXX) $(CXXFLAGS) -I. -o $@ tests/annual_book.cpp navbook.cpp $(DESKTOP_OBJ) libastro.a novas.a $(LDLIBS)
 
 check-book: .build/annual-book-check

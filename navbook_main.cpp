@@ -16,7 +16,8 @@ int main(int argc, char **argv) {
             auto value=[&]() { if(++i>=argc) throw std::runtime_error("Missing value for "+a); return std::string(argv[i]); };
             if(a=="--help") {
                 std::puts("NAVALM annual practice-book builder (5.1 development)\n"
-                  "Usage: navalm-book --year YYYY --output book.pdf [options]\n"
+                  "Usage: navalm-book --year YYYY --output PATH [options]\n"
+                  "  --format pdf|latex  (latex writes editable .tex source)\n"
                   "  --engine precise|classic   --ephemeris FILE\n"
                   "  --no-sun-moon --no-planets --no-stars --no-events\n"
                   "  --no-increments --no-corrections\n"
@@ -27,6 +28,12 @@ int main(int argc, char **argv) {
                 auto s=value(); size_t n=0; o.year=std::stoi(s,&n);
                 if(n!=s.size()) throw std::runtime_error("Year must be a whole number.");
             } else if(a=="--output") output=value();
+            else if(a=="--format") {
+                auto f=value();
+                if(f=="pdf") o.format=navbook::Format::Pdf;
+                else if(f=="latex") o.format=navbook::Format::Latex;
+                else throw std::runtime_error("Choose pdf or latex format.");
+            }
             else if(a=="--engine") { if(nav_engine_select(value().c_str())) throw std::runtime_error("Unknown engine."); }
             else if(a=="--ephemeris") nav_engine_set_ephemeris_path(value().c_str());
             else if(a=="--no-sun-moon") o.sun_moon=false;

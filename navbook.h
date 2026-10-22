@@ -6,9 +6,11 @@
 #include <vector>
 
 namespace navbook {
+enum class Format { Pdf, Latex };
 enum class Reduction { None, Formulas, Ageton, Both };
 struct Options {
     int year = 2027;
+    Format format = Format::Pdf;
     bool sun_moon = true, planets = true, stars = true;
     bool events = true, increments = true, corrections = true;
     Reduction reduction = Reduction::Both;
@@ -16,7 +18,8 @@ struct Options {
 // Call from one thread only: the shared astronomy engine is not reentrant.
 // The callback returns false to cancel. No destination file is touched here.
 std::string generate(const Options &, const std::function<bool(int, const std::string &)> & = {});
-void save(const std::string &path, const std::string &pdf);
+// Content may be PDF bytes or self-contained LaTeX source.
+void save(const std::string &path, const std::string &content);
 
 // Values used by the printed tables and by the independent numerical audit.
 class Ageton {

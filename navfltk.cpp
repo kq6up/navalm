@@ -451,7 +451,7 @@ class Workbench {
         book_year->value("2027");
         auto *book_help = new Fl_Box(263, 196, 860, 67,
             "Choose sections independently. Export directly to a printable PDF.\n"
-            "Pages use the selected astronomy engine; no TeX installation is needed.");
+            "Direct PDF needs no TeX. Optional LaTeX source is compiled separately.");
         book_help->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
         book_help->labelsize(14);
         const char *section_labels[] = {
@@ -471,10 +471,11 @@ class Workbench {
             "For learning and recreation. For navigation, buy and use the official Nautical Almanac.");
         book_note->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
         book_note->labelsize(14);
-        button(36, 668, 250, "Export annual PDF…", [this] { export_book(); }, true);
-        auto *book_hint = new Fl_Box(315, 659, 790, 58,
-            "Generation shows progress and can be cancelled.\n"
-            "Your saved sights, defaults and plotting sheet are independent of the book.");
+        button(36, 668, 230, "Export annual PDF…", [this] { export_book(); }, true);
+        button(282, 668, 230, "Export LaTeX source…", [this] { export_book(navbook::Format::Latex); });
+        auto *book_hint = new Fl_Box(535, 659, 585, 58,
+            "PDF: ready to print. LaTeX: editable source; compile with TeX.\n"
+            "Generation shows progress and can be cancelled.");
         book_hint->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
         book_hint->labelsize(13);
         book_tab->end();
@@ -708,7 +709,7 @@ class Workbench {
     void begin_book(const navbook::Options &options, const std::string &path) {
         if(book_running) throw std::runtime_error("An annual book is already being generated.");
         book_path=path; book_error.clear(); book_cancel=false; book_done=false; book_percent=0;
-        book_window=std::make_unique<Fl_Double_Window>(540, 185, "NAVALM annual PDF");
+        book_window=std::make_unique<Fl_Double_Window>(540, 185, "NAVALM annual book");
         book_window->begin();
         book_progress=new Fl_Progress(25,30,490,35,"Preparing annual pages…");
         book_progress->minimum(0); book_progress->maximum(100); book_progress->selection_color(teal);
@@ -737,7 +738,7 @@ class Workbench {
     void poll_book() {
         if(!book_running) return;
         book_progress->value(book_percent.load());
-        book_progress->copy_label(("Generating PDF: "+std::to_string(book_percent.load())+"%").c_str());
+        book_progress->copy_label(("Generating book: "+std::to_string(book_percent.load())+"%").c_str());
         if(!book_done.load(std::memory_order_acquire)) {Fl::repeat_timeout(.1,book_tick,this);return;}
         if(book_worker.joinable()) book_worker.join();
         book_running=false; book_window->hide(); book_window.reset(); book_progress=nullptr;
@@ -745,8 +746,8 @@ class Workbench {
         message(book_error.empty()?"Annual practice book saved: "+book_path:book_error,
                 !book_error.empty() && book_error!="Book generation cancelled.");
     }
-    void export_book() {
-        navbook::Options o;
+    void export_book(navbook::Format format=navbook::Format::Pdf) {
+        navbook::Options o; o.format=format;
         double year=number(book_year->value(),"Almanac year",1600,2200);
         if(std::floor(year)!=year) throw std::runtime_error("Almanac year must be a whole number.");
         o.year=int(year);
@@ -758,8 +759,10 @@ class Workbench {
                               (ageton?navbook::Reduction::Ageton:navbook::Reduction::None);
         if(!(o.sun_moon||o.planets||o.stars||o.events||o.increments||o.corrections||formulas||ageton))
             throw std::runtime_error("Select at least one book section.");
-        auto path=choose_file("Export annual practice almanac", "PDF\t*.pdf",true,
-            ("NAVALM-"+std::to_string(o.year)+"-practice.pdf").c_str());
+        bool tex=format==navbook::Format::Latex;
+        auto path=choose_file(tex?"Export LaTeX source":"Export annual practice almanac",
+            tex?"LaTeX\t*.tex":"PDF\t*.pdf",true,
+            ("NAVALM-"+std::to_string(o.year)+(tex?"-practice.tex":"-practice.pdf")).c_str());
         if(!path.empty()) begin_book(o,path);
     }
     void bind(Fl_Widget *w, std::function<void()> fn) {
@@ -1744,19 +1747,26 @@ static int self_test() {
     app.testing = true;
     app.win.show();
     Fl::check();
-    {
+    for(auto format:{navbook::Format::Pdf,navbook::Format::Latex}) {
         navbook::Options options;
+        options.format=format;
         options.sun_moon=options.planets=options.stars=options.events=options.increments=options.corrections=false;
         options.reduction=navbook::Reduction::Ageton;
-        auto target=(testdir / "annual-table.pdf").u8string();
+        auto target=(testdir / (format==navbook::Format::Pdf?"annual-table.pdf":"annual-table.tex")).u8string();
         app.begin_book(options,target);
         require(!app.tabs->active() && !app.engine->active(),"book reserves engine controls");
         auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(15);
         while(app.book_running && std::chrono::steady_clock::now()<deadline) Fl::wait(.02);
         require(!app.book_running && app.book_error.empty(),"book worker finishes without error");
-        require(fs::file_size(fs::u8path(target))>100000,"native annual PDF saved");
+        require(fs::file_size(fs::u8path(target))>100000,"annual export saved");
+        std::ifstream exported(fs::u8path(target),std::ios::binary);
+        std::string content((std::istreambuf_iterator<char>(exported)),{});
+        require(format==navbook::Format::Pdf?content.find("%PDF-1.4")==0:
+                    content.find("\\documentclass[10pt]{article}")!=std::string::npos,
+                "worker writes the selected export format");
         require(app.tabs->active() && app.engine->active(),"book releases engine controls");
-        std::puts("PASS annual book: native PDF, progress worker, reserved engine and restored controls");
+        std::printf("PASS annual book %s: progress worker, reserved engine and restored controls\n",
+                    format==navbook::Format::Pdf?"PDF":"LaTeX");
     }
     require(std::string(app.lat->value()).empty() && std::string(app.lon->value()).empty(),
             "new form without DR defaults has explicitly empty coordinates");

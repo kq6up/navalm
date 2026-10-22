@@ -37,6 +37,31 @@ The precise engine must cover the entire year and the following January 1.
 Years 1600–2200 are accepted, with Classic available outside the installed JPL
 coverage. Standalone Ageton books do not need ephemeris data.
 
+## Optional LaTeX export
+
+The desktop also offers **Export LaTeX source…**. It uses the selected year and
+sections, the same calculated data and page geometry, and Latin Modern fonts.
+The result is a standalone editable `.tex` file; NAVALM does not run a compiler.
+The direct PDF option remains self-contained.
+
+```sh
+./navalm-book --year 2027 --format latex --output main.tex
+pdflatex -interaction=nonstopmode -halt-on-error main.tex
+pdflatex -interaction=nonstopmode -halt-on-error main.tex
+```
+
+Compile twice for bookmarks. A TeX distribution must provide `fontenc`, `lmodern`,
+`geometry` and `hyperref` (normally included in TeX Live/MiKTeX). The source uses
+positioned text and rules to preserve the compact tables; it is not a separate
+flowing-table redesign. Font sizes, labels and the preamble are editable, but
+regenerating overwrites source edits. Latin Modern advances are measured for
+wrapping and column alignment; no font programs are bundled with NAVALM.
+
+The 2027 LaTeX comparison compiled with both the desktop TeX compiler and
+pdfLaTeX. The exported PDF has embedded fonts, 295 pages and 17 bookmarks.
+Representative page styles were rendered for visual inspection. Both export
+formats are covered by generator and native-worker checks.
+
 ## Page design and conventions
 
 The built-in PDF writer produces vector text and rules on 7 × 10 inch pages.

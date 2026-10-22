@@ -32,7 +32,8 @@ Charts + setup page show the selected engine and ephemeris details.
 - **Almanac:** UTC date/time, body or catalogue star, DR; paper almanac or a
   complete hourly table, with text export.
 - **Annual book (5.1 preview):** choose a year and sections, then export a vector
-  PDF with progress and cancellation. Calculator formulas and compact Ageton tables
+  PDF or editable LaTeX source with progress and cancellation. LaTeX compilation
+  is a separate step requiring TeX. Calculator formulas and compact Ageton tables
   can be included independently. Actual NAO Concise tables and complete Moon limb
   tables remain unfinished. See [ANNUAL.md](ANNUAL.md).
 - **Sight reduction:** enter degrees, a space, then decimal minutes:
