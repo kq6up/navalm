@@ -1,8 +1,11 @@
 # NAVALM 5.1 development preview (unreleased)
 
-- Refined the rear v/d correction tables from 0.5 to 0.1 arcminute/hour rate
-  steps, retaining the 0.0–30.5 range in five readable pages. Printed correction
-  magnitudes use explicit half-up rounding to 0.1 arcminute.
+- Combined rear GHA increments and v/d corrections on one page per elapsed
+  minute, including a seconds-adjustment table and a worked GHA example. Rate
+  magnitudes remain 0.0–30.5 in 0.1 arcminute/hour steps; correction components
+  print to hundredths before their sum is rounded to 0.1 arcminute.
+- Made exact half-step GHA increment rounding deterministic, avoiding binary
+  floating-point ties that could round some printed entries downward.
 - Extended optional row shading to increments, rate/altitude corrections and
   compact Ageton tables, using the same checkbox and gray level.
 - Moved Annual book to the final desktop tab and increased optional hourly-row
@@ -22,8 +25,8 @@
   Increments and Corrections at the back with a worked GHA example. Separate
   day and hour columns remove slash-prefixed hours.
 - Typeset aligned numeric columns with larger tabular figures and measured prose
-  wrapping. Three increments blocks per page and a combined corrections page
-  reduce wasted space. Added month/section bookmarks and an index.
+  wrapping. Altitude correction components share one page; minute pages keep all
+  elapsed-time lookups together. Added month/section bookmarks and an index.
 - Native generation reserves the shared engine, shows progress/cancellation and
   installs the completed PDF atomically. It requires no external TeX installation.
 

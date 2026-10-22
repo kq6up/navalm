@@ -82,6 +82,15 @@ int main() {
         bool rejected=false;
         try { navbook::generate(o); } catch(const std::exception &) {rejected=true;}
         require(rejected,"Empty section selection rejected");
+        // Reference-only books must work without loading an ephemeris.
+        auto reference=o; reference.increments=true; reference.shade_rows=true;
+        auto combined=navbook::generate(reference);
+        require(combined.find("/Count 63 ")!=std::string::npos,
+                "Sixty combined minute pages plus introduction and index");
+        reference.format=navbook::Format::Latex;
+        auto combined_tex=navbook::generate(reference);
+        require(combined_tex.find("SECONDS\\ CORRECTION")!=std::string::npos,
+                "Combined LaTeX export includes seconds lookup");
         auto dir=std::filesystem::temp_directory_path()/std::filesystem::u8path("navalm-book-test-"+
             std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
         std::filesystem::create_directory(dir);

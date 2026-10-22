@@ -597,58 +597,62 @@ static void sun_moon_page(PDF &p, const std::vector<Day> &days, size_t first, si
 }
 
 static void increments(PDF &p, bool shaded) {
-    // Three minute blocks per sheet: larger figures than the old two-block
-    // monospace layout, while reducing this section from 30 sheets to 20.
-    for(int first=0;first<60;first+=3) {
-        p.start("INCREMENTS AND CORRECTIONS | UTC minutes "+std::to_string(first)+"-"+std::to_string(first+2),
-                first==0?"Increments and corrections (minutes/seconds)":"");
-        for(int column=0;column<3;++column) {
-            int minute=first+column; double x=24+column*154;
-            p.text(x,58,"Minute "+std::to_string(minute),10,1);
-            p.text(x,75,"sec",8,1); p.fit_text(x+24,75,"Sun/planets",38,7.5,1);
-            p.text(x+65,75,"Aries",8,1); p.text(x+106,75,"Moon",8,1);
-            p.line(x,81,144);
-            if(shaded) p.striped_rows(x,94,144,8.7,60,2);
-            for(int second=0;second<60;++second) {
-                double hours=(minute*60+second)/3600., y=94+second*8.7;
-                p.text(x,y,hour(second),8.5);
-                p.text(x+24,y,angle(hours*15),8.5);
-                p.text(x+65,y,angle(hours*15.04106864),8.5);
-                p.text(x+106,y,angle(hours*(14+19./60)),8.5);
-                if(second%10==9) p.line(x,y+1.5,144,.15);
+    // One page per elapsed minute keeps GHA, v/d and seconds in one lookup.
+    // Hundredths in the two correction components avoid premature 0.1 rounding.
+    for(int minute=0;minute<60;++minute) {
+        p.start("INCREMENTS AND CORRECTIONS | Minute "+hour(minute),
+                minute==0?"Increments and corrections (minutes/seconds)":"");
+        p.text(24,58,"GHA INCREMENT (deg min)",8,1);
+        p.text(180,58,"v/d RATE '/h  |  WHOLE-MINUTE CORRECTION '",8,1);
+        p.text(24,76,"sec",8,1); p.fit_text(48,76,"Sun/planets",38,7.5,1);
+        p.text(89,76,"Aries",8,1); p.text(130,76,"Moon",8,1);
+        p.line(24,82,144);
+        if(shaded) p.striped_rows(24,92,144,7.8,60,2);
+        for(int second=0;second<60;++second) {
+            double y=92+second*7.8;
+            p.text(24,y,hour(second),8.5);
+            // Rates in millionths of a tenth of an arcminute/hour. Integer
+            // half-up rounding also makes exact .05' ties deterministic.
+            int col=0;for(long long rate:{9000000000LL,9024641184LL,8590000000LL}) {
+                auto ticks=((minute*60+second)*rate+1800000000LL)/3600000000LL;
+                p.text(48+41*col++,y,angle(ticks/600.),8.5);
+            }
+            if(second%10==9) p.line(24,y+1,144,.15);
+        }
+        for(int col=0;col<6;++col) {
+            double x=180+col*50;
+            p.right(x+18,76,"Rate",7.5,1); p.right(x+46,76,"Corr",7.5,1);
+            p.line(x,82,46);
+            if(shaded) p.striped_rows(x,92,46,9.2,51,2);
+            for(int row=0;row<51;++row) {
+                int tenths=col*51+row; double y=92+row*9.2;
+                p.right(x+18,y,num(tenths/10.),8.5);
+                // Exact positive half-up rounding to hundredths of an arcminute.
+                p.right(x+46,y,num(((tenths*minute*10+30)/60)/100.,2),8.5);
+                if(row%10==9) p.line(x,y+2,46,.15);
             }
         }
-        p.text(24,642,"Use the minute block and seconds row. Add the body's increment to the whole-hour GHA.",9);
-        p.text(24,658,"Add signed v * elapsed fraction of hour; reduce GHA modulo 360. Rate table follows.",9);
-    }
-    // Match the daily v/d precision: 0.0..30.5 arcminutes/hour in 0.1 steps.
-    // Two 31-row blocks per page retain the existing readable table size.
-    for(int first=0;first<=305;first+=62) {
-        p.start("v/d CORRECTIONS | "+num(first/10.)+"-"+num(std::min(first+61,305)/10.)+" arcmin/hour",
-                first==0?"v/d hourly-rate corrections":"");
-        p.text(24,62,"Use the rate magnitude; apply its original v or d sign to the correction.",9);
-        p.text(24,79,"Corrections in arcminutes, rounded to 0.1 (half up). Seconds: rate * seconds / 3600.",8.5);
-        for(int col=0;col<2;++col) {
-            double x=24+col*232;
-            int start=first+col*31, rows=std::min(31,306-start);
-            if(rows<=0) continue;
-            p.right(x+22,103,"Rate",9,1);
-            int j=0; for(int m:{5,10,15,20,30,40,50}) p.right(x+54+j++*26,103,std::to_string(m)+"m",9,1);
-            p.line(x,109,218);
-            if(shaded) p.striped_rows(x,124,218,16,rows,4);
-            for(int r=0;r<rows;++r) {
-                int tenths=start+r;
-                double y=124+r*16;
-                p.right(x+22,y,num(tenths/10.),10);
-                // Integer rounding avoids binary floating-point ties in printed entries.
-                j=0; for(int m:{5,10,15,20,30,40,50})
-                    p.right(x+54+j++*26,y,num(((tenths*m+30)/60)/10.),10);
-                if(r%5==4) p.line(x,y+4,218,.15);
-            }
+        p.text(24,575,"USING THIS MINUTE PAGE",8.5,1);
+        double y=590;
+        p.paragraph(24,y,"Add the GHA increment at the seconds row to the whole-hour GHA. "
+            "For v or d, read the rate magnitude above and add the seconds correction at right. "
+            "Interpolate that small table in rate and seconds. Round the sum to 0.1', "
+            "then apply the original v/d sign. For declination omit the GHA increment.",220,8.5,10);
+        p.text(24,654,"Check: 34m56s, v +2.4'/h: 1.36' + 0.04' = +1.4'.",8);
+        p.text(24,667,"GHA 123 45.6 + 008 44.0 + 1.4' = 132 31.0.",8);
+        p.text(258,575,"SECONDS CORRECTION (arcminutes)",8.5,1);
+        p.text(258,587,"Add to whole-minute correction; use same rate.",7.5);
+        p.right(278,601,"Rate",7.5,1);
+        int j=0;for(int sec:{0,10,20,30,40,50,60}) p.right(304+j++*29,601,std::to_string(sec)+"s",7.5,1);
+        p.line(258,605,220);
+        if(shaded) p.striped_rows(258,617,220,9,7,2);
+        int row=0;for(int tenths:{0,50,100,150,200,250,305}) {
+            double yy=617+row++*9;
+            p.right(278,yy,num(tenths/10.),8.5);
+            j=0;for(int sec:{0,10,20,30,40,50,60})
+                p.right(304+j++*29,yy,num(((tenths*sec+180)/360)/100.,2),8.5);
         }
-        p.text(24,641,"Example at 12:34:56 UTC: use minute 34, seconds 56, and the 12:00 whole-hour GHA.",9);
-        p.text(24,657,"Sun/planet increment 008 44.0; v +2.4'/h adds 1.4'. GHA 123 45.6 becomes 132 31.0.",9);
-        p.text(24,673,"For declination, add signed d * elapsed fraction of hour. No GHA increment is used.",9);
+        p.text(24,684,"Correction components rounded to 0.01'; their sum can differ from exact by up to 0.01'. GHA modulo 360.",8);
     }
 }
 static double refraction(double ha) { return (1/std::tan((ha+7.31/(ha+4.4))*pi/180)); }
