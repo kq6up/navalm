@@ -51,7 +51,7 @@ pdflatex -interaction=nonstopmode -halt-on-error main.tex
 ```
 
 Compile twice for bookmarks. A TeX distribution must provide `fontenc`, `lmodern`,
-`geometry` and `hyperref` (normally included in TeX Live/MiKTeX). The source uses
+`xcolor`, `geometry` and `hyperref` (normally included in TeX Live/MiKTeX). The source uses
 positioned text and rules to preserve the compact tables; it is not a separate
 flowing-table redesign. Font sizes, labels and the preamble are editable, but
 regenerating overwrites source edits. Latin Modern advances are measured for
@@ -72,7 +72,11 @@ against printable margins. PDF viewers supply their standard font equivalents.
 
 Three-day daily spreads follow the familiar division of Aries/planets/stars
 and Sun/Moon/events, with separate day and UTC-hour columns. Columns expand
-when neighbouring sections are omitted. Refraction, dip and parallax are at the
+when neighbouring sections are omitted. The **Alternate row shading** checkbox
+adds a subtle 5% gray background to every other hourly row in Aries/planet and
+Sun/Moon tables, in either export format. It starts afresh each day and stays
+within those tables. Leave it unchecked for plain white pages; the CLI equivalent
+is `--shade-rows`. Refraction, dip and parallax are at the
 front; the minute/second **Increments and Corrections** tables are at the back,
 with a worked GHA example.
 Increments use three minute blocks per page (20 pages), and the dip, refraction

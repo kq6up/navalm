@@ -351,6 +351,7 @@ class Workbench {
     Fl_Group *book_tab;
     Fl_Input *book_year;
     Fl_Check_Button *book_sections[8];
+    Fl_Check_Button *book_shade_rows;
     std::thread book_worker;
     std::atomic<bool> book_cancel{false}, book_done{false};
     std::atomic<int> book_percent{0};
@@ -464,6 +465,10 @@ class Workbench {
             book_sections[i]->labelsize(15);
             book_sections[i]->value(1);
         }
+        book_shade_rows = new Fl_Check_Button(36, 485, 1090, 30,
+            "Alternate row shading (light gray hourly rows)");
+        book_shade_rows->labelsize(15);
+        book_shade_rows->value(0);
         auto *book_note = new Fl_Box(36, 521, 1090, 116,
             "5.1 DEVELOPMENT PREVIEW\n"
             "Ageton can be added, substituted for the calculator guide, or omitted.\n"
@@ -748,6 +753,7 @@ class Workbench {
     }
     void export_book(navbook::Format format=navbook::Format::Pdf) {
         navbook::Options o; o.format=format;
+        o.shade_rows=book_shade_rows->value();
         double year=number(book_year->value(),"Almanac year",1600,2200);
         if(std::floor(year)!=year) throw std::runtime_error("Almanac year must be a whole number.");
         o.year=int(year);

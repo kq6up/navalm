@@ -11,6 +11,7 @@ enum class Reduction { None, Formulas, Ageton, Both };
 struct Options {
     int year = 2027;
     Format format = Format::Pdf;
+    bool shade_rows = false;
     bool sun_moon = true, planets = true, stars = true;
     bool events = true, increments = true, corrections = true;
     Reduction reduction = Reduction::Both;

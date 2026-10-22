@@ -1,5 +1,7 @@
 # NAVALM 5.1 development preview (unreleased)
 
+- Added optional alternating light-gray hourly-row shading to the annual book,
+  selectable by checkbox or `--shade-rows`, for both PDF and LaTeX exports.
 - Added a selectable annual PDF practice-book builder in a new FLTK Annual book
   tab and separate `navalm-book` command, preserving existing CLI/web entry points.
 - Added optional standalone LaTeX source export with Latin Modern fonts and the

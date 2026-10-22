@@ -18,6 +18,7 @@ int main(int argc, char **argv) {
                 std::puts("NAVALM annual practice-book builder (5.1 development)\n"
                   "Usage: navalm-book --year YYYY --output PATH [options]\n"
                   "  --format pdf|latex  (latex writes editable .tex source)\n"
+                  "  --shade-rows  (light gray alternating hourly rows)\n"
                   "  --engine precise|classic   --ephemeris FILE\n"
                   "  --no-sun-moon --no-planets --no-stars --no-events\n"
                   "  --no-increments --no-corrections\n"
@@ -28,6 +29,7 @@ int main(int argc, char **argv) {
                 auto s=value(); size_t n=0; o.year=std::stoi(s,&n);
                 if(n!=s.size()) throw std::runtime_error("Year must be a whole number.");
             } else if(a=="--output") output=value();
+            else if(a=="--shade-rows") o.shade_rows=true;
             else if(a=="--format") {
                 auto f=value();
                 if(f=="pdf") o.format=navbook::Format::Pdf;

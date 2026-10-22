@@ -189,6 +189,17 @@ class PDF {
         page << weight << " w " << x << ' ' << height - y << " m " << x + w << ' '
              << height - y << " l S\n";
     }
+    void shade_row(double x, double baseline, double w) {
+        // Five percent black, limited to the hourly table's own columns.
+        // Draw before text; isolate the fill so text and rules remain black.
+        if(format==Format::Latex) {
+            page << "\\put(" << x << ',' << height-baseline-1.5
+                 << "){\\textcolor{navrow}{\\rule{" << w << "bp}{7.5bp}}}\n";
+        } else {
+            page << "q 0.95 g " << x << ' ' << height-baseline-1.5 << ' '
+                 << w << " 7.5 re f Q\n";
+        }
+    }
     void start(const std::string &title, const std::string &section = "") {
         if (!page.str().empty()) finish();
         if (!section.empty()) contents.emplace_back(section, int(pages.size()) + 1);
@@ -229,6 +240,8 @@ class PDF {
 \documentclass[10pt]{article}
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
+\usepackage{xcolor}
+\definecolor{navrow}{gray}{0.95}
 \usepackage[paperwidth=504bp,paperheight=720bp,margin=0bp]{geometry}
 \usepackage[hidelinks,bookmarksopen]{hyperref}
 % Pin the design sizes to the advances used by NAVALM's layout engine.
@@ -410,6 +423,7 @@ static void planets_page(PDF &p, const std::vector<Day> &days, size_t first, siz
     for(size_t i=first;i<end;++i) {
         p.line(24,y-6,o.planets?(o.stars?318:456):90);
         for(int h=0;h<24;++h) {
+            if(o.shade_rows && h%2) p.shade_row(24,y,o.planets?(o.stars?318:456):90);
             if(h==0) p.text(24,y,std::to_string(days[i].day),7,1);
             p.text(36,y,hour(h),7);
             p.text(aries,y,angle(nav_gha_aries_deg(days[i].jd+h/24.)),face);
@@ -557,6 +571,7 @@ static void sun_moon_page(PDF &p, const std::vector<Day> &days, size_t first, si
     for(size_t i=first;i<end;++i) {
         p.line(24,y-6,o.events?255:456);
         for(int h=0;h<24;++h) {
+            if(o.shade_rows && h%2) p.shade_row(24,y,o.events?255:456);
             auto s=days[i].body[NAV_SUN][h], m=days[i].body[NAV_MOON][h], n=days[i].body[NAV_MOON][h+1];
             if(h==0) p.text(24,y,std::to_string(days[i].day),7,1);
             p.text(36,y,hour(h),7);
