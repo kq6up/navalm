@@ -46,7 +46,10 @@ measured font advances, rather than a fixed character count. Text is checked
 against printable margins. PDF viewers supply their standard font equivalents.
 
 Three-day daily spreads follow the familiar division of Aries/planets/stars
-and Sun/Moon/events. Columns expand when neighbouring sections are omitted.
+and Sun/Moon/events, with separate day and UTC-hour columns. Columns expand
+when neighbouring sections are omitted. Refraction, dip and parallax are at the
+front; the minute/second **Increments and Corrections** tables are at the back,
+with a worked GHA example.
 Increments use three minute blocks per page (20 pages), and the dip, refraction
 and parallax component tables share one page. A complete 2027 preview is
 **295 pages**: 2 introductory, 244 daily, 21 increments/rates, 1 corrections,

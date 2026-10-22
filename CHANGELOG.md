@@ -6,6 +6,9 @@
   increments/rates, correction components and an optional calculator guide.
 - Added an independently generated compact Ageton variant: half-minute rows,
   six-place log scale, sign/branch worksheet and worked checks in 25 pages.
+- Put refraction/dip/parallax corrections at the front and minute/second
+  Increments and Corrections at the back with a worked GHA example. Separate
+  day and hour columns remove slash-prefixed hours.
 - Typeset aligned numeric columns with larger tabular figures and measured prose
   wrapping. Three increments blocks per page and a combined corrections page
   reduce wasted space. Added month/section bookmarks and an index.

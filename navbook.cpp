@@ -287,14 +287,15 @@ static void opening(PDF &p, const Options &o) {
     p.start("CONTENTS AND USE");
     y = 70;
     for (auto entry : std::vector<std::pair<bool,std::string>>{
+        {o.corrections,"Front reference: dip, refraction and parallax corrections"},
         {o.planets,"Three-day Aries and navigational-planet pages"},
         {o.stars,"Navigational-star SHA and declination on three-day pages"},
         {o.sun_moon,"Three-day Sun and Moon hourly pages, v/d, HP and SD"},
         {o.events,"Greenwich rise/set and twilight tables alongside daily pages"},
-        {o.increments,"Increments and signed hourly-rate correction tables"},
-        {o.corrections,"Dip, refraction and parallax reference tables"},
+
         {o.reduction == Reduction::Formulas || o.reduction == Reduction::Both,"Concise calculator formulas and worksheet"},
-        {o.reduction == Reduction::Ageton || o.reduction == Reduction::Both,"Compact Ageton tables, instructions and worksheet (25 pages)"}}) {
+        {o.reduction == Reduction::Ageton || o.reduction == Reduction::Both,"Compact Ageton tables, instructions and worksheet (25 pages)"},
+        {o.increments,"Back reference: increments and corrections for minutes/seconds"}}) {
         p.text(24,y, std::string(entry.first ? "INCLUDED   " : "OMITTED    ") + entry.second, 9);
         y += 23;
     }
@@ -302,7 +303,9 @@ static void opening(PDF &p, const Options &o) {
     p.paragraph(24,y,"Daily pages group three consecutive calendar days. Each day has all 24 hours. "
         "The final group stops on December 31; no next-year daily pages are inserted. Adjacent "
         "next-hour ephemerides are used for the final hourly rates. Planet pages and Sun/Moon "
-        "pages are omitted independently; selecting stars alone still creates the Aries/star page.");
+        "pages are omitted independently; selecting stars alone still creates the Aries/star page. "
+        "Day and UTC hour are separate columns. Use Increments and Corrections at the back "
+        "to advance a whole-hour GHA to the observation's minute and second.");
     p.paragraph(24,y,"v is the signed excess hourly GHA rate over the base motion: 15 degrees/hour "
         "for Sun and planets, 14 degrees 19 minutes/hour for Moon. d is the signed change "
         "in declination in minutes/hour (N positive). Unlike the official book, all d rates here "
@@ -322,9 +325,10 @@ static std::string hour(int h) { char s[8]; std::snprintf(s,sizeof s,"%02d",h); 
 static void planets_page(PDF &p, const std::vector<Day> &days, size_t first, size_t end, const Options &o) {
     p.start(std::to_string(o.year) + " | " + date(days[first]) + " - " + date(days[end-1]));
     for(size_t i=first;i<end;++i) if(days[i].day==1) p.mark(std::string(months[days[i].month-1])+" daily pages");
-    const double aries=o.planets && o.stars?44:52, body_x=o.stars?88:110;
+    const double aries=o.planets && o.stars?48:52, body_x=o.stars?88:110;
     const double stride=o.stars?64:94, face=o.planets && o.stars?7.5:8.5;
-    p.text(24,57,"UTC",7,1); p.text(aries,57,"ARIES GHA",6.5,1);
+    p.text(24,55,"UTC",7,1); p.text(24,66,"Day",6,1); p.text(36,66,"h",7,1);
+    p.text(aries,57,"ARIES GHA",6.5,1);
     for (int b=0;b<4 && o.planets;++b) {
         double x=body_x+b*stride;
         p.text(x,54,nav_body_name(static_cast<NavBody>(b+NAV_VENUS)),8,1);
@@ -334,7 +338,8 @@ static void planets_page(PDF &p, const std::vector<Day> &days, size_t first, siz
     for(size_t i=first;i<end;++i) {
         p.line(24,y-6,o.planets?(o.stars?318:456):90);
         for(int h=0;h<24;++h) {
-            p.text(24,y,(h==0?std::to_string(days[i].day):"")+"/"+hour(h),7);
+            if(h==0) p.text(24,y,std::to_string(days[i].day),7,1);
+            p.text(36,y,hour(h),7);
             p.text(aries,y,angle(nav_gha_aries_deg(days[i].jd+h/24.)),face);
             for(int b=0;b<4 && o.planets;++b) {
                 const auto &v=days[i].body[b+NAV_VENUS][h];
@@ -473,17 +478,20 @@ static void sun_moon_page(PDF &p, const std::vector<Day> &days, size_t first, si
     p.text(24,55,"UTC",7,1); p.text(o.events?47:73.45,55,"SUN",8,1); p.text(o.events?116:221.8,55,"MOON",8,1);
     double field_x[]={24,47,80,116,149,182,204,227};
     if(!o.events) for(auto &x:field_x) x=24+(x-24)*2.15;
-    const char *field_names[]={"d/h","GHA","DEC","GHA","DEC","HP","v","d"};
-    for(int f=0;f<8;++f) p.text(field_x[f],67,field_names[f],7,1);
+    const char *field_names[]={"","GHA","DEC","GHA","DEC","HP","v","d"};
+    p.text(24,67,"Day",6,1); p.text(36,67,"h",7,1);
+    for(int f=1;f<8;++f) p.text(field_x[f],67,field_names[f],7,1);
     double y=78;
     for(size_t i=first;i<end;++i) {
         p.line(24,y-6,o.events?255:456);
         for(int h=0;h<24;++h) {
             auto s=days[i].body[NAV_SUN][h], m=days[i].body[NAV_MOON][h], n=days[i].body[NAV_MOON][h+1];
-            std::string fields[]={(h==0?std::to_string(days[i].day):"  ")+"/"+hour(h),
+            if(h==0) p.text(24,y,std::to_string(days[i].day),7,1);
+            p.text(36,y,hour(h),7);
+            std::string fields[]={"",
                 angle(s.gha_deg),angle(s.dec_deg,true),angle(m.gha_deg),angle(m.dec_deg,true),
                 num(m.hp_deg*60),num((wrap(n.gha_deg-m.gha_deg)-14.-19./60)*60),num((n.dec_deg-m.dec_deg)*60)};
-            for(int f=0;f<8;++f) p.text(field_x[f],y,fields[f],o.events?7.6:8.5);
+            for(int f=1;f<8;++f) p.text(field_x[f],y,fields[f],o.events?7.6:8.5);
             y+=7.5;
         }
     }
@@ -501,8 +509,8 @@ static void increments(PDF &p) {
     // Three minute blocks per sheet: larger figures than the old two-block
     // monospace layout, while reducing this section from 30 sheets to 20.
     for(int first=0;first<60;first+=3) {
-        p.start("INCREMENTS | UTC minutes "+std::to_string(first)+" through "+std::to_string(first+2),
-                first==0?"Increments and hourly-rate corrections":"");
+        p.start("INCREMENTS AND CORRECTIONS | UTC minutes "+std::to_string(first)+"-"+std::to_string(first+2),
+                first==0?"Increments and corrections (minutes/seconds)":"");
         for(int column=0;column<3;++column) {
             int minute=first+column; double x=24+column*154;
             p.text(x,58,"Minute "+std::to_string(minute),10,1);
@@ -518,8 +526,8 @@ static void increments(PDF &p) {
                 if(second%10==9) p.line(x,y+1.5,144,.15);
             }
         }
-        p.text(24,642,"Add increment and signed v * elapsed fraction of hour to whole-hour GHA.",9);
-        p.text(24,658,"Add signed d * elapsed fraction of hour to signed whole-hour declination.",9);
+        p.text(24,642,"Use the minute block and seconds row. Add the body's increment to the whole-hour GHA.",9);
+        p.text(24,658,"Add signed v * elapsed fraction of hour; reduce GHA modulo 360. Rate table follows.",9);
     }
     p.start("SIGNED HOURLY-RATE CORRECTIONS");
     p.text(24,62,"v or d in arcminutes/hour. Multiply by elapsed minutes / 60.",10);
@@ -536,9 +544,9 @@ static void increments(PDF &p) {
             if(r%5==4) p.line(x,y+4,218,.15);
         }
     }
-    double y=643;
-    p.paragraph(24,y,"Interpolate between rates or calculate the product directly. Carry the "
-        "sign of the original v or d through to the result. All corrections above are arcminutes.",0,9,12);
+    p.text(24,641,"Example at 12:34:56 UTC: use minute 34, seconds 56, and the 12:00 whole-hour GHA.",9);
+    p.text(24,657,"Sun/planet increment 008 44.0; v +2.4'/h adds 1.4'. GHA 123 45.6 becomes 132 31.0.",9);
+    p.text(24,673,"For declination, add signed d * elapsed fraction of hour. No GHA increment is used.",9);
 }
 static double refraction(double ha) { return (1/std::tan((ha+7.31/(ha+4.4))*pi/180)); }
 static void corrections(PDF &p) {
@@ -736,6 +744,7 @@ std::string generate(const Options &o, const std::function<bool(int,const std::s
             throw std::runtime_error("The selected ephemeris must cover the whole year and next January 1.");
     }
     PDF p; opening(p,o);
+    if(o.corrections) corrections(p);
     for(size_t first=0;astronomy && first<days.size();first+=3) {
         if(progress && !progress(int(first*90/days.size()),date(days[first])))
             throw std::runtime_error("Book generation cancelled.");
@@ -746,10 +755,9 @@ std::string generate(const Options &o, const std::function<bool(int,const std::s
         if(o.events && !o.sun_moon) events(p,days,first,end,false);
     }
     if(progress && !progress(92,"Reference sections")) throw std::runtime_error("Book generation cancelled.");
-    if(o.increments) increments(p);
-    if(o.corrections) corrections(p);
     if(o.reduction==Reduction::Formulas || o.reduction==Reduction::Both) formulas(p);
     if(o.reduction==Reduction::Ageton || o.reduction==Reduction::Both) ageton(p);
+    if(o.increments) increments(p);
     if(progress && !progress(100,"Complete")) throw std::runtime_error("Book generation cancelled.");
     return p.document();
 }
