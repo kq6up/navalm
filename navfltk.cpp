@@ -5,6 +5,7 @@
 
 #include "nav_version.h"
 #include "navdownload.h"
+#include "navbook.h"
 #include "navfile.h"
 #include "navfltk_map.h"
 #include "navfltk_plot.h"
@@ -347,6 +348,16 @@ class Workbench {
     Fl_Box *detached_hint, *zoom_readout = nullptr, *expanded_zoom_readout = nullptr;
     Fl_Button *detach_button, *download_map_button, *cancel_map_button;
     Fl_Box *map_information;
+    Fl_Group *book_tab;
+    Fl_Input *book_year;
+    Fl_Check_Button *book_sections[8];
+    std::thread book_worker;
+    std::atomic<bool> book_cancel{false}, book_done{false};
+    std::atomic<int> book_percent{0};
+    bool book_running = false;
+    std::string book_error, book_path;
+    std::unique_ptr<Fl_Double_Window> book_window;
+    Fl_Progress *book_progress = nullptr;
     std::shared_ptr<LandMap> land_map;
     std::thread map_worker;
     std::atomic<bool> map_cancel{false}, map_done{false};
@@ -431,6 +442,42 @@ class Workbench {
         al_angle_hint->labelsize(12);
         almanac_tab->resizable(al_display);
         almanac_tab->end();
+        book_tab = new Fl_Group(16, 130, 1148, 672, "Annual book");
+        auto *book_title = new Fl_Box(36, 148, 1080, 35, "Build a custom annual practice almanac");
+        book_title->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+        book_title->labelfont(FL_HELVETICA_BOLD);
+        book_title->labelsize(20);
+        book_year = input(36, 219, 195, "Calendar year · YYYY");
+        book_year->value("2027");
+        auto *book_help = new Fl_Box(263, 196, 860, 67,
+            "Choose sections independently. Export directly to a printable PDF.\n"
+            "Pages use the selected astronomy engine; no TeX installation is needed.");
+        book_help->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+        book_help->labelsize(14);
+        const char *section_labels[] = {
+            "Sun and Moon hourly pages", "Aries and navigational planets", "Navigational star positions",
+            "Greenwich rise, set and twilight", "Increments and hourly-rate corrections",
+            "Dip, refraction and parallax components", "Concise calculator guide (not NAO tables)",
+            "Compact Ageton tables + worksheet (25 pages)"};
+        for(int i=0;i<8;++i) {
+            book_sections[i] = new Fl_Check_Button(36+(i/4)*545, 290+(i%4)*52, 535, 34, section_labels[i]);
+            book_sections[i]->labelsize(15);
+            book_sections[i]->value(1);
+        }
+        auto *book_note = new Fl_Box(36, 521, 1090, 116,
+            "5.1 DEVELOPMENT PREVIEW\n"
+            "Ageton can be added, substituted for the calculator guide, or omitted.\n"
+            "NAO Concise lookup tables and several official-book sections are still to come.\n"
+            "For learning and recreation. For navigation, buy and use the official Nautical Almanac.");
+        book_note->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+        book_note->labelsize(14);
+        button(36, 668, 250, "Export annual PDF…", [this] { export_book(); }, true);
+        auto *book_hint = new Fl_Box(315, 659, 790, 58,
+            "Generation shows progress and can be cancelled.\n"
+            "Your saved sights, defaults and plotting sheet are independent of the book.");
+        book_hint->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+        book_hint->labelsize(13);
+        book_tab->end();
         sight_tab = new Fl_Group(16, 130, 1148, 672, "Sight reduction");
         body = choice(36, 168, 210, "Observed body",
                       "Sun|Moon|Mercury|Venus|Mars|Jupiter|Saturn|Navigation star");
@@ -644,6 +691,9 @@ class Workbench {
         load_map_setting();
     }
     ~Workbench() {
+        Fl::remove_timeout(book_tick, this);
+        book_cancel = true;
+        if (book_worker.joinable()) book_worker.join();
         Fl::remove_timeout(map_download_tick, this);
         map_cancel = true;
         if (map_worker.joinable())
@@ -653,6 +703,64 @@ class Workbench {
         fix_display->buffer(nullptr);
         chart_display->buffer(nullptr);
         navsight_store_free(&store);
+    }
+    static void book_tick(void *p) { static_cast<Workbench *>(p)->poll_book(); }
+    void begin_book(const navbook::Options &options, const std::string &path) {
+        if(book_running) throw std::runtime_error("An annual book is already being generated.");
+        book_path=path; book_error.clear(); book_cancel=false; book_done=false; book_percent=0;
+        book_window=std::make_unique<Fl_Double_Window>(540, 185, "NAVALM annual PDF");
+        book_window->begin();
+        book_progress=new Fl_Progress(25,30,490,35,"Preparing annual pages…");
+        book_progress->minimum(0); book_progress->maximum(100); book_progress->selection_color(teal);
+        auto *hint=new Fl_Box(25,76,490,28,"The astronomy engine is reserved until generation completes.");
+        hint->labelsize(12);
+        button(190,120,160,"Cancel generation",[this] { book_cancel=true; });
+        book_window->end();
+        book_window->callback([](Fl_Widget *,void *p) {static_cast<Workbench *>(p)->book_cancel=true;},this);
+        tabs->deactivate(); engine->deactivate(); book_running=true;
+        try {
+            book_worker=std::thread([this,options,path] {
+                try {
+                    auto pdf=navbook::generate(options,[this](int percent,const std::string &) {
+                        book_percent=percent; return !book_cancel.load();
+                    });
+                    if(book_cancel) throw std::runtime_error("Book generation cancelled.");
+                    navbook::save(path,pdf);
+                } catch(const std::exception &e) {book_error=e.what();}
+                book_done.store(true,std::memory_order_release);
+            });
+        } catch(...) {
+            book_running=false; tabs->activate(); engine->activate(); book_window.reset(); throw;
+        }
+        book_window->show(); Fl::add_timeout(.1,book_tick,this);
+    }
+    void poll_book() {
+        if(!book_running) return;
+        book_progress->value(book_percent.load());
+        book_progress->copy_label(("Generating PDF: "+std::to_string(book_percent.load())+"%").c_str());
+        if(!book_done.load(std::memory_order_acquire)) {Fl::repeat_timeout(.1,book_tick,this);return;}
+        if(book_worker.joinable()) book_worker.join();
+        book_running=false; book_window->hide(); book_window.reset(); book_progress=nullptr;
+        tabs->activate(); engine->activate();
+        message(book_error.empty()?"Annual practice book saved: "+book_path:book_error,
+                !book_error.empty() && book_error!="Book generation cancelled.");
+    }
+    void export_book() {
+        navbook::Options o;
+        double year=number(book_year->value(),"Almanac year",1600,2200);
+        if(std::floor(year)!=year) throw std::runtime_error("Almanac year must be a whole number.");
+        o.year=int(year);
+        o.sun_moon=book_sections[0]->value(); o.planets=book_sections[1]->value();
+        o.stars=book_sections[2]->value(); o.events=book_sections[3]->value();
+        o.increments=book_sections[4]->value(); o.corrections=book_sections[5]->value();
+        bool formulas=book_sections[6]->value(), ageton=book_sections[7]->value();
+        o.reduction=formulas?(ageton?navbook::Reduction::Both:navbook::Reduction::Formulas):
+                              (ageton?navbook::Reduction::Ageton:navbook::Reduction::None);
+        if(!(o.sun_moon||o.planets||o.stars||o.events||o.increments||o.corrections||formulas||ageton))
+            throw std::runtime_error("Select at least one book section.");
+        auto path=choose_file("Export annual practice almanac", "PDF\t*.pdf",true,
+            ("NAVALM-"+std::to_string(o.year)+"-practice.pdf").c_str());
+        if(!path.empty()) begin_book(o,path);
     }
     void bind(Fl_Widget *w, std::function<void()> fn) {
         auto f = std::make_unique<std::function<void()>>([this, w, fn] {
@@ -1636,6 +1744,20 @@ static int self_test() {
     app.testing = true;
     app.win.show();
     Fl::check();
+    {
+        navbook::Options options;
+        options.sun_moon=options.planets=options.stars=options.events=options.increments=options.corrections=false;
+        options.reduction=navbook::Reduction::Ageton;
+        auto target=(testdir / "annual-table.pdf").u8string();
+        app.begin_book(options,target);
+        require(!app.tabs->active() && !app.engine->active(),"book reserves engine controls");
+        auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(15);
+        while(app.book_running && std::chrono::steady_clock::now()<deadline) Fl::wait(.02);
+        require(!app.book_running && app.book_error.empty(),"book worker finishes without error");
+        require(fs::file_size(fs::u8path(target))>100000,"native annual PDF saved");
+        require(app.tabs->active() && app.engine->active(),"book releases engine controls");
+        std::puts("PASS annual book: native PDF, progress worker, reserved engine and restored controls");
+    }
     require(std::string(app.lat->value()).empty() && std::string(app.lon->value()).empty(),
             "new form without DR defaults has explicitly empty coordinates");
     app.example();

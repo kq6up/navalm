@@ -26,6 +26,7 @@
 
 # Optional FLTK desktop and private dependencies/state.
 /navalm-fltk
+/navalm-book
 /.deps/
 /.build/
 /.local/

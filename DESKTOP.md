@@ -31,6 +31,10 @@ Charts + setup page show the selected engine and ephemeris details.
 
 - **Almanac:** UTC date/time, body or catalogue star, DR; paper almanac or a
   complete hourly table, with text export.
+- **Annual book (5.1 preview):** choose a year and sections, then export a vector
+  PDF with progress and cancellation. Calculator formulas and compact Ageton tables
+  can be included independently. Actual NAO Concise tables and complete Moon limb
+  tables remain unfinished. See [ANNUAL.md](ANNUAL.md).
 - **Sight reduction:** enter degrees, a space, then decimal minutes:
   `94 37.2` for Hs, `34 02.5` latitude, `117 21.9` longitude. Fields display
   this format after examples, defaults and saved-sight reloads. Decimal degrees

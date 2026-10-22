@@ -1,3 +1,21 @@
+# NAVALM 5.1 development preview (unreleased)
+
+- Added a selectable annual PDF practice-book builder in a new FLTK Annual book
+  tab and separate `navalm-book` command, preserving existing CLI/web entry points.
+- Added hourly three-day spreads, navigational stars, Greenwich events,
+  increments/rates, correction components and an optional calculator guide.
+- Added an independently generated compact Ageton variant: half-minute rows,
+  six-place log scale, sign/branch worksheet and worked checks in 25 pages.
+- Typeset aligned numeric columns with larger tabular figures and measured prose
+  wrapping. Three increments blocks per page and a combined corrections page
+  reduce wasted space. Added month/section bookmarks and an index.
+- Native generation reserves the shared engine, shows progress/cancellation and
+  installs the completed PDF atomically. It requires no external TeX installation.
+
+This is not a complete standard Nautical Almanac. Actual NAO Concise tables,
+complete combined Moon limb corrections and other official-book sections remain
+unfinished. See ANNUAL.md for conventions, numerical audit and validation limits.
+
 # Changes in NAVALM 5.0
 
 Released 21 October 2026.
@@ -34,9 +52,9 @@ parity, CLI and live web API checks passed on macOS. Native callbacks, map
 installation/cancellation, OpenCPN import and plotting were exercised on macOS;
 map/input regressions also passed AddressSanitizer and UndefinedBehaviorSanitizer.
 The Windows x64 PE, system-DLL imports and exact embedded data were inspected.
-The previous Windows build ran its almanac and a fix with the intended DR for
-the user; the updated Windows renderer, error dialogs and startup progress still
-need a Windows runtime retest. This unsigned download carries that limitation.
+The user subsequently retested the updated Windows release and reported that it
+seemed fine. That user runtime evidence supplements the cross-build checks; the
+Windows download remains unsigned.
 
 # Changes in NAVALM 4.2
 

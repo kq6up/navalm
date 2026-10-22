@@ -13,7 +13,12 @@ See [MAPS.md](MAPS.md) for downloads/OpenCPN coastlines and [WINDOWS.md](WINDOWS
 for the portable Windows x64 desktop build.
 The existing CLI, `--gui`, and `-d` browser interface remain available.
 
-Current version: **5.0**.
+Current released version: **5.0**.
+
+The `feature/annual-almanac-5.1` branch adds a custom annual practice-book
+preview with selectable sections and compact Ageton tables. Build `make navalm-book`
+or use the desktop **Annual book** tab. See [ANNUAL.md](ANNUAL.md) for scope,
+conventions and the official-book sections that are still missing.
 
 **Informational and educational use only. Do not rely on NAVALM where an error could cause death, injury, or property damage. By using it, you accept the [safety and assumption-of-risk terms](SAFETY.md), to the extent permitted by law.**
 
