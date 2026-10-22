@@ -443,47 +443,6 @@ class Workbench {
         al_angle_hint->labelsize(12);
         almanac_tab->resizable(al_display);
         almanac_tab->end();
-        book_tab = new Fl_Group(16, 130, 1148, 672, "Annual book");
-        auto *book_title = new Fl_Box(36, 148, 1080, 35, "Build a custom annual practice almanac");
-        book_title->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-        book_title->labelfont(FL_HELVETICA_BOLD);
-        book_title->labelsize(20);
-        book_year = input(36, 219, 195, "Calendar year · YYYY");
-        book_year->value("2027");
-        auto *book_help = new Fl_Box(263, 196, 860, 67,
-            "Choose sections independently. Export directly to a printable PDF.\n"
-            "Direct PDF needs no TeX. Optional LaTeX source is compiled separately.");
-        book_help->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-        book_help->labelsize(14);
-        const char *section_labels[] = {
-            "Sun and Moon hourly pages", "Aries and navigational planets", "Navigational star positions",
-            "Greenwich rise, set and twilight", "Increments and hourly-rate corrections",
-            "Dip, refraction and parallax components", "Concise calculator guide (not NAO tables)",
-            "Compact Ageton tables + worksheet (25 pages)"};
-        for(int i=0;i<8;++i) {
-            book_sections[i] = new Fl_Check_Button(36+(i/4)*545, 290+(i%4)*52, 535, 34, section_labels[i]);
-            book_sections[i]->labelsize(15);
-            book_sections[i]->value(1);
-        }
-        book_shade_rows = new Fl_Check_Button(36, 485, 1090, 30,
-            "Alternate row shading (light gray hourly rows)");
-        book_shade_rows->labelsize(15);
-        book_shade_rows->value(0);
-        auto *book_note = new Fl_Box(36, 521, 1090, 116,
-            "5.1 DEVELOPMENT PREVIEW\n"
-            "Ageton can be added, substituted for the calculator guide, or omitted.\n"
-            "NAO Concise lookup tables and several official-book sections are still to come.\n"
-            "For learning and recreation. For navigation, buy and use the official Nautical Almanac.");
-        book_note->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-        book_note->labelsize(14);
-        button(36, 668, 230, "Export annual PDF…", [this] { export_book(); }, true);
-        button(282, 668, 230, "Export LaTeX source…", [this] { export_book(navbook::Format::Latex); });
-        auto *book_hint = new Fl_Box(535, 659, 585, 58,
-            "PDF: ready to print. LaTeX: editable source; compile with TeX.\n"
-            "Generation shows progress and can be cancelled.");
-        book_hint->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-        book_hint->labelsize(13);
-        book_tab->end();
         sight_tab = new Fl_Group(16, 130, 1148, 672, "Sight reduction");
         body = choice(36, 168, 210, "Observed body",
                       "Sun|Moon|Mercury|Venus|Mars|Jupiter|Saturn|Navigation star");
@@ -657,6 +616,47 @@ class Workbench {
             "Calculations continue to use NAVALM's existing C engine.");
         chart_tab->resizable(charts);
         chart_tab->end();
+        book_tab = new Fl_Group(16, 130, 1148, 672, "Annual book");
+        auto *book_title = new Fl_Box(36, 148, 1080, 35, "Build a custom annual practice almanac");
+        book_title->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+        book_title->labelfont(FL_HELVETICA_BOLD);
+        book_title->labelsize(20);
+        book_year = input(36, 219, 195, "Calendar year · YYYY");
+        book_year->value("2027");
+        auto *book_help = new Fl_Box(263, 196, 860, 67,
+            "Choose sections independently. Export directly to a printable PDF.\n"
+            "Direct PDF needs no TeX. Optional LaTeX source is compiled separately.");
+        book_help->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+        book_help->labelsize(14);
+        const char *section_labels[] = {
+            "Sun and Moon hourly pages", "Aries and navigational planets", "Navigational star positions",
+            "Greenwich rise, set and twilight", "Increments and hourly-rate corrections",
+            "Dip, refraction and parallax components", "Concise calculator guide (not NAO tables)",
+            "Compact Ageton tables + worksheet (25 pages)"};
+        for(int i=0;i<8;++i) {
+            book_sections[i] = new Fl_Check_Button(36+(i/4)*545, 290+(i%4)*52, 535, 34, section_labels[i]);
+            book_sections[i]->labelsize(15);
+            book_sections[i]->value(1);
+        }
+        book_shade_rows = new Fl_Check_Button(36, 485, 1090, 30,
+            "Alternate row shading (light gray hourly rows)");
+        book_shade_rows->labelsize(15);
+        book_shade_rows->value(0);
+        auto *book_note = new Fl_Box(36, 521, 1090, 116,
+            "5.1 DEVELOPMENT PREVIEW\n"
+            "Ageton can be added, substituted for the calculator guide, or omitted.\n"
+            "NAO Concise lookup tables and several official-book sections are still to come.\n"
+            "For learning and recreation. For navigation, buy and use the official Nautical Almanac.");
+        book_note->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+        book_note->labelsize(14);
+        button(36, 668, 230, "Export annual PDF…", [this] { export_book(); }, true);
+        button(282, 668, 230, "Export LaTeX source…", [this] { export_book(navbook::Format::Latex); });
+        auto *book_hint = new Fl_Box(535, 659, 585, 58,
+            "PDF: ready to print. LaTeX: editable source; compile with TeX.\n"
+            "Generation shows progress and can be cancelled.");
+        book_hint->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+        book_hint->labelsize(13);
+        book_tab->end();
         tabs->end();
         status = new Fl_Box(22, 811, 1136, 28, "Ready");
         status->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);

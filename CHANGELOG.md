@@ -1,5 +1,7 @@
 # NAVALM 5.1 development preview (unreleased)
 
+- Moved Annual book to the final desktop tab and increased optional hourly-row
+  shading slightly to 8% gray.
 - Added optional alternating light-gray hourly-row shading to the annual book,
   selectable by checkbox or `--shade-rows`, for both PDF and LaTeX exports.
 - Added a selectable annual PDF practice-book builder in a new FLTK Annual book

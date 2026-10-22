@@ -190,13 +190,13 @@ class PDF {
              << height - y << " l S\n";
     }
     void shade_row(double x, double baseline, double w) {
-        // Five percent black, limited to the hourly table's own columns.
+        // Eight percent black, limited to the hourly table's own columns.
         // Draw before text; isolate the fill so text and rules remain black.
         if(format==Format::Latex) {
             page << "\\put(" << x << ',' << height-baseline-1.5
                  << "){\\textcolor{navrow}{\\rule{" << w << "bp}{7.5bp}}}\n";
         } else {
-            page << "q 0.95 g " << x << ' ' << height-baseline-1.5 << ' '
+            page << "q 0.92 g " << x << ' ' << height-baseline-1.5 << ' '
                  << w << " 7.5 re f Q\n";
         }
     }
@@ -241,7 +241,7 @@ class PDF {
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 \usepackage{xcolor}
-\definecolor{navrow}{gray}{0.95}
+\definecolor{navrow}{gray}{0.92}
 \usepackage[paperwidth=504bp,paperheight=720bp,margin=0bp]{geometry}
 \usepackage[hidelinks,bookmarksopen]{hyperref}
 % Pin the design sizes to the advances used by NAVALM's layout engine.
