@@ -73,9 +73,11 @@ against printable margins. PDF viewers supply their standard font equivalents.
 Three-day daily spreads follow the familiar division of Aries/planets/stars
 and Sun/Moon/events, with separate day and UTC-hour columns. Columns expand
 when neighbouring sections are omitted. The **Alternate row shading** checkbox
-adds a subtle 8% gray background to every other hourly row in Aries/planet and
-Sun/Moon tables, in either export format. It starts afresh each day and stays
-within those tables. Leave it unchecked for plain white pages; the CLI equivalent
+adds a subtle 8% gray background to every other row in Aries/planet, Sun/Moon,
+increments, hourly-rate corrections, dip, refraction, parallax and compact Ageton
+tables, in either export format. Hourly shading starts afresh each day; reference
+shading starts afresh in each table block. Bands stay within each table, leaving
+instructions and worksheets clear. Leave it unchecked for plain white pages; the CLI equivalent
 is `--shade-rows`. Refraction, dip and parallax are at the
 front; the minute/second **Increments and Corrections** tables are at the back,
 with a worked GHA example.

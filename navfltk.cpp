@@ -639,7 +639,7 @@ class Workbench {
             book_sections[i]->value(1);
         }
         book_shade_rows = new Fl_Check_Button(36, 485, 1090, 30,
-            "Alternate row shading (light gray hourly rows)");
+            "Alternate row shading (hourly + reference tables)");
         book_shade_rows->labelsize(15);
         book_shade_rows->value(0);
         auto *book_note = new Fl_Box(36, 521, 1090, 116,

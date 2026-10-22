@@ -189,16 +189,20 @@ class PDF {
         page << weight << " w " << x << ' ' << height - y << " m " << x + w << ' '
              << height - y << " l S\n";
     }
-    void shade_row(double x, double baseline, double w) {
-        // Eight percent black, limited to the hourly table's own columns.
+    void shade_row(double x, double baseline, double w, double row_height=7.5, double below=1.5) {
+        // Eight percent black, limited to the table's own columns.
         // Draw before text; isolate the fill so text and rules remain black.
         if(format==Format::Latex) {
-            page << "\\put(" << x << ',' << height-baseline-1.5
-                 << "){\\textcolor{navrow}{\\rule{" << w << "bp}{7.5bp}}}\n";
+            page << "\\put(" << x << ',' << height-baseline-below
+                 << "){\\textcolor{navrow}{\\rule{" << w << "bp}{" << row_height << "bp}}}\n";
         } else {
-            page << "q 0.92 g " << x << ' ' << height-baseline-1.5 << ' '
-                 << w << " 7.5 re f Q\n";
+            page << "q 0.92 g " << x << ' ' << height-baseline-below << ' '
+                 << w << ' ' << row_height << " re f Q\n";
         }
+    }
+    void striped_rows(double x, double baseline, double w, double step, int count, double below) {
+        // Paint all backgrounds first so following rules stay visible.
+        for(int row=1;row<count;row+=2) shade_row(x,baseline+row*step,w,step,below);
     }
     void start(const std::string &title, const std::string &section = "") {
         if (!page.str().empty()) finish();
@@ -592,7 +596,7 @@ static void sun_moon_page(PDF &p, const std::vector<Day> &days, size_t first, si
     if(o.events) events(p,days,first,end,true);
 }
 
-static void increments(PDF &p) {
+static void increments(PDF &p, bool shaded) {
     // Three minute blocks per sheet: larger figures than the old two-block
     // monospace layout, while reducing this section from 30 sheets to 20.
     for(int first=0;first<60;first+=3) {
@@ -604,6 +608,7 @@ static void increments(PDF &p) {
             p.text(x,75,"sec",8,1); p.fit_text(x+24,75,"Sun/planets",38,7.5,1);
             p.text(x+65,75,"Aries",8,1); p.text(x+106,75,"Moon",8,1);
             p.line(x,81,144);
+            if(shaded) p.striped_rows(x,94,144,8.7,60,2);
             for(int second=0;second<60;++second) {
                 double hours=(minute*60+second)/3600., y=94+second*8.7;
                 p.text(x,y,hour(second),8.5);
@@ -624,6 +629,7 @@ static void increments(PDF &p) {
         p.right(x+22,103,"Rate",9,1);
         int j=0; for(int m:{5,10,15,20,30,40,50}) p.right(x+54+j++*26,103,std::to_string(m)+"m",9,1);
         p.line(x,109,218);
+        if(shaded) p.striped_rows(x,124,218,16,31,4);
         for(int r=0;r<=30;++r) {
             double rate=(col*31+r)/2., y=124+r*16;
             p.right(x+22,y,num(rate),10);
@@ -636,7 +642,7 @@ static void increments(PDF &p) {
     p.text(24,673,"For declination, add signed d * elapsed fraction of hour. No GHA increment is used.",9);
 }
 static double refraction(double ha) { return (1/std::tan((ha+7.31/(ha+4.4))*pi/180)); }
-static void corrections(PDF &p) {
+static void corrections(PDF &p, bool shaded) {
     p.start("ALTITUDE CORRECTIONS | COMPONENT TABLES","Altitude corrections");
     double y=63;
     p.paragraph(24,y,"Hs + signed index correction - dip = apparent altitude Ha. Subtract refraction; "
@@ -650,6 +656,11 @@ static void corrections(PDF &p) {
         {208,"Ha deg"},{267,"Refr '"},{337,"Ha"},{369,"HP 54'"},{401,"57'"},{433,"60'"},{465,"63'"}})
         p.right(h.first,140,h.second,8,1);
     p.line(24,145,130);p.line(180,145,92);p.line(318,145,158);
+    if(shaded) {
+        p.striped_rows(24,159,130,9.7,40,3);
+        p.striped_rows(180,159,92,9.7,41,3);
+        p.striped_rows(318,159,158,22,18,6);
+    }
     for(int i=0;i<41;++i) {
         double yy=159+i*9.7;
         if(i<40) {
@@ -702,7 +713,7 @@ static void formulas(PDF &p) {
         "AUDIT: degree mode [ ]  longitude sign [ ]  azimuth quadrant [ ]"})
         p.text(24,y+36+row++*30,field,9,2);
 }
-static void ageton(PDF &p) {
+static void ageton(PDF &p, bool shaded) {
     Ageton table;
     p.start("COMPACT AGETON | INSTRUCTIONS","Compact Ageton (25 pages)");
     double y=65;
@@ -777,6 +788,7 @@ static void ageton(PDF &p) {
             p.text(x+8,59,"x",8,1); p.right(x+52,59,"A(x)",8,1);
             p.right(x+80,59,"B(x)",8,1); p.text(x+92,59,"c",8,1);
             p.line(x,66,110);
+            if(shaded) p.striped_rows(x,79,110,9.2,61,3);
             for(int row=0;row<=60;++row) {
                 double v=block*.5+row*Ageton::step;
                 double av=table.a(v), bv=table.b(v);
@@ -831,7 +843,7 @@ std::string generate(const Options &o, const std::function<bool(int,const std::s
             throw std::runtime_error("The selected ephemeris must cover the whole year and next January 1.");
     }
     PDF p(o.format); opening(p,o);
-    if(o.corrections) corrections(p);
+    if(o.corrections) corrections(p,o.shade_rows);
     for(size_t first=0;astronomy && first<days.size();first+=3) {
         if(progress && !progress(int(first*90/days.size()),date(days[first])))
             throw std::runtime_error("Book generation cancelled.");
@@ -843,8 +855,8 @@ std::string generate(const Options &o, const std::function<bool(int,const std::s
     }
     if(progress && !progress(92,"Reference sections")) throw std::runtime_error("Book generation cancelled.");
     if(o.reduction==Reduction::Formulas || o.reduction==Reduction::Both) formulas(p);
-    if(o.reduction==Reduction::Ageton || o.reduction==Reduction::Both) ageton(p);
-    if(o.increments) increments(p);
+    if(o.reduction==Reduction::Ageton || o.reduction==Reduction::Both) ageton(p,o.shade_rows);
+    if(o.increments) increments(p,o.shade_rows);
     if(progress && !progress(100,"Complete")) throw std::runtime_error("Book generation cancelled.");
     return p.document();
 }

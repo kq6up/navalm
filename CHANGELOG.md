@@ -1,5 +1,7 @@
 # NAVALM 5.1 development preview (unreleased)
 
+- Extended optional row shading to increments, rate/altitude corrections and
+  compact Ageton tables, using the same checkbox and gray level.
 - Moved Annual book to the final desktop tab and increased optional hourly-row
   shading slightly to 8% gray.
 - Added optional alternating light-gray hourly-row shading to the annual book,

@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
                 std::puts("NAVALM annual practice-book builder (5.1 development)\n"
                   "Usage: navalm-book --year YYYY --output PATH [options]\n"
                   "  --format pdf|latex  (latex writes editable .tex source)\n"
-                  "  --shade-rows  (light gray alternating hourly rows)\n"
+                  "  --shade-rows  (light gray alternating hourly and reference rows)\n"
                   "  --engine precise|classic   --ephemeris FILE\n"
                   "  --no-sun-moon --no-planets --no-stars --no-events\n"
                   "  --no-increments --no-corrections\n"

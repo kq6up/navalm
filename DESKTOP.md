@@ -35,7 +35,8 @@ Charts + setup page show the selected engine and ephemeris details.
   PDF or editable LaTeX source with progress and cancellation. LaTeX compilation
   is a separate step requiring TeX. Calculator formulas and compact Ageton tables
   can be included independently. Optional alternate-row shading adds a faint gray
-  background to every other hourly row. Actual NAO Concise tables and complete Moon limb
+  background to alternate hourly, increments, corrections and Ageton table rows.
+  Actual NAO Concise tables and complete Moon limb
   tables remain unfinished. See [ANNUAL.md](ANNUAL.md).
 - **Sight reduction:** enter degrees, a space, then decimal minutes:
   `94 37.2` for Hs, `34 02.5` latitude, `117 21.9` longitude. Fields display
