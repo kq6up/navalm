@@ -120,7 +120,9 @@ and reference sections. Leap years and the final partial daily group are handled
 
 The optional section occupies **26 pages**: two plain-language guide pages,
 a one-page pencil reduction form and 23 table pages. Seven writing boxes are
-provided for every logarithm entry. Four half-degree blocks per sheet give
+provided for every logarithm entry. Arithmetic operands and results are stacked
+in aligned pencil columns, with companion B lookups beside R and Hc.
+Four half-degree blocks per sheet give
 half-minute spacing. Complementary angles supply the 45–90 degree range by
 reading the opposite A/B letter when entering from the c side. The guide gives
 both forward and inverse examples. A standalone booklet adds two introductory

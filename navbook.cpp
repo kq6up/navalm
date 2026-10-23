@@ -831,50 +831,68 @@ static void ageton(PDF &p, bool shaded) {
     auto field=[&](double x,double top,const std::string &label,double w=73.5) {
         p.text(x,top-4,label,8.5,1);p.box(x,top,w,20);
     };
-    auto logrow=[&](double top,const std::vector<std::string> &labels,const std::vector<std::string> &ops) {
-        double space=labels.size()==4?116:96;
+    // Keep every operand and result in one seven-digit column.
+    // Companion lookups stay beside the angle that produces them.
+    auto arithmetic=[&](double x,const std::vector<double> &tops,
+                        const std::vector<std::string> &labels,const std::vector<std::string> &ops) {
         for(size_t i=0;i<labels.size();++i) {
-            double x=24+i*space;p.text(x,top-4,labels[i],8.5,1);cells(x,top);
-            if(i<ops.size())p.text(x+79,top+14,ops[i],12,1);
+            p.text(x,tops[i]+14,labels[i],8.5,1);
+            if(i>0 && i+1<labels.size())p.text(x+49,tops[i]+14,ops[i-1],11,1);
+            cells(x+62,tops[i]);
         }
+        p.line(x+48,tops.back()-4,88,.5);
     };
     p.text(24,58,"Prepared inputs | Angles: deg min | Log scale 1,000,000 | Seven boxes: copy every digit",8.5);
     p.text(24,73,"Body __________________   UTC date/time __________________________",10);
     field(24,91,"AP latitude L + N/S",98);field(140,91,"Declination + N/S",98);
     field(256,91,"LHA (000-360)",98);field(372,91,"Ho (corrected)",102);
     p.text(24,130,"t = smaller of LHA and 360-LHA: __________   Body: [ ] W (LHA <180)  [ ] E (>180)",9);
-    p.text(24,145,"1  Find R; copy B(R) from the same row",10,1);
-    logrow(163,{"A(t)","B(Dec)","A(R)"},{"+","="});field(310,163,"R",68);
-    p.text(400,159,"B(R)",8.5,1);cells(400,163);
-    p.line(24,193,456,.3);
-    p.text(24,208,"2  Find K; always give K the SAME N/S name as declination",10,1);
-    logrow(226,{"A(Dec)","B(R)","A(K)"},{"-","="});field(310,226,"Acute angle",68);
-    p.text(400,222,"Angle found in",8.5);p.text(400,240,"[ ] A   [ ] B",9);
-    p.text(24,261,"A(K) at least 150515: use A. If smaller, complete the B row below and use B.",9);
-    logrow(279,{"B(Dec)","B(t)","B(R)","B(K)"},{"+","-","="});
-    p.text(24,321,"[ ] t <90: K = acute angle    [ ] t >90: K = 180 - acute angle",9);
-    field(372,314,"K + N/S name",102);
-    p.line(24,339,456,.3);
-    p.text(24,354,"3  K~L: same N/S names, subtract; contrary names, add",10,1);
-    p.text(24,379,"K~L is positive. [ ] Same: larger - smaller  [ ] Contrary: sum",9);
-    field(310,372,"K~L",68);p.text(400,368,"B(K~L)",8.5,1);cells(400,372);
-    p.text(24,412,"[ ] K~L below 90: body above horizon. At or above 90: STOP and recheck.",9);
-    p.line(24,422,456,.3);
-    p.text(24,437,"4  Find Hc; copy B(Hc) from the same row",10,1);
-    logrow(455,{"B(R)","B(K~L)","A(Hc)"},{"+","="});field(310,455,"Hc",68);
-    p.text(400,451,"B(Hc)",8.5,1);cells(400,455);
-    p.text(24,485,"[ ] STOP: t = 0/90/180; |Dec| <0.5 min; R >87; Hc outside 5-85; INF/negative log.",8.5);
-    p.text(24,497,"[ ] CAUTION (check after Z): a reduced lookup angle <3 or >87 degrees; cross-check.",8.5);
-    p.line(24,503,456,.3);
-    p.text(24,515,"5  Find Z: first read an acute angle, then select the case",10,1);
-    logrow(533,{"A(R)","B(Hc)","A(Z)"},{"-","="});field(310,533,"Acute angle",68);
-    field(400,533,"Chosen Z");
-    p.text(24,568,"A(Z) at least 150515: use A. If smaller, complete the B row below and use B.",9);
-    logrow(586,{"B(R)","A(K~L)","B(Hc)","B(Z)"},{"+","-","="});
-    p.text(24,625,"[ ] K same N/S as L AND greater: Z = acute.   [ ] Otherwise: Z = 180 - acute.",9);
-    p.text(24,646,"N latitude: [ ] E: Z  [ ] W: 360-Z    |    S latitude: [ ] E: 180-Z  [ ] W: 180+Z",9);
-    field(24,662,"True bearing Zn",90);field(145,662,"Ho-Hc: minutes = NM",110);
-    p.text(280,677,"[ ] TOWARD    [ ] AWAY",10);
+
+    p.text(24,151,"1  Find R",10,1);
+    arithmetic(24,{168,192,220},{"A(t)","B(Dec)","A(R)"},{"+"});
+    field(24,262,"R",60);p.text(90,258,"B(R), same row",8,1);cells(90,262);
+
+    p.text(180,151,"2  Find K; give it declination's SAME N/S name",10,1);
+    arithmetic(180,{168,192,220},{"A(Dec)","B(R)","A(K)"},{"-"});
+    arithmetic(336,{168,192,216,244},{"B(Dec)","B(t)","B(R)","B(K)"},{"+","-"});
+    p.text(180,287,"[ ] A(K) at least 150515: look up in A.",8.5);
+    p.text(180,300,"[ ] Smaller: complete the B column; look up in B.",8.5);
+    field(180,321,"Acute angle from A or B",138);field(336,321,"K + N/S name",138);
+    p.text(180,356,"[ ] t <90: K = acute.  [ ] t >90: K = 180 - acute.",8.5);
+    p.line(24,365,456,.3);
+
+    p.text(24,382,"3  Find K~L",10,1);
+    p.text(24,400,"[ ] Same N/S: larger - smaller.",8.5);
+    p.text(24,412,"[ ] Contrary N/S: K + L.",8.5);
+    p.text(24,439,"Larger/K",8.5,1);p.box(86,425,73.5,20);
+    p.text(24,463,"Smaller/L",8.5,1);p.box(73,449,10,20);p.box(86,449,73.5,20);
+    p.line(72,473,88,.5);
+    p.text(24,491,"K~L",8.5,1);p.box(86,477,73.5,20);
+    p.text(24,529,"B(K~L)",8.5,1);cells(86,515);
+
+    p.text(180,382,"4  Find Hc",10,1);
+    arithmetic(180,{396,420,448},{"B(R)","B(K~L)","A(Hc)"},{"+"});
+    field(180,490,"Hc",60);p.text(246,486,"B(Hc), same row",8,1);cells(246,490);
+
+    p.text(336,382,"5  Find Z",10,1);
+    arithmetic(336,{396,420,448},{"A(R)","B(Hc)","A(Z)"},{"-"});
+    field(336,490,"Acute angle from A or B",138);
+    p.text(336,529,"A(Z) <150515? Use B below.",8.5);
+    arithmetic(336,{543,567,591,619},{"B(R)","A(K~L)","B(Hc)","B(Z)"},{"+","-"});
+
+    double caution_y=552;
+    for(auto line:{"[ ] STOP if t = 0, 90 or 180;","|Dec| <0.5 min; R >87;","Hc outside 5-85; K~L >=90;","any INF or negative log.",
+                   "[ ] CAUTION: reduced angle","<3 or >87; cross-check","after finding Z."}) {
+        p.text(24,caution_y,line,8.5);caution_y+=12;
+    }
+    p.text(180,536,"K same N/S as L AND greater?",8.5,1);
+    p.text(180,553,"[ ] Yes: Z = acute angle.",9);
+    p.text(180,570,"[ ] No: Z = 180 - acute.",9);
+    field(180,610,"Chosen Z (from elevated pole)",138);
+
+    p.text(24,651,"Zn: N (or equator): E = Z, W = 360-Z.   S: E = 180-Z, W = 180+Z.",9);
+    field(24,666,"True bearing Zn",90);field(145,666,"Ho-Hc: minutes = NM",110);
+    p.text(280,681,"[ ] TOWARD    [ ] AWAY",10);
     // Four half-degree blocks per page. 90 blocks cover x=0..45, with
     // complementary angles supplying 45..90. Exactly 23 table pages.
     for(int first=0;first<90;first+=4) {
