@@ -1,5 +1,10 @@
 # NAVALM 5.1 development preview (unreleased)
 
+- Rewrote Ageton guidance in plain language with traditional t, K, K~L, Hc
+  and elevated-pole Z rules, explicit x/c-side lookups, and a pencil form with
+  seven writing boxes per logarithm. The section is now 26 pages. Separate
+  STOP/CAUTION checks cover singular and sensitive lookups; independent tests
+  execute the printed rules and target danger-zone boundaries.
 - Combined rear GHA increments and v/d corrections on one page per elapsed
   minute, including a seconds-adjustment table and a worked GHA example. Rate
   magnitudes remain 0.0–30.5 in 0.1 arcminute/hour steps; correction components
@@ -20,7 +25,7 @@
 - Added hourly three-day spreads, navigational stars, Greenwich events,
   increments/rates, correction components and an optional calculator guide.
 - Added an independently generated compact Ageton variant: half-minute rows,
-  six-place log scale, sign/branch worksheet and worked checks in 25 pages.
+  1,000,000 log scale, sign/branch worksheet and worked checks in 26 pages.
 - Put refraction/dip/parallax corrections at the front and minute/second
   Increments and Corrections at the back with a worked GHA example. Separate
   day and hour columns remove slash-prefixed hours.

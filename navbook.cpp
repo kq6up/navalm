@@ -189,6 +189,13 @@ class PDF {
         page << weight << " w " << x << ' ' << height - y << " m " << x + w << ' '
              << height - y << " l S\n";
     }
+    void box(double x, double top, double w, double h) {
+        if(format==Format::Latex) {
+            page << "\\put(" << x << ',' << height-top-h << "){\\framebox(" << w << ',' << h << ") {}}\n";
+        } else {
+            page << "q 0.35 w " << x << ' ' << height-top-h << ' ' << w << ' ' << h << " re S Q\n";
+        }
+    }
     void shade_row(double x, double baseline, double w, double row_height=7.5, double below=1.5) {
         // Eight percent black, limited to the table's own columns.
         // Draw before text; isolate the fill so text and rules remain black.
@@ -383,7 +390,7 @@ static void opening(PDF &p, const Options &o) {
         {o.events,"Greenwich rise/set and twilight tables alongside daily pages"},
 
         {o.reduction == Reduction::Formulas || o.reduction == Reduction::Both,"Concise calculator formulas and worksheet"},
-        {o.reduction == Reduction::Ageton || o.reduction == Reduction::Both,"Compact Ageton tables, instructions and worksheet (25 pages)"},
+        {o.reduction == Reduction::Ageton || o.reduction == Reduction::Both,"Compact Ageton tables, instructions and worksheet (26 pages)"},
         {o.increments,"Back reference: increments and corrections for minutes/seconds"}}) {
         p.text(24,y, std::string(entry.first ? "INCLUDED   " : "OMITTED    ") + entry.second, 9);
         y += 23;
@@ -729,70 +736,145 @@ static void formulas(PDF &p) {
 }
 static void ageton(PDF &p, bool shaded) {
     Ageton table;
-    p.start("COMPACT AGETON | INSTRUCTIONS","Compact Ageton (25 pages)");
-    double y=65;
-    p.paragraph(24,y,"A(x) = -1,000,000 log10(abs(sin x)); B(x) = -1,000,000 log10(abs(cos x)). "
-        "This edition uses a half-minute grid and SIX-place logarithms, a tenfold scale change "
-        "from traditional Ageton tables. All entries are freshly calculated rounded integers. "
-        "Never combine them with historical 100,000-scale entries.");
-    p.paragraph(24,y,"Each row lists x, A(x), B(x), and c = 90 - x. To use c, SWAP the A and B "
-        "columns: A(c)=B(x), B(c)=A(x). Thus 0 through 45 degrees covers 0 through 90. "
-        "For obtuse or signed angles, use absolute sine/cosine magnitudes and carry signs "
-        "separately as below. INF is a singular value, not a number for subtraction.");
-    p.paragraph(24,y,"Let t be the smaller of LHA and 360-LHA (0 to 180). Let q0 be an acute "
-        "auxiliary angle. The Q used below is a signed meridian ANGLE that may exceed 90 degrees; "
-        "it is not a signed latitude. This convention keeps the far-side case explicit.");
-    for(auto s:{"1  A(R) = A(t) + B(dec)          -> R; look up B(R)",
-        "2  A(q0) = A(dec) - B(R)", "   B(q0) = B(dec) + B(t) - B(R)",
-        "   A(q0) >=150515: invert A; otherwise invert B.",
-        "3  t <90: Q = sign(dec)*q0", "   t >90: Q = sign(dec)*(180-q0)",
-        "4  gap = Q - lat, normalized to -180 through +180",
-        "5  A(abs Hc) = B(R) + B(gap)     -> abs Hc",
-        "6  A(z0) = A(R) - B(Hc)",
-        "   B(z0) = B(R) + A(gap) - B(Hc)",
-        "   A(z0) >=150515: invert A; otherwise invert B.",
-        "7  gap >=0: Z = z0; gap <0: Z = 180-z0",
-        "8  LHA <180: Zn = 360-Z; LHA >180: Zn = Z"}) {
-        p.text(24,y,s,8.4,2); y+=20;
+    p.start("COMPACT AGETON | READING THE TABLES","Compact Ageton (26 pages)");
+    double y=66;
+    auto heading=[&](const std::string &title) { p.text(24,y,title,11,1);y+=19; };
+    auto prose=[&](const std::string &s) { p.paragraph(24,y,s,0,10.5,13.5); };
+    heading("What you need before starting");
+    prose("Have your AP latitude and longitude, the body's corrected declination, local hour angle (LHA), "
+        "and corrected observed altitude (Ho). Your DR position may be used as the AP. This guide starts "
+        "after the time, almanac and sextant corrections have been made.");
+    heading("Read an angle; copy a table number");
+    prose("Each row has an angle x on the left and its complement c on the right. The two angles add "
+        "to 90 degrees. Find angles up to 45 degrees in x; find larger angles in c. The A and B numbers "
+        "belong to x, so the letter you read depends on which side you entered.");
+    for(auto row:std::vector<std::array<std::string,3>>{
+        {"Angle found in","Need A of that angle","Need B of that angle"},
+        {"x (left side)","Read A(x)","Read B(x)"},
+        {"c (right side)","Read B(x)","Read A(x)"}}) {
+        p.text(24,y,row[0],10);p.text(166,y,row[1],10);p.text(328,y,row[2],10);y+=23;
     }
-    p.paragraph(24,y,"Choose the nearest printed row for a quick estimate. For finer work use "
-        "linear interpolation in forward and inverse lookups. Half-minute spacing does not "
-        "guarantee a half-minute final altitude: rounding can be amplified by the triangle.");
-    y+=8;
-    p.text(24,y,"INTERPOLATION AND COMPLEMENTS",10,1); y+=18;
-    p.paragraph(24,y,"Example: x = 30 degrees 00.2 minutes lies 0.4 of the way from the 00.0 "
-        "to the 00.5 row. Interpolate the rounded A or B entries by that fraction. For an inverse "
-        "lookup, divide the log difference by the difference between adjacent printed entries "
-        "to obtain the same fraction of a half minute.",0,10,13);
-    p.paragraph(24,y,"For an angle above 45 degrees, find it in the c column and swap A/B. "
-        "For example, at c=60 degrees use the x=30 degrees row: A(60)=B(30), B(60)=A(30). "
-        "Always record whether you used x or c before copying a log.",0,10,13);
-    p.start("COMPACT AGETON | LIMITS AND WORKSHEET");
-    y=65;
-    p.paragraph(24,y,"Stop and use direct formulas for t at 0, 90 or 180 degrees, declination "
-        "within half a minute of zero, R above 87 degrees, or Hc outside 5 to 85 degrees. "
-        "Do not subtract INF from INF or conceal a negative logarithm. A rounded lookup at "
-        "a singular endpoint is a warning to change method, not evidence of an exact answer.");
-    p.paragraph(24,y,"If abs(gap) exceeds 90 degrees the body is below the horizon. Hc is then "
-        "negative; do not treat the positive acute lookup as an observable altitude. At abs(gap) "
-        "=90, Hc=0. The printed worksheet deliberately asks you to check these signs before plotting.");
-    for(auto s:{"Lat ______ N/S  signed ______   Lon ______ E/W  signed ______",
-        "GHA ______  Dec ______ N/S  signed ______  Ho ______",
-        "LHA (0-360) ______  t ______  [ ] t <90  [ ] t >90",
-        "A(t) ______  B(dec) ______  A(R) ______  R ______  B(R) ______",
-        "A(dec) ______  A(q0) ______  B(q0) ______  q0 ______",
-        "Q sign from dec ____  Q magnitude: q0 / 180-q0 ____",
-        "SIGNED Q ______  SIGNED lat ______  SIGNED gap ______",
-        "[ ] abs gap <90: above  [ ] >90: below - STOP",
-        "B(gap) ______  A(abs Hc) ______  Hc ______  B(Hc) ______",
-        "A(z0) ______  B(z0) ______  z0 ______  gap sign ____",
-        "[ ] gap >=0: Z=z0  [ ] gap <0: Z=180-z0   Z ______",
-        "[ ] LHA <180: 360-Z  [ ] LHA >180: Z   Zn ______",
-        "Ho-Hc ______ x60 = ______ NM   [ ] Toward  [ ] Away",
-        "AUDIT: [ ] six-place scale  [ ] complement columns swapped",
-        "[ ] interpolation recorded  [ ] limits checked  [ ] signs checked"}) {
-        p.text(24,y,s,8.5,2); y+=28;
+    prose("For example, to find B(Hc) when Hc is 60 degrees, find 60 in c, on the same row as x = 30. "
+        "Read A(x), the opposite letter to B. To find A(60), read B(x) on that row instead. Stay on "
+        "the same row when copying both numbers; change the letter because you entered from c.");
+    heading("Have a table number; find its angle");
+    prose("If you have an A number, finding it in A(x) gives the angle x; finding it in B(x) gives c. "
+        "If you have a B number, finding it in B(x) gives x; finding it in A(x) gives c. The letter "
+        "belongs to the angle you want, not necessarily to the printed column you search.");
+    heading("Keep angles and table numbers separate");
+    prose("Angles are degrees and minutes. A and B entries are whole logarithm numbers on a 1,000,000 "
+        "scale. Copy every digit; the form provides seven writing boxes. Never mix these entries with "
+        "100,000-scale tables. Right-align numbers in the boxes; leave unused boxes blank. "
+        "The A and B numbers have no N/S or E/W name. At 45 degrees both entries are 150515; "
+        "the form uses that number to choose the steadier lookup.");
+    prose("Before entering with an angle over 90 degrees, subtract it from 180 degrees. Then use x or c "
+        "as above. Keep the original angle and direction on the form. INF means the needed logarithm "
+        "is undefined; stop and use another method.");
+    heading("Nearest row or interpolation?");
+    prose("Rows are half a minute apart. A nearest-row estimate is quicker; interpolation is finer. "
+        "For 30 degrees 00.2 minutes, move 0.4 of the way from the 00.0 row to the 00.5 row. "
+        "To work back from a number to an angle, use the fraction between the two bracketing numbers. "
+        "When using c, follow its printed minutes: they run in the opposite direction to x.");
+
+    p.start("COMPACT AGETON | REDUCTION INSTRUCTIONS");y=64;
+    auto step=[&](const std::string &title,const std::string &words) {
+        p.text(24,y,title,10.5,1);y+=17;p.paragraph(24,y,words,0,10,12.5);
+    };
+    step("1. Find t, then R",
+        "Use the smaller of LHA and 360 minus LHA for t. LHA below 180 puts the body WEST; "
+        "LHA above 180 puts it EAST. Keep that direction. Add A(t) and B(declination) to get A(R). "
+        "Find R by an A lookup; copy B(R) from the same row, using the x/c letter rule.");
+    step("2. Find K and give it the declination's N/S name",
+        "Subtract B(R) from A(declination) to get A(K). If the result is at least 150515, "
+        "find the acute angle by an A lookup. If smaller, use the form's B row: add B(declination) "
+        "and B(t), subtract B(R), and use a B lookup instead. This avoids a sensitive A lookup "
+        "near 90 degrees. If t is below 90, K is the acute angle you found. If t is above 90, "
+        "K is 180 degrees minus that angle. Always give K the SAME N/S name as declination. "
+        "K is an auxiliary angle and can be greater than 90; it is not an ordinary latitude.");
+    step("3. Combine K with AP latitude L to obtain K~L",
+        "The ~ means combine by N/S names. SAME name: subtract the smaller magnitude from "
+        "the larger. CONTRARY names: add the magnitudes. K~L is a nonnegative magnitude for the lookup. "
+        "For example, K 15 N and L 34 N give 19 degrees; K 15 S and L 34 N give 49 degrees. "
+        "K 144 N and L 75 N give 69 degrees. Copy B(K~L). For an observable body K~L must "
+        "be below 90; otherwise stop and recheck the inputs. At 90 the calculated altitude is zero.");
+    step("4. Find calculated altitude Hc",
+        "Add B(R) and B(K~L). The sum is A(Hc). Find Hc by an A lookup, then copy B(Hc) "
+        "from the same row, following the x/c letter rule. Check the addition by subtraction.");
+    step("5. Find the azimuth angle Z",
+        "Subtract B(Hc) from A(R) to get A(Z). If at least 150515, find the acute angle by an "
+        "A lookup. If smaller, use the B row: add B(R) and A(K~L), subtract B(Hc), and use "
+        "a B lookup. If K has the SAME N/S name as AP latitude AND is greater in magnitude, "
+        "Z is this acute angle. In every other case Z is 180 degrees minus it. Z is measured "
+        "from your elevated pole: north for N latitude, south for S latitude.");
+    p.text(24,y,"Convert Z to true bearing Zn, clockwise from north:",10,1);y+=19;
+    for(auto row:std::vector<std::array<std::string,3>>{
+        {"AP latitude","Body EAST","Body WEST"},
+        {"N (or equator)","Zn = Z","Zn = 360 - Z"},
+        {"S","Zn = 180 - Z","Zn = 180 + Z"}}) {
+        p.text(24,y,row[0],10);p.text(180,y,row[1],10);p.text(340,y,row[2],10);y+=18;
     }
+    y+=6;
+    step("6. Compare Ho with Hc; plot the intercept",
+        "Subtract Hc from Ho in MINUTES. The magnitude is the intercept in nautical miles. "
+        "Ho greater: TOWARD the body along Zn. Ho smaller: AWAY, along the opposite bearing. "
+        "Draw the line of position through that point at right angles to Zn.");
+    p.paragraph(24,y,"STOP: use another method for t at 0, 90 or 180; declination within half a minute "
+        "of zero; R above 87; Hc outside 5-85; or any required INF or negative log. "
+        "Re-read the table side, K name, K~L combination and Z case before plotting. "
+        "Also mark CAUTION if a reduced t, declination, R, acute K, K~L, Hc or acute Z is below 3 or above "
+        "87 degrees. Cross-check such a sight by another method. This is a conservative reminder, "
+        "not an error bound copied from older tables. Half-minute rows do not guarantee a half-minute "
+        "final altitude error.",0,9,11);
+
+    p.start("COMPACT AGETON | PENCIL REDUCTION FORM");
+    auto cells=[&](double x,double top) { for(int i=0;i<7;++i) p.box(x+i*10.5,top,10.5,20); };
+    auto field=[&](double x,double top,const std::string &label,double w=73.5) {
+        p.text(x,top-4,label,8.5,1);p.box(x,top,w,20);
+    };
+    auto logrow=[&](double top,const std::vector<std::string> &labels,const std::vector<std::string> &ops) {
+        double space=labels.size()==4?116:96;
+        for(size_t i=0;i<labels.size();++i) {
+            double x=24+i*space;p.text(x,top-4,labels[i],8.5,1);cells(x,top);
+            if(i<ops.size())p.text(x+79,top+14,ops[i],12,1);
+        }
+    };
+    p.text(24,58,"Prepared inputs | Angles: deg min | Log scale 1,000,000 | Seven boxes: copy every digit",8.5);
+    p.text(24,73,"Body __________________   UTC date/time __________________________",10);
+    field(24,91,"AP latitude L + N/S",98);field(140,91,"Declination + N/S",98);
+    field(256,91,"LHA (000-360)",98);field(372,91,"Ho (corrected)",102);
+    p.text(24,130,"t = smaller of LHA and 360-LHA: __________   Body: [ ] W (LHA <180)  [ ] E (>180)",9);
+    p.text(24,145,"1  Find R; copy B(R) from the same row",10,1);
+    logrow(163,{"A(t)","B(Dec)","A(R)"},{"+","="});field(310,163,"R",68);
+    p.text(400,159,"B(R)",8.5,1);cells(400,163);
+    p.line(24,193,456,.3);
+    p.text(24,208,"2  Find K; always give K the SAME N/S name as declination",10,1);
+    logrow(226,{"A(Dec)","B(R)","A(K)"},{"-","="});field(310,226,"Acute angle",68);
+    p.text(400,222,"Angle found in",8.5);p.text(400,240,"[ ] A   [ ] B",9);
+    p.text(24,261,"A(K) at least 150515: use A. If smaller, complete the B row below and use B.",9);
+    logrow(279,{"B(Dec)","B(t)","B(R)","B(K)"},{"+","-","="});
+    p.text(24,321,"[ ] t <90: K = acute angle    [ ] t >90: K = 180 - acute angle",9);
+    field(372,314,"K + N/S name",102);
+    p.line(24,339,456,.3);
+    p.text(24,354,"3  K~L: same N/S names, subtract; contrary names, add",10,1);
+    p.text(24,379,"K~L is positive. [ ] Same: larger - smaller  [ ] Contrary: sum",9);
+    field(310,372,"K~L",68);p.text(400,368,"B(K~L)",8.5,1);cells(400,372);
+    p.text(24,412,"[ ] K~L below 90: body above horizon. At or above 90: STOP and recheck.",9);
+    p.line(24,422,456,.3);
+    p.text(24,437,"4  Find Hc; copy B(Hc) from the same row",10,1);
+    logrow(455,{"B(R)","B(K~L)","A(Hc)"},{"+","="});field(310,455,"Hc",68);
+    p.text(400,451,"B(Hc)",8.5,1);cells(400,455);
+    p.text(24,485,"[ ] STOP: t = 0/90/180; |Dec| <0.5 min; R >87; Hc outside 5-85; INF/negative log.",8.5);
+    p.text(24,497,"[ ] CAUTION (check after Z): a reduced lookup angle <3 or >87 degrees; cross-check.",8.5);
+    p.line(24,503,456,.3);
+    p.text(24,515,"5  Find Z: first read an acute angle, then select the case",10,1);
+    logrow(533,{"A(R)","B(Hc)","A(Z)"},{"-","="});field(310,533,"Acute angle",68);
+    field(400,533,"Chosen Z");
+    p.text(24,568,"A(Z) at least 150515: use A. If smaller, complete the B row below and use B.",9);
+    logrow(586,{"B(R)","A(K~L)","B(Hc)","B(Z)"},{"+","-","="});
+    p.text(24,625,"[ ] K same N/S as L AND greater: Z = acute.   [ ] Otherwise: Z = 180 - acute.",9);
+    p.text(24,646,"N latitude: [ ] E: Z  [ ] W: 360-Z    |    S latitude: [ ] E: 180-Z  [ ] W: 180+Z",9);
+    field(24,662,"True bearing Zn",90);field(145,662,"Ho-Hc: minutes = NM",110);
+    p.text(280,677,"[ ] TOWARD    [ ] AWAY",10);
     // Four half-degree blocks per page. 90 blocks cover x=0..45, with
     // complementary angles supplying 45..90. Exactly 23 table pages.
     for(int first=0;first<90;first+=4) {
@@ -824,7 +906,7 @@ static void ageton(PDF &p, bool shaded) {
                 "exercise opposite east/west branches with the same altitude.",219,9,12);
             for(double lha:{60.,300.}) {
                 auto r=table.reduce(-20,15,lha);
-                p.text(261,y,"LHA "+num(lha,0)+": R "+angle(r.r)+"  Q "+angle(r.q,true),8); y+=15;
+                p.text(261,y,"LHA "+num(lha,0)+": R "+angle(r.r)+"  K "+angle(r.q,true),8); y+=15;
                 p.text(261,y,"Hc "+angle(r.altitude)+"  Zn "+angle(r.azimuth),8); y+=24;
             }
             p.paragraph(261,y,"NUMERICAL CHECK: 200,000 random cases per domain, solar-range "
@@ -832,16 +914,16 @@ static void ageton(PDF &p, bool shaded) {
                 "0.95 minute using nearest rows and 0.26 minute using interpolation. "
                 "These are sample results, not universal error bounds.",219,9,12);
             p.paragraph(261,y,"HAND CHECK: try all four latitude/declination hemisphere pairs, "
-                "both LHA halves and both t quadrants. Record the sign of Q, latitude and gap. "
+                "both LHA halves and both t quadrants. Record K name, positive K~L and the elevated pole. "
                 "Confirm the azimuth quadrant before plotting.",219,9,12);
             p.paragraph(261,y,"BACKGROUND: Ageton's divided navigational triangle (H.O. 211). "
                 "NAVALM independently generates these entries and its worksheet. "
                 "www.siranah.de/html/sail040u.htm describes the underlying functions.",219,9,12);
-            p.paragraph(261,y,"This edition's signed meridian angle Q and 1,000,000 log scale "
-                "differ from other Ageton variants. Follow these instructions and tables together. "
+            p.paragraph(261,y,"This guide uses traditional K, K~L and an elevated-pole azimuth Z. "
+                "Follow its sign and bearing rules with this 1,000,000-scale table. "
                 "Do not mix procedures or log scales.",219,9,12);
         }
-        p.text(24,663,"x,c = DD MM.m | c=90-x: SWAP A/B | scale 1,000,000 | INF: stop",8);
+        p.text(24,663,"Enter x: A in A(x), B in B(x). Enter c: A in B(x), B in A(x). Scale 1,000,000.",8);
         p.text(24,677,"Near singular angles, change method. Half-minute rows do not guarantee half-minute Hc.",7);
     }
 }

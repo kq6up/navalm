@@ -632,7 +632,7 @@ class Workbench {
             "Sun and Moon hourly pages", "Aries and navigational planets", "Navigational star positions",
             "Greenwich rise, set and twilight", "Increments and hourly-rate corrections",
             "Dip, refraction and parallax components", "Concise calculator guide (not NAO tables)",
-            "Compact Ageton tables + worksheet (25 pages)"};
+            "Compact Ageton tables + worksheet (26 pages)"};
         for(int i=0;i<8;++i) {
             book_sections[i] = new Fl_Check_Button(36+(i/4)*545, 290+(i%4)*52, 535, 34, section_labels[i]);
             book_sections[i]->labelsize(15);

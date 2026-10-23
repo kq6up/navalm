@@ -57,8 +57,8 @@ flowing-table redesign. Font sizes, labels and the preamble are editable, but
 regenerating overwrites source edits. Latin Modern advances are measured for
 wrapping and column alignment; no font programs are bundled with NAVALM.
 
-The 2027 LaTeX comparison compiled with both the desktop TeX compiler and
-pdfLaTeX. The exported PDF has embedded fonts, 334 pages and 17 bookmarks.
+The revised 2027 LaTeX comparison was compiled with pdfLaTeX.
+The exported PDF has embedded fonts, 335 pages and 17 bookmarks.
 Representative page styles were rendered for visual inspection. Both export
 formats are covered by generator and native-worker checks.
 
@@ -96,8 +96,8 @@ The unrounded correction is rate * (60 * minute + seconds) / 3600. GHA increment
 also use explicit half-up rounding so exact half-step entries are consistent.
 The dip, refraction and parallax component tables share one page.
 A complete 2027 preview is
-**334 pages**: 2 introductory, 244 daily, 60 increments/corrections, 1 corrections,
-1 calculator guide, 25 Ageton, and 1 section index. PDF bookmarks identify months
+**335 pages**: 2 introductory, 244 daily, 60 increments/corrections, 1 corrections,
+1 calculator guide, 26 Ageton, and 1 section index. PDF bookmarks identify months
 and reference sections. Leap years and the final partial daily group are handled.
 
 * UTC whole-hour apparent geocentric coordinates, rounded to 0.1 arcminute.
@@ -118,12 +118,13 @@ and reference sections. Leap years and the final partial daily group are handled
 
 ## Compact Ageton variant
 
-The optional section occupies **25 pages**: instructions, a writable sign/branch
-worksheet and 23 table pages. Four half-degree blocks per sheet give half-minute
-spacing. Complementary angles supply the 45–90 degree range by swapping A/B.
-Worked checks and the numerical-audit notes use the final sheet's otherwise
-unused half. A standalone booklet adds the two introductory pages and index
-(28 pages total).
+The optional section occupies **26 pages**: two plain-language guide pages,
+a one-page pencil reduction form and 23 table pages. Seven writing boxes are
+provided for every logarithm entry. Four half-degree blocks per sheet give
+half-minute spacing. Complementary angles supply the 45–90 degree range by
+reading the opposite A/B letter when entering from the c side. The guide gives
+both forward and inverse examples. A standalone booklet adds two introductory
+pages and an index (29 pages total).
 
 The scale is **1,000,000**, ten times the historical scale:
 
@@ -132,27 +133,45 @@ A(x) = -1,000,000 log10(abs(sin x))
 B(x) = -1,000,000 log10(abs(cos x))
 ```
 
-Entries are rounded integers. Never mix these values with traditional
-100,000-scale tables. The procedure uses a signed meridian angle Q that can
-exceed 90 degrees, rather than the signed auxiliary latitude of some variants.
-The printed procedure, worksheet and table scale must be used together.
+Entries are rounded integers, some seven digits long. Never mix them with
+traditional 100,000-scale tables. The printed procedure now uses traditional
+**t, K, K~L, Hc and Z**. K always has declination's N/S name and is obtuse when
+t exceeds 90 degrees. K~L is nonnegative: subtract magnitudes for the same N/S
+name, add for contrary names. This is the traditional auxiliary-angle convention;
+it is not the signed `LatAP - LatQ` quantity on some modern worksheets.
 
-The worksheet records hemispheres, signed inputs, both t branches, Q and gap
-signs, inverse A/B selection, azimuth branches, and Toward/Away. Change method
-at singular endpoints, near equatorial declination, R above 87 degrees, or Hc
-outside 5–85 degrees. Negative/undefined logs and below-horizon cases are rejected.
-Half-minute grid spacing is not a bound on the final altitude error.
+The form records the table side, K's angle and name, the K~L combination,
+above-horizon test, acute/obtuse Z choice and elevated-pole-to-true-bearing
+conversion. Z is measured from north at N latitude, south at S latitude;
+Zn is always clockwise from true north. At the equator use the N conversion.
+The engine's internal signed auxiliary angle is unchanged. Its previous prose
+label "gap" and the ambiguous "SWAP" instruction have been removed from the
+printed guide. Do not mix the previous true-north Z rule with this form.
+
+Use another method for singular t, near-zero declination, R above 87 degrees,
+Hc outside 5–85, or required INF/negative logs. The form separately flags a
+reduced lookup angle below 3 or above 87 degrees as CAUTION: cross-check using
+another method. These are conservative review prompts, not inherited accuracy
+bounds from a different Ageton edition. Half-minute grid spacing is not
+a bound on final altitude error. Prepared inputs are assumed: the compact form
+covers the Ageton reduction, not time, almanac or sextant corrections.
 
 `make check-book` compares reductions made with the printed rounded integers
-against independent direct spherical-triangle calculations. Seed 2112027;
+against independent direct spherical-triangle calculations. The printed K/K~L
+procedure is separately executed for every accepted test case, including both
+latitude hemispheres, E/W body directions and acute/obtuse t. Seed 2112027;
 200,000 uniform random cases per domain, repeated for nearest and interpolated
 lookups. The solar-range domain is latitude ±70, declination ±30, LHA 0–360;
 the full-sky domain is latitude/declination ±89, LHA 0–360. After excluding cases
 outside the stated method limits, sampled maximum Hc errors were **0.944′ nearest**
 and **0.255′ interpolated**. Maximum Zn errors were **7.012′ nearest** and
 **2.993′ interpolated**. These are sample results, not guaranteed bounds or a
-manual usability assessment. Both methods accept approximately 45% of the full
-random domains; most other cases are below the horizon or outside the Hc limits.
+manual usability assessment. A further 6,336 targeted boundary cases exercise
+near-zero and near-right-angle inputs: 1,876 proceed on paper and 4,460 stop.
+Sampled maximum errors in this boundary set are 0.467′ Hc and 2.246′ Zn.
+The audit distinguishes finite printed lookups from software limiting values;
+a required printed INF remains a stop. Both methods accept approximately 45%
+of the full random domains; most other cases are below the horizon or outside the Hc limits.
 
 ## Validation status and source conventions
 
