@@ -785,12 +785,15 @@ static void ageton(PDF &p, bool shaded) {
         "LHA above 180 puts it EAST. Keep that direction. Add A(t) and B(declination) to get A(R). "
         "Find R by an A lookup; copy B(R) from the same row, using the x/c letter rule.");
     step("2. Find K and give it the declination's N/S name",
-        "Subtract B(R) from A(declination) to get A(K). If the result is at least 150515, "
-        "find the acute angle by an A lookup. If smaller, use the form's B row: add B(declination) "
-        "and B(t), subtract B(R), and use a B lookup instead. This avoids a sensitive A lookup "
-        "near 90 degrees. If t is below 90, K is the acute angle you found. If t is above 90, "
-        "K is 180 degrees minus that angle. Always give K the SAME N/S name as declination. "
-        "K is an auxiliary angle and can be greater than 90; it is not an ordinary latitude.");
+        "First find the TABLE ANGLE, which is acute: less than 90 degrees. Subtract B(R) "
+        "from A(declination) to get A(K). If the result is at least 150515, find the table angle "
+        "by an A lookup. If smaller, complete the form's B column: add B(declination) and B(t), "
+        "subtract B(R), and use a B lookup instead. This avoids a sensitive A lookup near 90 degrees.");
+    p.text(24,y,"t below 90: copy the table angle directly into K.",10);y+=16;
+    p.text(24,y,"EXCEPTION - t above 90: subtract the table angle FROM 180 degrees to get K.",10,1);y+=16;
+    p.paragraph(24,y,"For example, table angle 36 and t above 90 give K = 180 - 36 = 144 degrees. "
+        "Keep 144 as K when combining K with latitude. Always give K the SAME N/S name as "
+        "declination. K is an auxiliary angle, not a latitude; it can exceed 90 degrees.",0,10,12.5);
     step("3. Combine K with AP latitude L to obtain K~L",
         "The ~ means combine by N/S names. SAME name: subtract the smaller magnitude from "
         "the larger. CONTRARY names: add the magnitudes. K~L is a nonnegative magnitude for the lookup. "
@@ -801,10 +804,10 @@ static void ageton(PDF &p, bool shaded) {
         "Add B(R) and B(K~L). The sum is A(Hc). Find Hc by an A lookup, then copy B(Hc) "
         "from the same row, following the x/c letter rule. Check the addition by subtraction.");
     step("5. Find the azimuth angle Z",
-        "Subtract B(Hc) from A(R) to get A(Z). If at least 150515, find the acute angle by an "
+        "Subtract B(Hc) from A(R) to get A(Z). If at least 150515, find the table angle by an "
         "A lookup. If smaller, use the B row: add B(R) and A(K~L), subtract B(Hc), and use "
         "a B lookup. If K has the SAME N/S name as AP latitude AND is greater in magnitude, "
-        "Z is this acute angle. In every other case Z is 180 degrees minus it. Z is measured "
+        "Z is the table angle. In every other case subtract the table angle FROM 180 degrees. Z is measured "
         "from your elevated pole: north for N latitude, south for S latitude.");
     p.text(24,y,"Convert Z to true bearing Zn, clockwise from north:",10,1);y+=19;
     for(auto row:std::vector<std::array<std::string,3>>{
@@ -821,7 +824,7 @@ static void ageton(PDF &p, bool shaded) {
     p.paragraph(24,y,"STOP: use another method for t at 0, 90 or 180; declination within half a minute "
         "of zero; R above 87; Hc outside 5-85; or any required INF or negative log. "
         "Re-read the table side, K name, K~L combination and Z case before plotting. "
-        "Also mark CAUTION if a reduced t, declination, R, acute K, K~L, Hc or acute Z is below 3 or above "
+        "Also mark CAUTION if a reduced t, declination, R, K~L, Hc or the table angle for K or Z is below 3 or above "
         "87 degrees. Cross-check such a sight by another method. This is a conservative reminder, "
         "not an error bound copied from older tables. Half-minute rows do not guarantee a half-minute "
         "final altitude error.",0,9,11);
@@ -857,8 +860,9 @@ static void ageton(PDF &p, bool shaded) {
     arithmetic(336,{168,192,216,244},{"B(Dec)","B(t)","B(R)","B(K)"},{"+","-"});
     p.text(180,287,"[ ] A(K) at least 150515: look up in A.",8.5);
     p.text(180,300,"[ ] Smaller: complete the B column; look up in B.",8.5);
-    field(180,321,"Acute angle from A or B",138);field(336,321,"K + N/S name",138);
-    p.text(180,356,"[ ] t <90: K = acute.  [ ] t >90: K = 180 - acute.",8.5);
+    field(180,321,"Table angle (less than 90 deg)",138);field(336,321,"K + N/S name",138);
+    p.text(180,356,"[ ] t <90: copy table angle into K.",8.5);
+    p.text(336,356,"[ ] t >90: K = 180 - table angle.",8.5);
     p.line(24,365,456,.3);
 
     p.text(24,382,"3  Find K~L",10,1);
@@ -876,7 +880,7 @@ static void ageton(PDF &p, bool shaded) {
 
     p.text(336,382,"5  Find Z",10,1);
     arithmetic(336,{396,420,448},{"A(R)","B(Hc)","A(Z)"},{"-"});
-    field(336,490,"Acute angle from A or B",138);
+    field(336,490,"Table angle (less than 90 deg)",138);
     p.text(336,529,"A(Z) <150515? Use B below.",8.5);
     arithmetic(336,{543,567,591,619},{"B(R)","A(K~L)","B(Hc)","B(Z)"},{"+","-"});
 
@@ -886,8 +890,8 @@ static void ageton(PDF &p, bool shaded) {
         p.text(24,caution_y,line,8.5);caution_y+=12;
     }
     p.text(180,536,"K same N/S as L AND greater?",8.5,1);
-    p.text(180,553,"[ ] Yes: Z = acute angle.",9);
-    p.text(180,570,"[ ] No: Z = 180 - acute.",9);
+    p.text(180,553,"[ ] Yes: Z = table angle.",9);
+    p.text(180,570,"[ ] No: Z = 180 - table angle.",9);
     field(180,610,"Chosen Z (from elevated pole)",138);
 
     p.text(24,651,"Zn: N (or equator): E = Z, W = 360-Z.   S: E = 180-Z, W = 180+Z.",9);

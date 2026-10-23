@@ -122,6 +122,8 @@ The optional section occupies **26 pages**: two plain-language guide pages,
 a one-page pencil reduction form and 23 table pages. Seven writing boxes are
 provided for every logarithm entry. Arithmetic operands and results are stacked
 in aligned pencil columns, with companion B lookups beside R and Hc.
+The guide defines the table angle as less than 90 degrees, then separately gives
+the t <90 copy rule and t >90 exception (180 minus the table angle) for K.
 Four half-degree blocks per sheet give
 half-minute spacing. Complementary angles supply the 45–90 degree range by
 reading the opposite A/B letter when entering from the c side. The guide gives

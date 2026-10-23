@@ -3,7 +3,9 @@
 - Rewrote Ageton guidance in plain language with traditional t, K, K~L, Hc
   and elevated-pole Z rules, explicit x/c-side lookups, and a pencil form with
   seven writing boxes per logarithm, vertically stacked pencil arithmetic and
-  companion lookups beside their angles. The section is now 26 pages. Separate
+  companion lookups beside their angles. Plain table-angle labels distinguish
+  the initial lookup from final K/Z, with an explicit t >90 exception and example.
+  The section is now 26 pages. Separate
   STOP/CAUTION checks cover singular and sensitive lookups; independent tests
   execute the printed rules and target danger-zone boundaries.
 - Combined rear GHA increments and v/d corrections on one page per elapsed
