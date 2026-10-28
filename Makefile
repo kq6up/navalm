@@ -15,7 +15,7 @@ SRC = navalm.c navsight.c navcmd.c navrc.c navweb.c \
       nav_engine_sel.c nav_engine_x.c nav_engine_n.c \
       nav_solsys440.c nav_eph440.c nav_stars_x.c
 HDR = navfile.h nav_notice.h nav_version.h nav_engine.h nav_engine_impl.h nav_stars_x.h \
-      navsight.h navrc.h navweb_page.h air_daily.inc nav_eph440.h nav_solsys440.h
+      navsight.h navrc.h navweb_page.h navweb_book.h air_daily.inc nav_eph440.h nav_solsys440.h
 
 # NOVAS C3.1, U.S. Naval Observatory, vendored unmodified under novas/.
 # solsys1.c, solsys2.c, solsys3.c and eph_manager.c are deliberately NOT
@@ -109,11 +109,11 @@ novas/%.o: novas/%.c
 novas.a: $(NOVAS_OBJ)
 	ar rcs $@ $(NOVAS_OBJ)
 
-navalm: $(SRC) $(GUI_SRC) $(HDR) libastro.a novas.a
+navalm: $(SRC) $(GUI_SRC) $(HDR) libastro.a novas.a navalm-book
 	$(CC) $(CFLAGS) $(INCLUDES) $(GUI_CFLAGS) -o $@ $(SRC) $(GUI_SRC) \
 	      libastro.a novas.a $(LDLIBS) $(GUI_LIBS)
 
-nogui: $(SRC) $(HDR) libastro.a novas.a
+nogui: $(SRC) $(HDR) libastro.a novas.a navalm-book
 	$(CC) $(CFLAGS) $(INCLUDES) -o navalm $(SRC) libastro.a novas.a $(LDLIBS)
 
 # Build without the precision engine: no NOVAS, no ephemeris file, the
@@ -176,9 +176,14 @@ check-plot:
 check-list:
 	node tests/sight_list.js
 
+# Real HTTP integration with isolated HOME; needs the normal DE440s ephemeris.
+check-web-book: navalm
+	python3 tests/web_book.py
+	node tests/web_book_ui.js
+
 # Removes the generated ephemeris too, but never the downloaded .bsp.
 distclean: clean
 	rm -f $(EPHEM_NAV)
 
 .PHONY: all nogui classic-only ephem ephem-fetch stars page clean distclean check-paper check-plot check-list
-.PHONY: desktop fltk-deps desktop-app check-desktop desktop-checks-app check-book
+.PHONY: desktop fltk-deps desktop-app check-desktop desktop-checks-app check-book check-web-book

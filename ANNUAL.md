@@ -24,6 +24,33 @@ make check-book
 ```
 
 The CMake targets are `navalm-desktop`, `navalm-book` and `annual-book-check`.
+The browser interface also has an **Annual book** tab at the end of its tabs:
+
+```sh
+make                         # builds navalm and the companion navalm-book
+./navalm -d
+```
+
+Choose a year, sections, row shading and PDF or LaTeX source, then select
+**Generate book**. Each export is saved in a new private folder under the home
+directory of the user running the server, for example
+`~/NAVALM-2026-Ab12Cd/NAVALM-2026.pdf`. The page shows progress, the full saved
+path, and a download link. Existing books are preserved. The link serves the
+latest completed export in the current server session; older files remain on
+disk. Reloading the page reconnects to the current job. With a remote browser,
+the saved folder is on the server; **Download** also copies the file to the
+browser's normal download location.
+
+Keep `navalm-book` beside `navalm` when moving the web installation. The server
+executes that companion directly, with no shell, in a separate process so sight
+calculations remain responsive. It uses the server's `--engine` and
+`--ephemeris` settings. PDF generation needs no TeX installation; LaTeX output
+is editable source to compile separately. Only one book can run at a time.
+
+`make check-web-book` exercises real HTTP generation and downloads with an
+isolated home directory, including error recovery and concurrent almanac use.
+It requires Python 3 and the usual `ephem/de440s.nav` file.
+
 The original `navalm` CLI, terminal and `-d` web interfaces retain their existing
 entry points. Annual generation calls the shared C astronomy engine; it does not
 replace its calculations. The desktop reserves that engine and disables other

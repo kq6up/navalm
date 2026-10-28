@@ -18,7 +18,9 @@ Current released version: **5.0**.
 The `feature/annual-almanac-5.1` branch adds a custom annual practice-book
 preview with selectable sections, compact Ageton tables and optional LaTeX source
 export alongside the self-contained PDF. Build `make navalm-book`
-or use the desktop **Annual book** tab. See [ANNUAL.md](ANNUAL.md) for scope,
+or use **Annual book** in the desktop or `./navalm -d` browser interface.
+The browser saves books under your home folder and offers a download link.
+See [ANNUAL.md](ANNUAL.md) for scope,
 conventions and the official-book sections that are still missing.
 
 **Informational and educational use only. Do not rely on NAVALM where an error could cause death, injury, or property damage. By using it, you accept the [safety and assumption-of-risk terms](SAFETY.md), to the extent permitted by law.**

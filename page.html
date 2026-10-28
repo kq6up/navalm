@@ -98,6 +98,12 @@ table.air tr.half td{background:var(--mark)}
 .paper thead{border-bottom:1px solid var(--line)}
 .paper .corrections{border-left:1px solid var(--line)}
 .papercontext{font:13px/1.6 var(--mono)}
+.bookoptions{border:0;padding:0;margin:0;min-width:0}
+.bookchecks{margin:1rem 0;gap:.6rem}
+.bookchecks label{display:flex;align-items:flex-start;gap:.5rem;color:var(--ink);font-size:14px}
+.bookchecks input{width:auto;margin-top:.35rem;flex:none}
+#book_progress{width:100%;accent-color:var(--accent);margin:.8rem 0 .3rem}
+#book_path{overflow-wrap:anywhere;font:13px/1.6 var(--mono);margin:.6rem 0}
 </style>
 </head>
 <body>
@@ -109,6 +115,7 @@ table.air tr.half td{background:var(--mark)}
     <button data-tab="list">Sights</button>
     <button data-tab="fix">Fix</button>
     <button data-tab="setup">Setup</button>
+    <button data-tab="book">Annual book</button>
   </nav>
 </header>
 
@@ -276,6 +283,46 @@ table.air tr.half td{background:var(--mark)}
     <div class="tools"><button class="act" id="s_save">Save defaults</button></div>
     <div class="hint" id="setupmsg">Kept in this browser, separate from ~/.navalmrc.</div>
   </div>
+</section>
+
+<section id="book">
+  <div class="card">
+    <h2>Custom annual practice almanac</h2>
+    <fieldset class="bookoptions" id="book_options" aria-label="Book options">
+      <div class="grid">
+        <div><label for="book_year">Calendar year</label><input id="book_year" type="number" min="1600" max="2200" step="1" required></div>
+        <div><label for="book_format">Output</label><select id="book_format">
+          <option value="pdf">PDF · ready to print</option>
+          <option value="latex">LaTeX · editable source</option>
+        </select></div>
+      </div>
+      <div class="grid bookchecks">
+        <label><input type="checkbox" id="book_sun_moon" checked>Sun and Moon hourly pages</label>
+        <label><input type="checkbox" id="book_planets" checked>Aries and navigational planets</label>
+        <label><input type="checkbox" id="book_stars" checked>Navigational star positions</label>
+        <label><input type="checkbox" id="book_events" checked>Greenwich rise, set and twilight</label>
+        <label><input type="checkbox" id="book_increments" checked>Increments and hourly-rate corrections</label>
+        <label><input type="checkbox" id="book_corrections" checked>Dip, refraction and parallax components</label>
+        <label><input type="checkbox" id="book_formulas" checked>Calculator reduction guide (not NAO tables)</label>
+        <label><input type="checkbox" id="book_ageton" checked>Compact Ageton tables and pencil worksheet</label>
+        <label><input type="checkbox" id="book_shade">Alternate row shading</label>
+      </div>
+    </fieldset>
+    <div class="tools"><button class="act" id="book_build">Generate book</button></div>
+    <p class="hint">Saved in a new NAVALM folder under ~ (the home folder of the computer running NAVALM).
+      Existing books are kept. You can also download the finished file here.</p>
+    <p class="hint">PDF needs no additional software. LaTeX exports a .tex file to compile separately.
+      The book uses the astronomy engine selected when starting NAVALM: <span id="book_engine">&hellip;</span>.</p>
+  </div>
+  <div class="card" aria-live="polite">
+    <h2>Book progress</h2>
+    <div id="book_status">Choose a year and sections.</div>
+    <progress id="book_progress" max="100" value="0" aria-label="Book generation progress" hidden></progress>
+    <div id="book_path"></div>
+    <a id="book_download" hidden>Download book</a>
+  </div>
+  <p class="hint">5.1 development preview for learning and recreation. Several official-book sections
+    are still missing. For navigation, buy and use the official Nautical Almanac.</p>
 </section>
 
 </main>
@@ -1042,6 +1089,79 @@ function saveSetup(){
   refresh(); refreshAlmanac();
 }
 
+/* ---------- annual book ---------- */
+let bookTimer;
+let bookRequest=0, bookStarting=false;
+const bookSections=['sun_moon','planets','stars','events','increments','corrections'];
+function renderBook(s){
+  const busy=s.state==='running';
+  $('book_options').disabled=busy;
+  $('book_build').disabled=busy || !s.available;
+  $('book_engine').textContent=s.engine || '';
+  $('book_progress').hidden=!(busy || s.state==='done');
+  $('book_progress').value=s.percent || 0;
+  $('book_download').hidden=s.state!=='done';
+  $('book_path').textContent=s.state==='done'?s.path:'';
+  if(s.state==='done'){
+    $('book_status').textContent='Book saved.';
+    $('book_download').href='/book/download?id='+encodeURIComponent(s.id);
+    $('book_download').download=s.filename;
+    $('book_download').textContent='Download '+s.filename;
+  }else if(busy){
+    $('book_status').textContent=s.percent+'% · '+s.stage;
+  }else if(s.state==='error'){
+    $('book_status').textContent=s.error;
+  }else{
+    $('book_status').textContent=s.available?'Choose a year and sections.':
+      'The book builder is missing. Run make navalm-book and keep it beside navalm.';
+  }
+  clearTimeout(bookTimer);
+  if(busy) bookTimer=setTimeout(refreshBook,700);
+}
+async function refreshBook(){
+  if(bookStarting) return;
+  const request=++bookRequest;
+  clearTimeout(bookTimer);
+  try{
+    const response=await fetch('/api/book');
+    if(!response.ok) throw new Error('Could not check book progress.');
+    const s=await response.json();
+    if(request!==bookRequest) return;
+    renderBook(s);
+  }catch(e){
+    if(request!==bookRequest) return;
+    $('book_status').textContent='Connection interrupted. Reopen Annual book to check progress.';
+  }
+}
+async function buildBook(){
+  if(!$('book_year').reportValidity()) return;
+  const a=$('book_ageton').checked, f=$('book_formulas').checked;
+  if(!bookSections.some(k=>$('book_'+k).checked) && !a && !f){
+    $('book_status').textContent='Select at least one book section.'; return;
+  }
+  const q=new URLSearchParams({year:$('book_year').value,format:$('book_format').value,
+    reduction:a?(f?'both':'ageton'):(f?'formulas':'none'),shade:$('book_shade').checked?'1':'0'});
+  bookSections.forEach(k=>q.set(k,$('book_'+k).checked?'1':'0'));
+  const request=++bookRequest;
+  bookStarting=true;
+  clearTimeout(bookTimer);
+  $('book_build').disabled=true;
+  $('book_status').textContent='Starting book…';
+  try{
+    const response=await fetch('/api/book?'+q,{method:'POST',headers:{'X-Navalm-Book':'1'}});
+    const s=await response.json();
+    if(request!==bookRequest) return;
+    if(!response.ok) throw new Error(s.error || 'Could not start the book.');
+    renderBook(s);
+  }catch(e){
+    if(request!==bookRequest) return;
+    $('book_build').disabled=false;
+    $('book_status').textContent=e.message;
+  }finally{ bookStarting=false; }
+}
+$('book_year').value=new Date().getUTCFullYear();
+$('book_build').onclick=buildBook;
+
 /* ---------- tabs and wiring ---------- */
 function show(id){
   document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id===id));
@@ -1049,6 +1169,7 @@ function show(id){
   if(id==='list'){ renderList(); }
   if(id==='almanac'){ refreshAlmanac(); }
   if(id==='fix'){ renderMotion(); }
+  if(id==='book'){ refreshBook(); }
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.tab));
 

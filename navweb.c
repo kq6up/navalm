@@ -2,10 +2,14 @@
  * NAVALM contributions: Copyright (c) 2026 Chris Maness.
  * See LICENSE, THIRD_PARTY_NOTICES.md, and SAFETY.md.
  */
+#define _XOPEN_SOURCE 700
+#ifdef __APPLE__
+#define _DARWIN_C_SOURCE 1
+#endif
 /* navalm 2.8g - ./navalm -d : a small embedded web interface.
  *
  * Single-threaded HTTP/1.1, no dependencies, no framework.  The server is
- * stateless: it reduces sights and solves fixes on request and keeps nothing.
+ * keeps sights in the browser. Annual books are saved under the user's home.
  * The browser holds the sight list in its own localStorage, so the web
  * interface never touches ~/.naval.save or ~/.navalmrc.
  *
@@ -18,6 +22,9 @@
  *   GET /api/daily?...        AIR 10-minute or compact NAVAL HTML table
  *   GET /api/reduce?...      one sight: Hs -> Ho, almanac, HO 229, intercept
  *   GET /api/fix?n=3&...     a fix from indexed sight parameters
+ *   POST /api/book?...      start an annual book in a separate process
+ *   GET /api/book           progress and saved path for the latest book
+ *   GET /book/download?...  download that completed book
  *
  * Network care: binds 127.0.0.1 unless --listen says otherwise, caps the
  * request size and the header count, and never shells out.
@@ -32,6 +39,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <math.h>
 #include <ctype.h>
 #include <errno.h>
@@ -41,6 +49,13 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 
 #define REQ_MAX     16384
 #define HDR_MAX       64
@@ -584,6 +599,8 @@ static void send_response(int fd,const char *status,const char *ctype,
     if(len) send_all(fd,body,len);
 }
 
+#include "navweb_book.h"
+
 static void handle_request(int fd,const char *req)
 {
     char method[8],target[1024];
@@ -596,13 +613,36 @@ static void handle_request(int fd,const char *req)
         send_response(fd,"400 Bad Request","text/plain","bad request\n",12);
         return;
     }
-    if(strcmp(method,"GET") && strcmp(method,"HEAD")){
+    if(strcmp(method,"GET") && strcmp(method,"HEAD") && strcmp(method,"POST")){
         send_response(fd,"405 Method Not Allowed","text/plain","use GET\n",8);
         return;
     }
 
     qs = strchr(target,'?');
     if(qs) *qs++ = 0;
+
+    if(!strcmp(target,"/api/book")){
+        web_book_poll();
+        if(!strcmp(method,"POST")){
+            /* A custom header requires a same-origin fetch; no CORS is enabled. */
+            if(!web_book_header(req)){
+                web_book_bad(fd,"403 Forbidden","Use the Annual book panel.");
+                return;
+            }
+            if(web_book_start(fd,qs)) return;
+        }
+        web_book_status(fd);
+        return;
+    }
+    if(!strcmp(target,"/book/download")){
+        if(strcmp(method,"GET")){ send_response(fd,"405 Method Not Allowed","text/plain","use GET\n",8); return; }
+        web_book_download(fd,qs);
+        return;
+    }
+    if(!strcmp(method,"POST")){
+        send_response(fd,"405 Method Not Allowed","text/plain","use GET\n",8);
+        return;
+    }
 
     if(!strcmp(target,"/") || !strcmp(target,"/index.html")){
         send_response(fd,"200 OK","text/html; charset=utf-8",
@@ -686,15 +726,17 @@ static void handle_request(int fd,const char *req)
     send_response(fd,"404 Not Found","text/plain","not found\n",10);
 }
 
-int navweb_run(const char *addr,int port)
+int navweb_run(const char *addr,int port,const char *program,const char *ephemeris)
 {
     int srv,opt = 1;
     struct sockaddr_in sa;
 
     signal(SIGPIPE,SIG_IGN);
+    web_book_init(program,ephemeris);
 
     srv = socket(AF_INET,SOCK_STREAM,0);
     if(srv < 0){ perror("socket"); return 1; }
+    fcntl(srv,F_SETFD,FD_CLOEXEC);
     setsockopt(srv,SOL_SOCKET,SO_REUSEADDR,&opt,sizeof opt);
 
     memset(&sa,0,sizeof sa);
@@ -729,6 +771,7 @@ int navweb_run(const char *addr,int port)
             perror("accept");
             break;
         }
+        fcntl(c,F_SETFD,FD_CLOEXEC);
 
         /* read until the end of the headers, bounded */
         while(got + 1 < sizeof req){

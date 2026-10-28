@@ -690,7 +690,8 @@ static void usage(const char *p){
 #ifdef NAVALM_GUI
 int navgui_run(void);
 #endif
-int navweb_run(const char *addr,int port);
+int navweb_run(const char *addr,int port,const char *program,const char *ephemeris);
+static const char *cli_ephemeris;
 
 /* Global options.
  *
@@ -714,7 +715,7 @@ static int take_global_opts(int *argc,char **argv,char *err,size_t errlen)
  argv[out]=NULL;
  *argc=out;
 
- if(ephem && *ephem) nav_engine_set_ephemeris_path(ephem);
+ if(ephem && *ephem){ nav_engine_set_ephemeris_path(ephem); cli_ephemeris=ephem; }
  if(engine && nav_engine_select(engine)){
    const char *why=nav_engine_last_error();
    if(why && *why) snprintf(err,errlen,"%s",why);
@@ -759,7 +760,7 @@ int main(int argc,char**argv){
      else if(argv[i][0]!='-') port=atoi(argv[i]);
    }
    if(port<1 || port>65535){ fprintf(stderr,"bad port\n"); return 2; }
-   return navweb_run(addr,port);
+   return navweb_run(addr,port,argv[0],cli_ephemeris);
  }
  if(argc==2 && !strcmp(argv[1],"--gui")){
 #ifdef NAVALM_GUI
