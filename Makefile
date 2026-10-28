@@ -3,7 +3,9 @@ CFLAGS ?= -O2 -Wall -Wextra -std=c99
 LDLIBS ?= -lm
 CXX ?= c++
 CXXFLAGS ?= -O2 -Wall -Wextra -std=c++17
-FLTK_CONFIG ?= $(if $(wildcard .deps/fltk/bin/fltk-config),.deps/fltk/bin/fltk-config,fltk-config)
+# Prefer the system FLTK (e.g., Slackware's /usr/bin/fltk-config), falling back to our optional local build.
+# Callers can override this with make FLTK_CONFIG=/path/to/fltk-config.
+FLTK_CONFIG ?= $(if $(shell command -v fltk-config 2>/dev/null),fltk-config,$(if $(wildcard .deps/fltk/bin/fltk-config),.deps/fltk/bin/fltk-config,fltk-config))
 
 # The ncurses interface (./navalm --gui) is built by default.
 # If curses is unavailable:  make nogui
