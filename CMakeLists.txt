@@ -1,6 +1,9 @@
 # Optional portable native desktop build. The original Makefile/CLI is unchanged.
 cmake_minimum_required(VERSION 3.21)
-project(NAVALMDesktop VERSION 5.0 LANGUAGES C CXX)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/nav_version.h" NAVALM_VERSION_LINE
+    REGEX "^#define NAVALM_VERSION_NUMBER ")
+string(REGEX REPLACE ".*\"([^\"]+)\".*" "\\1" NAVALM_VERSION_NUMBER "${NAVALM_VERSION_LINE}")
+project(NAVALMDesktop VERSION ${NAVALM_VERSION_NUMBER} LANGUAGES C CXX)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

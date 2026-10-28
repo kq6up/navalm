@@ -17,6 +17,8 @@ args = parser.parse_args()
 root = Path(__file__).resolve().parent.parent
 version = re.search(r'^#define NAVALM_VERSION "([^"]+)"',
                     (root / 'nav_version.h').read_text(), re.M).group(1)
+numeric_version = re.search(r'^#define NAVALM_VERSION_NUMBER "([^"]+)"',
+                           (root / 'nav_version.h').read_text(), re.M).group(1)
 exe = root / '.build/windows-x64/NAVALM.exe'
 data = exe.read_bytes()
 
@@ -70,8 +72,14 @@ for ident, source in assets:
     asset_notes.append(f'{source.name}: {len(payload):,} bytes, SHA256 {hashlib.sha256(payload).hexdigest()}')
 manifest = resource(24, 1)
 assert b'UTF-8' in manifest, 'Missing UTF-8 application manifest'
-assert f'version="{version}.0.0"'.encode() in manifest, 'Manifest version mismatch'
-assert (version + '\0').encode('utf-16le') in resource(16, 1), 'PE product version mismatch'
+assert f'version="{numeric_version}.0"'.encode() in manifest, 'Manifest version mismatch'
+version_resource = resource(16, 1)
+assert (version + '\0').encode('utf-16le') in version_resource, 'PE product version mismatch'
+fixed = version_resource.index(struct.pack('<I', 0xfeef04bd))
+major, minor, patch = map(int, numeric_version.split('.'))
+numeric_pair = (major << 16 | minor, patch << 16)
+assert struct.unpack_from('<IIII', version_resource, fixed + 8) == numeric_pair * 2, \
+    'PE numeric file/product version mismatch'
 
 readobj = args.toolchain / 'bin/llvm-readobj'
 imports = subprocess.check_output([str(readobj), '--coff-imports', str(exe)], text=True)
@@ -89,7 +97,7 @@ stage = out / 'NAVALM-Windows-x64'
 stage.mkdir(exist_ok=True)
 shutil.copy2(exe, stage / 'NAVALM.exe')
 for name in ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'PROVENANCE.md', 'SAFETY.md', 'CHANGELOG.md',
-             'WINDOWS.md', 'DESKTOP.md', 'MAPS.md']:
+             'WINDOWS.md', 'DESKTOP.md', 'MAPS.md', 'ANNUAL.md']:
     shutil.copy2(root / name, stage / name)
 license_dir = stage / 'licenses'
 license_dir.mkdir(exist_ok=True)
@@ -119,12 +127,15 @@ report = (f'NAVALM {version} Windows x64 build inspection\n\n'
     'Charts + setup: download a map, use an OpenCPN coastline, or load a land .shp.\n'
     'Saved sights + plotting: calculate a fix, then toggle Map or Detach sheet.\n'
     'Wheel/+/- zoom; drag pans; Fit or 0 restores the sheet.\n\n'
+    'Annual book (last tab): choose a year and sections, then export PDF\n'
+    'or editable LaTeX source. PDF export needs no TeX installation.\n'
+    'This Windows package is the native GUI; it does not include the Unix web server.\n\n'
     'This unsigned build was cross-compiled on macOS. It still needs\n'
     'a real Windows launch and save/reopen test. See WINDOWS.md.\n')
 archive = out / 'NAVALM-Windows-x64.zip'
 # Explicit file list avoids carrying state from any previous staging-directory run.
 files = [stage / n for n in ['NAVALM.exe', 'LICENSE', 'THIRD_PARTY_NOTICES.md',
-         'PROVENANCE.md', 'SAFETY.md', 'CHANGELOG.md', 'WINDOWS.md', 'DESKTOP.md', 'MAPS.md',
+         'PROVENANCE.md', 'SAFETY.md', 'CHANGELOG.md', 'WINDOWS.md', 'DESKTOP.md', 'MAPS.md', 'ANNUAL.md',
          'START-HERE.txt', 'BUILD-VALIDATION.txt']]
 files += list(license_dir.iterdir())
 with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:

@@ -330,7 +330,7 @@ class Plot : public Fl_Widget {
 };
 class Workbench {
   public:
-    Fl_Double_Window win{1180, 850, "NAVALM — Navigation Workbench"};
+    Fl_Double_Window win{1180, 850, "NAVALM " NAVALM_VERSION " — Navigation Workbench"};
     Fl_Tabs *tabs;
     Fl_Group *almanac_tab, *sight_tab, *fix_tab, *chart_tab;
     Fl_Box *status, *engine_status, *headline, *paths;

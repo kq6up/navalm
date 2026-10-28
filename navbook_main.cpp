@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 #include "navbook.h"
+#include "nav_version.h"
 extern "C" {
 #include "nav_engine.h"
 }
@@ -15,7 +16,7 @@ int main(int argc, char **argv) {
             std::string a=argv[i];
             auto value=[&]() { if(++i>=argc) throw std::runtime_error("Missing value for "+a); return std::string(argv[i]); };
             if(a=="--help") {
-                std::puts("NAVALM annual practice-book builder (5.1 development)\n"
+                std::puts("NAVALM annual practice-book builder (" NAVALM_VERSION ")\n"
                   "Usage: navalm-book --year YYYY --output PATH [options]\n"
                   "  --format pdf|latex  (latex writes editable .tex source)\n"
                   "  --shade-rows  (light gray alternating hourly and reference rows)\n"

@@ -1,5 +1,9 @@
 # NAVALM 5.1 development preview (unreleased)
 
+- Updated application and package version labels to 5.1-dev (numeric platform
+  metadata 5.1.0), distinguishing this preview from the released 5.0 downloads.
+- Added Annual book as the final browser tab, with selectable sections,
+  PDF/LaTeX output, shading, background progress, home-folder exports and downloads.
 - Rewrote Ageton guidance in plain language with traditional t, K, K~L, Hc
   and elevated-pole Z rules, explicit x/c-side lookups, and a pencil form with
   seven writing boxes per logarithm, vertically stacked pencil arithmetic and

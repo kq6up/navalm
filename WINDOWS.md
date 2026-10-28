@@ -1,5 +1,10 @@
 # Portable Windows desktop
 
+The current annual-book preview is **5.1-dev**. Its final **Annual book** tab
+exports selectable annual sections and compact Ageton tables directly to PDF,
+or to editable LaTeX source. Direct PDF export needs no TeX installation.
+The public 5.0 release ZIP is a separate, older build.
+
 `NAVALM.exe` targets **Windows 10/11 x64**. FLTK, the C++ library and compiler
 support are linked statically. It needs no FLTK DLLs, compiler installation or
 Visual C++ redistributable. It uses Windows' own system DLLs, including the UCRT,
@@ -70,14 +75,12 @@ embedded in the executable. Defaults match the script's prepared inputs.
 
 ## Validation status
 
-The Windows executable was cross-compiled on macOS, and its PE structure,
+The 5.1-dev Windows executable was cross-compiled on macOS, and its PE structure,
 imports and embedded resources were inspected. The shared desktop/map tests and
-native callback/download checks passed on macOS. The previous build was tested
-by the user on Windows 10: the almanac and a fix with the intended DR worked;
-a fix with DR 0,0 crashed. **This updated build still needs a Windows runtime
-retest.** Preparation progress, native dialogs and the new coastline drawing
-have not been exercised on a Windows host here. Windows download, file picker
-and save/reopen checks are also still needed before a release.
+native callback/download checks passed on macOS. The user retested the corrected
+5.0 release on Windows 10 and reported that it seemed fine. That report does not
+cover the annual-book feature. **This 5.1-dev preview still needs a Windows runtime
+retest**, including annual PDF/LaTeX generation, file pickers, and save/reopen.
 
 The cross-build also produces `desktop-core-check.exe` for a Windows test host;
 run it from the source directory with `ephem/de440s.nav` present. The desktop's

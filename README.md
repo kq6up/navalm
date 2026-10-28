@@ -14,6 +14,7 @@ for the portable Windows x64 desktop build.
 The existing CLI, `--gui`, and `-d` browser interface remain available.
 
 Current released version: **5.0**.
+The annual-book development branch identifies its builds as **5.1-dev**.
 
 The `feature/annual-almanac-5.1` branch adds a custom annual practice-book
 preview with selectable sections, compact Ageton tables and optional LaTeX source
