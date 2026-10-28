@@ -56,6 +56,23 @@ int main(void){
                 if(s->eligible) eligible++;
                 if(s->selected){assert(s->eligible);selected++;}
             }
+            assert(sky.body_count==NAVSKY_BODY_COUNT);
+            for(i=0;i<sky.body_count;i++){
+                NavAlmanac a;double h,z,c;
+                const NavSkyStar *s=navsky_object(&sky,sky.count+i);
+                assert(s && s==&sky.bodies[i] && s->is_body && s->body==(NavBody)i);
+                assert(!nav_almanac((NavBody)i,o.jd,&a));
+                assert(!strcmp(s->name,nav_body_name((NavBody)i)));
+                assert(isfinite(s->magnitude) && !s->selected && !s->eligible);
+                h=asin(sin(o.latitude*R)*sin(a.dec_deg*R)+cos(o.latitude*R)*cos(a.dec_deg*R)*cos((a.gha_deg+o.longitude)*R))/R;
+                assert(fabs(s->altitude-h)<1e-7);
+                c=(sin(a.dec_deg*R)-sin(h*R)*sin(o.latitude*R))/(cos(h*R)*cos(o.latitude*R));
+                c=fmax(-1,fmin(1,c));z=acos(c)/R;
+                if(sin((a.gha_deg+o.longitude)*R)>0) z=360-z;
+                assert(difference(s->azimuth,z)<1e-6);
+            }
+            assert(navsky_object(&sky,sky.count+sky.body_count)==NULL);
+            assert(fabs(sky.bodies[NAV_SUN].altitude-sky.sun_altitude)<1e-10);
             assert(eligible==sky.eligible && selected==sky.selected);
             assert(selected==(eligible<o.requested?eligible:o.requested));
             assert(sky.geometry>=0 && sky.geometry<=1 && sky.score>=0 && sky.score<=1);
@@ -86,6 +103,6 @@ int main(void){
         }
     }
     puts("Sky: cardinal/zenith cases, UTC round trips, 13,920 independent star-coordinate checks,");
-    puts("filters, 3/4-star sets, twilight directions, polar no-event and invalid inputs passed.");
+    puts("1,680 independent Sun/Moon/planet positions, filters, star sets, twilight and invalid inputs passed.");
     nav_engine_shutdown();return 0;
 }

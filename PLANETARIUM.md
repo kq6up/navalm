@@ -2,7 +2,8 @@
 
 The **Planetarium** tab is available in the FLTK workbench and the `navalm -d`
 browser interface, immediately before Annual book. It uses NAVALM's existing
-58-star catalogue, including Polaris, and the selected C astronomy engine.
+58-star catalogue, including Polaris, plus the Sun, Moon, Mercury, Venus, Mars,
+Jupiter and Saturn, using the selected C astronomy engine.
 It works offline with the same ephemeris requirements as the almanac.
 
 ## Plan a round of sights
@@ -14,13 +15,16 @@ It works offline with the same ephemeris requirements as the almanac.
 2. Choose minimum/maximum altitude, faintest magnitude and a three- or four-star
    set. Defaults are 15–75 degrees and magnitude 3.0. Smaller magnitudes mean
    brighter stars. Gold markers identify the suggested set; dim markers lie
-   outside your filters. The catalogue can also list below-horizon stars.
+   outside your filters. The catalogue can also list below-horizon stars. The Sun is a yellow disc,
+   Moon a pale disc, and planets orange rings. These bodies remain visible
+   regardless of star filters, and their labels remain when star names are hidden.
+   Body symbols are schematic, not angular size or lunar phase.
 3. **Next morning sights** or **Next evening sights** finds the next rising or
    setting Sun altitude of −8 degrees in the following 48 hours. It updates UTC
    and recalculates the stars. A polar date may have no such crossing.
 4. Click a marker or a catalogue row to read Hc, true bearing and magnitude.
-   **Use selected star for a sight** opens a new, unsaved observation with that
-   star, planned UTC and DR. Enter the actual observation time and measured Hs
+   **Use selected object for a sight** opens a new, unsaved observation with that
+   star or body, planned UTC and DR. Enter the actual observation time and measured Hs
    before reducing it. The planner never supplies a synthetic sextant reading.
 
 The chart is a view **looking up**: north at the top, east on the left, west on
@@ -45,7 +49,11 @@ Day/night status is shown to help judge visibility; daylight does not hide stars
 from the diagram. If fewer stars match the filters, all available candidates
 are shown and the shortfall is reported.
 
-Altitudes are geometric Hc, with no refraction, dip or sextant corrections.
+Altitudes are **geocentric geometric Hc**, consistent with the almanac/reducer;
+they do not include observer parallax (noticeable for the Moon), refraction, dip
+or limb corrections. They are planning coordinates rather than an apparent view
+through a telescope. See [USNO celestial-navigation conventions](https://aa.usno.navy.mil/data/celnav).
+The star planner remains star-only; solar-system bodies can be selected manually.
 Bearings are measured clockwise from true north. Exactly at the zenith/nadir a
 bearing is undefined, and such a star is excluded from the suggested set.
 
@@ -63,6 +71,8 @@ provides a useful traditional identification reference.
 Gregorian UTC conversion, filter/selection invariants, polar no-event handling,
 and rising/setting Sun −8° crossings. Random cases compare all 58 stars in both
 engines with a separate spherical-coordinate formula (13,920 comparisons).
+A further 1,680 Sun/Moon/planet positions are checked against independent
+spherical formulas; body markers do not enter the suggested star sets.
 It also exercises the real HTTP endpoint and browser input/projection/error
 handling, including overlapping requests. These checks validate the coordinate
 conversion and planner integration; the underlying ephemeris validation remains

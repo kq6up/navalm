@@ -70,6 +70,11 @@ static int sky_sun(double jd,double lat,double lon,double *alt){
     navsky_horizontal(a.gha_deg,a.dec_deg,lat,lon,alt,&az,&defined);
     return 0;
 }
+const NavSkyStar *navsky_object(const NavSky *sky,size_t index){
+    if(index<sky->count) return &sky->stars[index];
+    index-=sky->count;
+    return index<sky->body_count?&sky->bodies[index]:NULL;
+}
 int navsky_compute(const NavSkyOptions *o,NavSky *out,char *error,size_t capacity){
     size_t i;
     SkySearch search;
@@ -90,6 +95,16 @@ int navsky_compute(const NavSkyOptions *o,NavSky *out,char *error,size_t capacit
     if(out->count>NAVSKY_MAX_STARS) return sky_error(error,capacity,"Star catalogue exceeds the planner capacity.");
     if(sky_sun(o->jd,o->latitude,o->longitude,&out->sun_altitude))
         return sky_error(error,capacity,nav_engine_last_error());
+    out->body_count=NAVSKY_BODY_COUNT;
+    for(i=0;i<out->body_count;i++){
+        NavAlmanac a;
+        NavSkyStar *s=&out->bodies[i];
+        s->body=(NavBody)i; s->is_body=1; s->name=nav_body_name(s->body);
+        if(nav_almanac(s->body,o->jd,&a)) return sky_error(error,capacity,nav_engine_last_error());
+        s->magnitude=a.magnitude;
+        navsky_horizontal(a.gha_deg,a.dec_deg,o->latitude,o->longitude,
+                          &s->altitude,&s->azimuth,&s->azimuth_defined);
+    }
     out->light=out->sun_altitude>=0?"Daylight":out->sun_altitude>=-6?"Civil twilight":
         out->sun_altitude>=-12?"Nautical twilight":out->sun_altitude>=-18?"Astronomical twilight":"Night";
     for(i=0;i<out->count;i++){

@@ -20,6 +20,14 @@ with tempfile.TemporaryDirectory(prefix='navalm-sky-') as temporary:
             data=sky(count=count)
             assert data['ok']==1 and data['engine']=='precise',data
             assert len(data['stars'])==data['catalogue_count']==58
+            assert len(data['bodies'])==7
+            assert [s['name'] for s in data['bodies']]==['Sun','Moon','Mercury','Venus','Mars','Jupiter','Saturn']
+            assert [s['index'] for s in data['bodies']]==list(range(58,65))
+            for body in data['bodies']:
+                assert body['is_body']==1 and not body['selected'] and not body['eligible']
+                assert math.isfinite(body['magnitude']) and -90<=body['altitude']<=90
+                assert 0<=body['azimuth']<360
+            assert abs(data['bodies'][0]['altitude']-data['sun_altitude'])<1e-6
             assert data['selected']==count
             assert sum(s['selected'] for s in data['stars'])==count
             for star in data['stars']:
@@ -41,7 +49,7 @@ with tempfile.TemporaryDirectory(prefix='navalm-sky-') as temporary:
             assert start<instant<start+datetime.timedelta(hours=48)
         assert 'error' in sky(lat=90,event='morning')
         data=sky(min_alt=89,max_alt=90,max_mag=-2)
-        assert data['eligible']==data['selected']==0,data
-        print('sky-web: 58 stars, filters, 3/4-star sets, UTC, twilight and invalid requests passed')
+        assert data['eligible']==data['selected']==0 and len(data['bodies'])==7,data
+        print('sky-web: 58 stars, Sun/Moon/5 planets, filters, 3/4-star sets, UTC, twilight and invalid requests passed')
     finally:
         proc.terminate();proc.wait(timeout=10)

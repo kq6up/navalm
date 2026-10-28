@@ -651,13 +651,13 @@ class Workbench {
         button(894,232,247,"Next evening sights",[this]{update_sky(0);});
         sky_status=new Fl_Box(36,274,1105,35,"Enter a DR and UTC time. All 58 catalogue stars include Polaris.");
         sky_status->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);sky_status->labelsize(13);
-        sky_names=new Fl_Check_Button(36,308,200,25,"Star names");sky_names->value(1);
+        sky_names=new Fl_Check_Button(36,308,420,25,"Star names (bodies always labelled)");sky_names->value(1);
         bind(sky_names,[this]{sky_canvas->names=sky_names->value();sky_canvas->redraw();});
         sky_canvas=new SkyCanvas(36,338,565,416);
         sky_canvas->choose=[this](int index){select_sky_star(index);};
-        sky_below=new Fl_Check_Button(625,308,320,25,"Include below-horizon stars in list");
+        sky_below=new Fl_Check_Button(625,308,320,25,"Include below-horizon objects in list");
         bind(sky_below,[this]{render_sky_list();});
-        auto *sky_columns=new Fl_Box(625,339,515,23,"   Star                 Hc        Zn T     Mag");
+        auto *sky_columns=new Fl_Box(625,339,515,23,"   Object               Hc        Zn T     Mag");
         sky_columns->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);sky_columns->labelfont(FL_COURIER);
         sky_columns->labelsize(12);
         sky_list=new Fl_Hold_Browser(625,365,515,269);
@@ -665,11 +665,11 @@ class Workbench {
         bind(sky_list,[this]{int row=sky_list->value();if(row>0 && row<=int(sky_rows.size()))select_sky_star(sky_rows[row-1]);});
         sky_summary=new Fl_Box(625,642,515,56,"");
         sky_summary->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);sky_summary->labelsize(12);
-        sky_detail=new Fl_Box(625,700,515,40,"Select a star on the chart or in the list.");
+        sky_detail=new Fl_Box(625,700,515,40,"Select an object on the chart or in the list.");
         sky_detail->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);sky_detail->labelsize(13);
-        sky_sight=button(625,748,515,"Use selected star for a sight",[this]{sky_to_sight();});
+        sky_sight=button(625,748,515,"Use selected object for a sight",[this]{sky_to_sight();});
         sky_sight->deactivate();
-        auto *sky_hint=new Fl_Box(36,758,565,38,"Looking up: N top / E left. Rim = horizon; centre = zenith.\nGold = suggested set. Altitudes are geometric Hc; bearings true.");
+        auto *sky_hint=new Fl_Box(36,758,565,38,"Looking up: N top / E left. Rim = horizon; centre = zenith.\nGeocentric Hc; no refraction/parallax. Body discs are symbolic.");
         sky_hint->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);sky_hint->labelsize(11);
         sky_tab->end();
 
@@ -782,16 +782,17 @@ class Workbench {
     void render_sky_list() {
         sky_list->clear(); sky_rows.clear();
         if(!sky_canvas->ready) return;
-        for(size_t i=0;i<sky_canvas->sky.count;i++)
-            if(sky_below->value() || sky_canvas->sky.stars[i].altitude>0) sky_rows.push_back(int(i));
+        for(size_t i=0;i<sky_canvas->object_count();i++)
+            if(sky_below->value() || sky_canvas->object(i).altitude>0) sky_rows.push_back(int(i));
         std::stable_sort(sky_rows.begin(),sky_rows.end(),[this](int a,int b){
-            const auto &x=sky_canvas->sky.stars[a], &y=sky_canvas->sky.stars[b];
+            const auto &x=sky_canvas->object(a), &y=sky_canvas->object(b);
+            if(x.is_body!=y.is_body) return x.is_body>y.is_body;
             if(x.selected!=y.selected) return x.selected>y.selected;
             if(x.eligible!=y.eligible) return x.eligible>y.eligible;
             return x.azimuth<y.azimuth;
         });
         for(size_t row=0;row<sky_rows.size();row++){
-            int i=sky_rows[row]; const auto &s=sky_canvas->sky.stars[i];
+            int i=sky_rows[row]; const auto &s=sky_canvas->object(i);
             char text[200];
             std::snprintf(text,sizeof text,"%c %-18s %8s  %6.1f  %4.1f",
                 s.selected?'*':' ',s.name,sky_angle(s.altitude).c_str(),s.azimuth,s.magnitude);
@@ -800,9 +801,9 @@ class Workbench {
         }
     }
     void select_sky_star(int index) {
-        if(!sky_canvas->ready || index<0 || index>=int(sky_canvas->sky.count)) return;
+        if(!sky_canvas->ready || index<0 || index>=int(sky_canvas->object_count())) return;
         sky_canvas->selected=index;sky_canvas->redraw();
-        const auto &s=sky_canvas->sky.stars[index];
+        const auto &s=sky_canvas->object(index);
         std::string detail=std::string(s.name)+" · Hc "+sky_angle(s.altitude)+" · Zn "+
             (s.azimuth_defined?fmt(s.azimuth,1)+" T":"undefined at zenith")+" · mag "+fmt(s.magnitude,1);
         sky_detail->copy_label(detail.c_str());
@@ -832,7 +833,7 @@ class Workbench {
             if(navsky_compute(&options,&sky_canvas->sky,error,sizeof error)) throw std::runtime_error(error);
             sky_at=at;sky_canvas->ready=true;
             auto &sky=sky_canvas->sky;
-            std::string summary=std::to_string(sky.count)+" stars including Polaris · "+sky.light+
+            std::string summary=std::to_string(sky.count)+" stars + Sun, Moon, 5 planets · "+sky.light+
                 " · Sun "+fmt(sky.sun_altitude,1)+" deg · "+nav_engine_name();
             if(sky.sun_altitude> -6) summary+=" · Bright sky: stars may be hard to see.";
             else if(sky.sun_altitude< -12) summary+=" · Sea horizon may be hard to see.";
@@ -853,16 +854,20 @@ class Workbench {
     }
     void sky_to_sight() {
         int index=sky_canvas->selected;
-        if(!sky_canvas->ready || index<0 || sky_canvas->sky.stars[index].altitude<=0) return;
+        if(!sky_canvas->ready || index<0 || index>=int(sky_canvas->object_count()) ||
+           sky_canvas->object(index).altitude<=0) return;
+        const auto object=sky_canvas->object(index);
         Sight at=sky_at;
-        new_sight();body->value(7);star->value(index);
+        new_sight();body->value(object.is_body?int(object.body):7);
+        if(!object.is_body) star->value(index);
+        else limb->value(object.body==NAV_SUN || object.body==NAV_MOON?0:1);
         char planned_date[32],planned_time[32];
         navsky_utc(navsight_jd(&at),planned_date,sizeof planned_date,planned_time,sizeof planned_time);
         date->value(planned_date);time->value(planned_time);
         lat->value(angle_entry(at.dr_lat,2).c_str());lat_hemi->value(at.dr_lat<0?1:0);
         lon->value(angle_entry(at.dr_lon,3).c_str());lon_hemi->value(at.dr_lon<0?1:0);
         hs->value("");body_state();tabs->value(sight_tab);
-        message("Planning "+std::string(nav_star_name(index))+" · enter your measured Hs before reducing.");
+        message("Planning "+std::string(object.name)+" · enter your measured Hs before reducing.");
     }
     static void book_tick(void *p) { static_cast<Workbench *>(p)->poll_book(); }
     void begin_book(const navbook::Options &options, const std::string &path) {
@@ -1957,7 +1962,21 @@ static int self_test() {
             "invalid native sky clears stale chart, list and transfer");
     app.sky_min->value("15");app.sky_date->value(planned_date.c_str());
     app.update_sky();
-    std::puts("PASS planetarium: evening crossing, star selection, sight transfer and stale errors");
+    app.sky_time->value("20:00:00");app.update_sky();
+    require(app.sky_canvas->sky.bodies[NAV_SUN].altitude>0, "daytime native Sun above horizon");
+    require(app.sky_canvas->sky.body_count==7, "Sun, Moon and five planets in native sky");
+    for(size_t i=0;i<app.sky_canvas->sky.body_count;i++){
+        int index=int(app.sky_canvas->sky.count+i);
+        auto object=app.sky_canvas->object(index);
+        app.select_sky_star(index);
+        require(app.sky_canvas->selected==index, "native solar-system selection");
+        if(object.altitude<=0){require(!app.sky_sight->active(), "below-horizon body transfer disabled");continue;}
+        app.sky_to_sight();
+        require(app.body->value()==int(object.body) && std::string(app.hs->value()).empty() &&
+                app.store.n==0 && std::string(app.date->value())==planned_date,
+                "native Sun/Moon/planet handoff uses body, planned UTC and empty Hs");
+    }
+    std::puts("PASS planetarium: stars, Sun/Moon/planets, body selection, sight transfer and stale errors");
     app.example();
     auto before_missing = app.store.n;
     app.lat->value("");

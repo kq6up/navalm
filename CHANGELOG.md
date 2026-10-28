@@ -1,3 +1,11 @@
+# Unreleased
+
+- Added the Sun, Moon, Mercury, Venus, Mars, Jupiter and Saturn to the native
+  and browser planetarium, with distinct symbols, coordinates, persistent body
+  labels and handoff to the matching sight form. Solar-system bodies are shown
+  independently of the star filters; suggested star sets remain star-only.
+  Positions use the existing almanac's geocentric geometric Hc convention.
+
 # Changes in NAVALM 5.2
 
 - Added a per-sight **Reduce at DR (no whole-degree LHA)** checkbox in the

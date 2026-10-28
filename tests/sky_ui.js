@@ -11,6 +11,7 @@ const $=id=>nodes[id]??=({value:'',checked:true,disabled:false,reportValidity:()
 const pending=[];
 const context=vm.createContext({$,console,URLSearchParams,Date,Math,Number,String,Error,
   lat:x=>x+' N',lon:x=>x+' E',alt:x=>String(x),loadSetup:()=>({}),
+  endEdit:()=>{},fillSight:s=>context.transferred=s,show:s=>context.shown=s,renderActiveDR:()=>{},refresh:()=>{},
   fetch:()=>new Promise(resolve=>pending.push(resolve))});
 vm.runInContext(code,context);
 const call=(expression)=>vm.runInContext(expression,context);
@@ -28,9 +29,24 @@ assert.equal(call('skyPoint(0,0).y'),50);
 assert.equal(call('skyPoint(90,180).y'),360);
 context.fixture={date:'2026-06-21',time:'03:00:00',lat:34,lon:-117,catalogue_count:58,
   eligible:1,selected:1,requested:3,geometry:0,sun_altitude:-8,light:'Nautical twilight',engine:'precise',
+  bodies:[{index:58,name:'Sun',body:'Sun',is_body:1,altitude:30,azimuth:180,magnitude:-26.7,selected:0,azimuth_defined:1},
+          {index:59,name:'Moon',body:'Moon',is_body:1,altitude:-20,azimuth:280,magnitude:-10,selected:0,azimuth_defined:1}],
   stars:[{index:0,name:'<test&star>',altitude:45,azimuth:90,magnitude:1,eligible:1,selected:1,azimuth_defined:1}]};
 const svg=call('skySVG(fixture)');
 assert(svg.includes('&lt;test&amp;star&gt;') && !svg.includes('<test&star>'));
+assert(svg.includes('Sun') && !svg.includes('data-sky-star="59"'));
+assert(call('skySVG(fixture,false)').includes('>Sun</text>'));
+assert(!call('skySVG(fixture,false)').includes('&lt;test&amp;star&gt;</text>'));
+assert(svg.includes('r="7"') && !svg.includes('r="22.355"'),'bright Sun is drawn at symbolic size');
+call('skyResult=fixture; skySelected=58; drawSky()');
+assert.equal($('sky_sight').disabled,false);
+$('sky_sight').onclick();
+assert.equal(context.transferred.body,'sun');assert.equal(context.transferred.star,'');
+assert.equal(context.transferred.hs,0);assert.equal(context.transferred.drlon,-117);
+assert.equal(context.shown,'sight');
+call('skySelected=59; drawSky()');
+assert.equal($('sky_sight').disabled,true,'below-horizon Moon cannot start a sight');
+$('sky_sight').onclick();assert.equal(context.transferred.body,'sun');
 $('sky_date').value='2026-06-21';$('sky_time').value='03:00:00';
 $('sky_lat').value='N 34 00';$('sky_lon').value='W 117 00';
 (async()=>{
@@ -40,6 +56,6 @@ $('sky_lat').value='N 34 00';$('sky_lon').value='W 117 00';
   assert.equal(call('skyResult.date'),'2026-06-21');
   const invalid=call('refreshSky()');pending[2]({ok:true,json:async()=>({error:'Invalid date'})});await invalid;
   assert.equal(call('skyResult'),null);assert.equal($('sky_sight').disabled,true);
-  assert.equal($('sky_chart').innerHTML,'');
-  console.log('sky-ui: DR formats, chart orientation, escaping, stale responses and error clearing passed');
+  assert.equal($('sky_chart').innerHTML,'');assert.equal($('sky_bodies').innerHTML,'');
+  console.log('sky-ui: DR formats, chart orientation, body markers/handoff, escaping, stale responses and error clearing passed');
 })().catch(e=>{console.error(e);process.exit(1);});

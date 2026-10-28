@@ -356,6 +356,15 @@ static size_t api_sky(const char *qs,char *out,size_t cap){
         jint(&j,"azimuth_defined",s->azimuth_defined); jint(&j,"eligible",s->eligible); jint(&j,"selected",s->selected);
         jtrim(&j); jput(&j,"},");
     }
+    jtrim(&j); jput(&j,"],\"bodies\":[");
+    for(i=0;i<sky.body_count;i++){
+        const NavSkyStar *s=&sky.bodies[i];
+        jput(&j,"{"); jint(&j,"index",(long)(sky.count+i)); jstr(&j,"name",s->name);
+        jstr(&j,"body",s->name); jint(&j,"is_body",1);
+        jnum(&j,"altitude",s->altitude); jnum(&j,"azimuth",s->azimuth); jnum(&j,"magnitude",s->magnitude);
+        jint(&j,"azimuth_defined",s->azimuth_defined); jint(&j,"eligible",0); jint(&j,"selected",0);
+        jtrim(&j); jput(&j,"},");
+    }
     jtrim(&j); jput(&j,"]}"); return j.n;
 invalid_date:
     strcpy(err,"Enter a valid Gregorian UTC date (1600-2399) and time; seconds must be below 60.");

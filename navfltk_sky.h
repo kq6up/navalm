@@ -19,6 +19,8 @@ class SkyCanvas : public Fl_Widget {
   public:
     NavSky sky{};
     bool ready=false, names=true;
+    size_t object_count() const { return sky.count+sky.body_count; }
+    const NavSkyStar &object(size_t i) const { return *navsky_object(&sky,i); }
     int selected=-1;
     std::function<void(int)> choose;
     SkyCanvas(int x,int y,int w,int h):Fl_Widget(x,y,w,h) {}
@@ -44,10 +46,11 @@ class SkyCanvas : public Fl_Widget {
             fl_pop_clip(); return;
         }
         std::vector<int> order;
-        for(size_t i=0;i<sky.count;i++) if(sky.stars[i].altitude>0) order.push_back(int(i));
+        for(size_t i=0;i<object_count();i++) if(object(i).altitude>0) order.push_back(int(i));
         std::stable_sort(order.begin(),order.end(),[&](int a,int b){
-            if(sky.stars[a].selected!=sky.stars[b].selected) return sky.stars[a].selected>sky.stars[b].selected;
-            return sky.stars[a].magnitude<sky.stars[b].magnitude;
+            if(object(a).is_body!=object(b).is_body) return object(a).is_body>object(b).is_body;
+            if(object(a).selected!=object(b).selected) return object(a).selected>object(b).selected;
+            return object(a).magnitude<object(b).magnitude;
         });
         struct Rect {double x,y,w,h;};
         std::vector<Rect> labels;
@@ -57,17 +60,26 @@ class SkyCanvas : public Fl_Widget {
         }
         fl_font(FL_HELVETICA,11);
         for(int index:order){
-            const auto &s=sky.stars[index]; double px,py; point(s,px,py);
-            auto color=s.selected?fl_rgb_color(255,218,120):s.eligible?
+            const auto &s=object(index); double px,py; point(s,px,py);
+            auto color=s.is_body?(s.body==NAV_SUN?fl_rgb_color(255,198,66):s.body==NAV_MOON?
+                fl_rgb_color(204,220,245):fl_rgb_color(255,156,112)):s.selected?fl_rgb_color(255,218,120):s.eligible?
                 fl_rgb_color(225,234,247):fl_rgb_color(130,145,169);
-            double size=std::max(2.,5-s.magnitude*.65);
+            double size=s.is_body?(s.body==NAV_SUN || s.body==NAV_MOON?6.:4.):std::max(2.,5-s.magnitude*.65);
             if(s.selected || index==selected){
                 double ring=index==selected?11:8;
                 fl_color(index==selected?fl_rgb_color(123,216,230):color);
                 fl_arc(px-ring,py-ring,ring*2,ring*2,0,360);
             }
             fl_color(color); fl_pie(px-size,py-size,size*2,size*2,0,360);
-            if(!names) continue;
+            if(s.is_body){
+                fl_color(fl_rgb_color(16,28,48));
+                if(s.body==NAV_MOON){
+                    fl_color(fl_rgb_color(130,145,169));
+                    fl_pie(px-3,py-3,2,2,0,360); fl_pie(px+1,py+1,3,3,0,360);
+                }
+                else if(s.body!=NAV_SUN) fl_pie(px-1.5,py-1.5,3,3,0,360);
+            }
+            if(!names && !s.is_body) continue;
             double width=fl_width(s.name);
             const double offsets[][2]={{11,-9},{11,17},{-width-11,-9},{-width-11,17},{11,-25},{-width-11,33}};
             for(const auto &offset:offsets){
@@ -87,8 +99,8 @@ class SkyCanvas : public Fl_Widget {
     int handle(int event) override {
         if(event==FL_PUSH && ready){
             int nearest=-1; double distance=16;
-            for(size_t i=0;i<sky.count;i++) if(sky.stars[i].altitude>0){
-                double px,py; point(sky.stars[i],px,py);
+            for(size_t i=0;i<object_count();i++) if(object(i).altitude>0){
+                double px,py; point(object(i),px,py);
                 double d=std::hypot(px-Fl::event_x(),py-Fl::event_y());
                 if(d<distance){nearest=int(i);distance=d;}
             }
