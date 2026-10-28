@@ -400,7 +400,7 @@ static const char navweb_page[] =
 "    <div id=\"book_path\"></div>\n"
 "    <a id=\"book_download\" hidden>Download book</a>\n"
 "  </div>\n"
-"  <p class=\"hint\">5.2 practice book for learning and recreation. Several official-book sections\n"
+"  <p class=\"hint\">5.3 practice book for learning and recreation. Several official-book sections\n"
 "    are still missing. For navigation, buy and use the official Nautical Almanac.</p>\n"
 "</section>\n"
 "\n"

@@ -31,9 +31,9 @@ Charts + setup page show the selected engine and ephemeris details.
 
 - **Almanac:** UTC date/time, body or catalogue star, DR; paper almanac or a
   complete hourly table, with text export.
-- **Planetarium (5.2):** view the 58-star sky for a DR and UTC time;
+- **Planetarium (5.3):** view the 58 navigation stars, Sun, Moon and five planets for a DR and UTC time;
   suggest three/four stars by bearing spread, brightness and altitude. Jump to
-  morning/evening sight windows and carry a selected star into a new observation.
+  morning/evening sight windows and carry a selected object into a new observation.
   See [PLANETARIUM.md](PLANETARIUM.md) for orientation and planning conventions.
 - **Annual book (5.2):** choose a year and sections, then export a vector
   PDF or editable LaTeX source with progress and cancellation. LaTeX compilation

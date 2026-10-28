@@ -700,7 +700,7 @@ class Workbench {
         book_shade_rows->labelsize(15);
         book_shade_rows->value(0);
         auto *book_note = new Fl_Box(36, 521, 1090, 116,
-            "5.2 PRACTICE BOOK\n"
+            "5.3 PRACTICE BOOK\n"
             "Ageton can be added, substituted for the calculator guide, or omitted.\n"
             "NAO Concise lookup tables and several official-book sections are still to come.\n"
             "For learning and recreation. For navigation, buy and use the official Nautical Almanac.");

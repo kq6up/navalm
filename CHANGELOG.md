@@ -1,4 +1,4 @@
-# Unreleased
+# Changes in NAVALM 5.3
 
 - Added the Sun, Moon, Mercury, Venus, Mars, Jupiter and Saturn to the native
   and browser planetarium, with distinct symbols, coordinates, persistent body
