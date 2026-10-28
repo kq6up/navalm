@@ -11,6 +11,11 @@ permissions:
 
 jobs:
   linux:
+    name: Linux / ${{ matrix.fltk }}
+    strategy:
+      fail-fast: false
+      matrix:
+        fltk: [bundled-1.4.5, system-1.3.8]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -31,9 +36,21 @@ jobs:
           curl --fail --location --retry 2 --output .local/maps/ne_10m_land.shp \
             https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/10m_physical/ne_10m_land.shp
           echo '4cad3a49bc75c1a4c2f3d7efae04f2f8e63151c96764b2658effabf524331fa6  .local/maps/ne_10m_land.shp' | sha256sum -c -
-      - name: Build pinned FLTK and all interfaces
+      - name: Prepare bundled FLTK 1.4.5
+        if: matrix.fltk == 'bundled-1.4.5'
         run: |
           make fltk-deps
+          echo "FLTK_CONFIG=$PWD/.deps/fltk/bin/fltk-config" >> "$GITHUB_ENV"
+      - name: Prepare system FLTK 1.3.8 with a stale local config
+        if: matrix.fltk == 'system-1.3.8'
+        run: |
+          sudo apt-get install -y libfltk1.3-dev
+          test "$(fltk-config --version)" = 1.3.8
+          mkdir -p .deps/fltk/bin
+          printf '#!/bin/sh\necho "ERROR: stale local FLTK selected" >&2\nexit 1\n' > .deps/fltk/bin/fltk-config
+          chmod +x .deps/fltk/bin/fltk-config
+      - name: Build all interfaces
+        run: |
           make -j4 navalm navalm-book desktop
           ./navalm -v
       - name: Navigation, plotting, planetarium and book checks

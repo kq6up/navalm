@@ -13,9 +13,9 @@
 #ifndef NAV_VERSION_H
 #define NAV_VERSION_H
 
-#define NAVALM_VERSION "5.4"
+#define NAVALM_VERSION "5.4.1"
 /* Platform metadata requires a numeric version, without the preview suffix. */
-#define NAVALM_VERSION_NUMBER "5.4.0"
-#define NAVALM_VERSION_WINDOWS 5,4,0,0
+#define NAVALM_VERSION_NUMBER "5.4.1"
+#define NAVALM_VERSION_WINDOWS 5,4,1,0
 
 #endif

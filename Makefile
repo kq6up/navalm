@@ -3,7 +3,14 @@ CFLAGS ?= -O2 -Wall -Wextra -std=c99
 LDLIBS ?= -lm
 CXX ?= c++
 CXXFLAGS ?= -O2 -Wall -Wextra -std=c++17
+# Keep the native macOS bundle preference; use distribution FLTK on Linux so
+# stale/copied .deps libraries cannot override the installed system package.
+# An explicit FLTK_CONFIG (command line or environment) always takes priority.
+ifeq ($(shell uname -s),Darwin)
 FLTK_CONFIG ?= $(if $(wildcard .deps/fltk/bin/fltk-config),.deps/fltk/bin/fltk-config,fltk-config)
+else
+FLTK_CONFIG ?= $(if $(shell command -v fltk-config 2>/dev/null),fltk-config,$(if $(wildcard .deps/fltk/bin/fltk-config),.deps/fltk/bin/fltk-config,fltk-config))
+endif
 
 # The ncurses interface (./navalm --gui) is built by default.
 # If curses is unavailable:  make nogui

@@ -37,6 +37,12 @@
 #include <memory>
 #include <thread>
 
+// Xlib (included by FLTK 1.3) defines None as a macro, which conflicts
+// with navbook::Reduction::None used below. Keep the fix local to this TU.
+#ifdef None
+#undef None
+#endif
+
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
