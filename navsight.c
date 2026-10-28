@@ -325,6 +325,9 @@ void navsight_print_paper(FILE *out,const NavPaper *p,int width){
 int navsight_validate(const Sight *si,char *err,size_t errn){
     int days[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
     if(!si){ snprintf(err,errn,"no sight supplied"); return 1; }
+    if(si->reduce_at_dr != 0 && si->reduce_at_dr != 1){
+        snprintf(err,errn,"invalid reduction method"); return 1;
+    }
     if(!memchr(si->body,0,sizeof si->body) || !memchr(si->star,0,sizeof si->star)){
         snprintf(err,errn,"invalid saved body or star name"); return 1;
     }
@@ -483,65 +486,90 @@ int navsight_reduce(const Sight *si,Reduction *r,char *err,size_t errn){
         }
     }
 
-    /* ---- assumed position ---- */
-    {
-        double lha_whole,alon;
-        r->ap_lat = floor(si->dr_lat + 0.5);
-        lha_whole = floor(si->dr_lon + r->gha + 0.5);
-        alon = lha_whole - r->gha;
-        if(alon >  180.0) alon -= 360.0;
-        if(alon < -180.0) alon += 360.0;
-        r->ap_lon = alon;
-        r->lha = ((int)floor(norm360(lha_whole)+0.5)) % 360;
-    }
-
-    /* ---- HO 229 ---- */
-    {
-        double L = fabs(r->ap_lat);
-        int lat_north = (r->ap_lat >= 0.0);
-        double D = fabs(r->dec);
-        double sgn;
-        double hc_tab,hc_next,hc_exact,z;
-
-        r->same_name = ((r->dec >= 0.0) == lat_north) || r->dec == 0.0;
-        sgn = r->same_name ? 1.0 : -1.0;
-        r->dec_deg_whole = (int)floor(D);
-        r->dec_inc_min = (D - floor(D))*60.0;
-
-        {
-            double sl=sin(rad(L)), cl=cos(rad(L)), ch=cos(rad((double)r->lha));
-            double dd;
-            dd = sgn*floor(D);
-            hc_tab  = deg(asin(clampd(sl*sin(rad(dd)) + cl*cos(rad(dd))*ch,-1,1)));
-            dd = sgn*(floor(D)+1.0);
-            hc_next = deg(asin(clampd(sl*sin(rad(dd)) + cl*cos(rad(dd))*ch,-1,1)));
-            dd = sgn*D;
-            hc_exact= deg(asin(clampd(sl*sin(rad(dd)) + cl*cos(rad(dd))*ch,-1,1)));
-
-            {
-                double sh=sin(rad(hc_exact)), den=cl*cos(rad(hc_exact));
-                z = (fabs(den) > 1e-12)
-                    ? deg(acos(clampd((sin(rad(dd)) - sl*sh)/den,-1,1)))
-                    : 0.0;
-            }
-        }
-
-        if(hc_exact < -1.0){
-            snprintf(err,errn,"body is below the horizon at the assumed position");
+    if(si->reduce_at_dr){
+        double phi=rad(si->dr_lat), dec=rad(r->dec), h;
+        double east, north, up;
+        r->ap_lat=si->dr_lat;
+        r->ap_lon=si->dr_lon;
+        r->lha_deg=norm360(r->gha+si->dr_lon);
+        h=rad(r->lha_deg);
+        up=sin(phi)*sin(dec)+cos(phi)*cos(dec)*cos(h);
+        east=-cos(dec)*sin(h);
+        north=cos(phi)*sin(dec)-sin(phi)*cos(dec)*cos(h);
+        if(hypot(east,north)<1e-12){
+            snprintf(err,errn,"azimuth is undefined at the zenith or nadir; use another sight");
             return 1;
         }
+        h=deg(asin(clampd(up,-1,1)));
+        if(h < -1.0){
+            snprintf(err,errn,"body is below the horizon at the DR position");
+            return 1;
+        }
+        r->hc_min=floor(h*600.0+0.5)/10.0;
+        r->zn=norm360(deg(atan2(east,north)));
+    } else {
+        /* ---- assumed position ---- */
+        {
+            double lha_whole,alon;
+            r->ap_lat = floor(si->dr_lat + 0.5);
+            lha_whole = floor(si->dr_lon + r->gha + 0.5);
+            alon = lha_whole - r->gha;
+            if(alon >  180.0) alon -= 360.0;
+            if(alon < -180.0) alon += 360.0;
+            r->ap_lon = alon;
+            r->lha = ((int)floor(norm360(lha_whole)+0.5)) % 360;
+            r->lha_deg = r->lha;
+        }
 
-        r->tab_hc_min  = floor(hc_tab*60.0*10.0+0.5)/10.0;
-        r->d_tab_min   = floor((hc_next-hc_tab)*60.0*10.0+ (hc_next>hc_tab?0.5:-0.5))/10.0;
-        r->dcorr229_min= r->d_tab_min * r->dec_inc_min/60.0;
-        r->hc_min      = floor(hc_exact*60.0*10.0+0.5)/10.0;
-        r->secdiff_min = r->hc_min - (r->tab_hc_min + r->dcorr229_min);
+        /* ---- HO 229 ---- */
+        {
+            double L = fabs(r->ap_lat);
+            int lat_north = (r->ap_lat >= 0.0);
+            double D = fabs(r->dec);
+            double sgn;
+            double hc_tab,hc_next,hc_exact,z;
 
-        r->z = z;
-        if(lat_north) r->zn = (r->lha > 180) ? z : 360.0 - z;
-        else          r->zn = (r->lha > 180) ? 180.0 - z : 180.0 + z;
-        r->zn = norm360(r->zn);
-    }
+            r->same_name = ((r->dec >= 0.0) == lat_north) || r->dec == 0.0;
+            sgn = r->same_name ? 1.0 : -1.0;
+            r->dec_deg_whole = (int)floor(D);
+            r->dec_inc_min = (D - floor(D))*60.0;
+
+            {
+                double sl=sin(rad(L)), cl=cos(rad(L)), ch=cos(rad((double)r->lha));
+                double dd;
+                dd = sgn*floor(D);
+                hc_tab  = deg(asin(clampd(sl*sin(rad(dd)) + cl*cos(rad(dd))*ch,-1,1)));
+                dd = sgn*(floor(D)+1.0);
+                hc_next = deg(asin(clampd(sl*sin(rad(dd)) + cl*cos(rad(dd))*ch,-1,1)));
+                dd = sgn*D;
+                hc_exact= deg(asin(clampd(sl*sin(rad(dd)) + cl*cos(rad(dd))*ch,-1,1)));
+
+                {
+                    double sh=sin(rad(hc_exact)), den=cl*cos(rad(hc_exact));
+                    z = (fabs(den) > 1e-12)
+                        ? deg(acos(clampd((sin(rad(dd)) - sl*sh)/den,-1,1)))
+                        : 0.0;
+                }
+            }
+
+            if(hc_exact < -1.0){
+                snprintf(err,errn,"body is below the horizon at the assumed position");
+                return 1;
+            }
+
+            r->tab_hc_min  = floor(hc_tab*60.0*10.0+0.5)/10.0;
+            r->d_tab_min   = floor((hc_next-hc_tab)*60.0*10.0+ (hc_next>hc_tab?0.5:-0.5))/10.0;
+            r->dcorr229_min= r->d_tab_min * r->dec_inc_min/60.0;
+            r->hc_min      = floor(hc_exact*60.0*10.0+0.5)/10.0;
+            r->secdiff_min = r->hc_min - (r->tab_hc_min + r->dcorr229_min);
+
+            r->z = z;
+            if(lat_north) r->zn = (r->lha > 180) ? z : 360.0 - z;
+            else          r->zn = (r->lha > 180) ? 180.0 - z : 180.0 + z;
+            r->zn = norm360(r->zn);
+        }
+
+    } /* reduction method */
 
     r->intercept_nm = (floor(r->ho*60.0*10.0+0.5)/10.0) - r->hc_min;
     return 0;
@@ -631,34 +659,45 @@ void navsight_print_reduction(FILE *out,const Sight *si,const Reduction *r){
         }
     }
 
-    fprintf(out,"\nAssumed position\n");
-    fprintf(out,"  %-14s %10s   DR latitude to the whole degree\n","a-Lat",fmt_lat(r->ap_lat,b,sizeof b));
-    fprintf(out,"  %-14s %10s   chosen for a whole-degree LHA\n","a-Lon",fmt_lon(r->ap_lon,b,sizeof b));
-    snprintf(b,sizeof b,"%03d",r->lha);
-    fprintf(out,"  %-14s %10s\n","LHA",b);
+    if(si->reduce_at_dr){
+        fprintf(out,"\nDirect reduction at DR\n");
+        fprintf(out,"  %-14s %10s\n","DR latitude",fmt_lat(r->ap_lat,b,sizeof b));
+        fprintf(out,"  %-14s %10s\n","DR longitude",fmt_lon(r->ap_lon,b,sizeof b));
+        fprintf(out,"  %-14s %10s   GHA + DR longitude, without rounding\n","LHA",fmt_alt(r->lha_deg,b,sizeof b));
+        fprintf(out,"  Spherical calculation with unrounded DR and declination\n");
+        fprintf(out,"  %-14s %10s\n","Hc",fmt_alt(r->hc_min/60.0,b,sizeof b));
+        fprintf(out,"  %-14s %10.1f   degrees true\n","Zn",r->zn);
+    } else {
+        fprintf(out,"\nAssumed position\n");
+        fprintf(out,"  %-14s %10s   DR latitude to the whole degree\n","a-Lat",fmt_lat(r->ap_lat,b,sizeof b));
+        fprintf(out,"  %-14s %10s   chosen for a whole-degree LHA\n","a-Lon",fmt_lon(r->ap_lon,b,sizeof b));
+        snprintf(b,sizeof b,"%03d",r->lha);
+        fprintf(out,"  %-14s %10s\n","LHA",b);
 
-    fprintf(out,"\nHO 229   LHA %03d, Lat %02d %c, Dec %02d %s name\n",
-           r->lha,(int)fabs(r->ap_lat),r->ap_lat<0?'S':'N',
-           r->dec_deg_whole,r->same_name?"Same":"Contrary");
-    fprintf(out,"  %-14s %10s\n","Tab Hc",fmt_alt(r->tab_hc_min/60.0,b,sizeof b));
-    fprintf(out,"  %-14s %10s\n","d",fmt_min(r->d_tab_min,b,sizeof b));
-    fprintf(out,"  %-14s %9.1f'\n","Dec inc",r->dec_inc_min);
-    fprintf(out,"  %-14s %10s   d x Dec inc / 60\n","d corr",fmt_min(r->dcorr229_min,b,sizeof b));
-    if(fabs(r->secdiff_min) >= 0.05)
-        fprintf(out,"  %-14s %10s   second-difference residual\n","2nd diff",fmt_min(r->secdiff_min,b,sizeof b));
-    fprintf(out,"  %-14s %10s\n","Hc",fmt_alt(r->hc_min/60.0,b,sizeof b));
-    snprintf(b,sizeof b,"%c %.1f %c",r->ap_lat<0?'S':'N',r->z,r->lha>180?'E':'W');
-    fprintf(out,"  %-14s %10s\n","Z",b);
-    snprintf(b,sizeof b,"%05.1f",r->zn);
-    fprintf(out,"  %-14s %10s\n","Zn",b);
+        fprintf(out,"\nHO 229   LHA %03d, Lat %02d %c, Dec %02d %s name\n",
+               r->lha,(int)fabs(r->ap_lat),r->ap_lat<0?'S':'N',
+               r->dec_deg_whole,r->same_name?"Same":"Contrary");
+        fprintf(out,"  %-14s %10s\n","Tab Hc",fmt_alt(r->tab_hc_min/60.0,b,sizeof b));
+        fprintf(out,"  %-14s %10s\n","d",fmt_min(r->d_tab_min,b,sizeof b));
+        fprintf(out,"  %-14s %9.1f'\n","Dec inc",r->dec_inc_min);
+        fprintf(out,"  %-14s %10s   d x Dec inc / 60\n","d corr",fmt_min(r->dcorr229_min,b,sizeof b));
+        if(fabs(r->secdiff_min) >= 0.05)
+            fprintf(out,"  %-14s %10s   second-difference residual\n","2nd diff",fmt_min(r->secdiff_min,b,sizeof b));
+        fprintf(out,"  %-14s %10s\n","Hc",fmt_alt(r->hc_min/60.0,b,sizeof b));
+        snprintf(b,sizeof b,"%c %.1f %c",r->ap_lat<0?'S':'N',r->z,r->lha>180?'E':'W');
+        fprintf(out,"  %-14s %10s\n","Z",b);
+        snprintf(b,sizeof b,"%05.1f",r->zn);
+        fprintf(out,"  %-14s %10s\n","Zn",b);
+
+    }
 
     fprintf(out,"\nLine of position\n");
     fprintf(out,"  %-14s %10s\n","Ho",fmt_alt(r->ho,b,sizeof b));
     fprintf(out,"  %-14s %10s\n","Hc",fmt_alt(r->hc_min/60.0,b,sizeof b));
     fprintf(out,"  %-14s %8.1f NM %s\n","Intercept",fabs(r->intercept_nm),
            r->intercept_nm>=0?"Toward":"Away");
-    fprintf(out,"  %-14s from AP %s %s, lay off %.1f NM %s %03.0f,\n"
-           "                 then draw the LOP at right angles\n","Plot",
+    fprintf(out,"  %-14s from %s %s %s, lay off %.1f NM %s %03.0f,\n"
+           "                 then draw the LOP at right angles\n","Plot",si->reduce_at_dr?"DR":"AP",
            fmt_lat(r->ap_lat,b,sizeof b),fmt_lon(r->ap_lon,c2,sizeof c2),
            fabs(r->intercept_nm),r->intercept_nm>=0?"toward":"away from",r->zn);
 }
@@ -667,10 +706,10 @@ void navsight_print_brief(FILE *out,const Sight *si,const Reduction *r){
     char ho[40],la[40],lo[40],id[16];
     if(si->id > 0) snprintf(id,sizeof id,"%3d",si->id);
     else           snprintf(id,sizeof id,"  -");
-    fprintf(out,"%s  %-9s %04d-%02d-%02d %02d:%02d:%04.1f  Ho %s  a %5.1f %s  Zn %05.1f  AP %s %s%s%s\n",
+    fprintf(out,"%s  %-9s %04d-%02d-%02d %02d:%02d:%04.1f  Ho %s  a %5.1f %s  Zn %05.1f  %s %s %s%s%s\n",
            id,body_label(si),si->y,si->mo,si->d,si->h,si->mi,si->s,
            fmt_alt(r->ho,ho,sizeof ho),
-           fabs(r->intercept_nm),r->intercept_nm>=0?"T":"A",r->zn,
+           fabs(r->intercept_nm),r->intercept_nm>=0?"T":"A",r->zn,si->reduce_at_dr?"DR":"AP",
            fmt_lat(r->ap_lat,la,sizeof la),fmt_lon(r->ap_lon,lo,sizeof lo),
            si->label[0]?"  ":"",si->label);
     if(fabs(r->intercept_nm) > 60.0)
@@ -789,6 +828,7 @@ int navsight_store_load(SightStore *st,char *err,size_t errn){
             else if(!strcmp(key,"limb"))     si.limb = !strcmp(val,"ll") ? 1 : (!strcmp(val,"ul") ? -1 : 0);
             else if(!strcmp(key,"temp"))     si.temp_c = atof(val);
             else if(!strcmp(key,"press"))    si.press_mb = atof(val);
+            else if(!strcmp(key,"at_dr"))    si.reduce_at_dr = atoi(val);
             else if(!strcmp(key,"drlat"))    si.dr_lat = atof(val);
             else if(!strcmp(key,"drlon"))    si.dr_lon = atof(val);
             else if(!strcmp(key,"label"))    { strncpy(si.label,val,sizeof si.label-1); si.label[sizeof si.label-1]=0; }
@@ -828,6 +868,7 @@ int navsight_store_save(const SightStore *st,char *err,size_t errn){
         fprintf(f," limb=%s",s->limb>0?"ll":(s->limb<0?"ul":"center"));
         fprintf(f," temp=%.1f press=%.1f",s->temp_c,s->press_mb);
         fprintf(f," drlat=%.6f drlon=%.6f",s->dr_lat,s->dr_lon);
+        if(s->reduce_at_dr) fprintf(f," at_dr=%d",s->reduce_at_dr);
         if(s->has_motion)
             fprintf(f," course=%.1f speed=%.2f set=%.1f drift=%.2f",
                     s->course,s->speed,s->set,s->drift);

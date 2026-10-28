@@ -47,6 +47,7 @@ typedef struct {
     int    has_motion;            /* running fix: vessel motion for advancing */
     double course, speed;         /* degrees true, knots */
     double set, drift;            /* degrees true, knots */
+    int reduce_at_dr;             /* 1 = use entered DR; 0 = whole-degree HO 229 AP */
 } Sight;
 
 typedef struct {
@@ -67,7 +68,8 @@ typedef struct {
 
     /* assumed position and HO 229 */
     double ap_lat, ap_lon;
-    int    lha;
+    int    lha;                  /* whole-degree HO 229 lookup only */
+    double lha_deg;              /* continuous LHA, including direct-at-DR mode */
     int    same_name;
     int    dec_deg_whole;
     double tab_hc_min, d_tab_min, dec_inc_min, dcorr229_min, secdiff_min, hc_min;

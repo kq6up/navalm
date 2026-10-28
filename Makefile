@@ -176,6 +176,9 @@ check-plot:
 check-list:
 	node tests/sight_list.js
 
+check-direct-dr: navalm
+	python3 tests/direct_dr.py
+
 # Real HTTP integration with isolated HOME; needs the normal DE440s ephemeris.
 check-web-book: navalm
 	python3 tests/web_book.py
@@ -194,4 +197,4 @@ distclean: clean
 	rm -f $(EPHEM_NAV)
 
 .PHONY: all nogui classic-only ephem ephem-fetch stars page clean distclean check-paper check-plot check-list
-.PHONY: desktop fltk-deps desktop-app check-desktop desktop-checks-app check-book check-web-book check-sky
+.PHONY: desktop fltk-deps desktop-app check-desktop desktop-checks-app check-book check-web-book check-sky check-direct-dr

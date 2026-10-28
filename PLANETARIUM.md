@@ -1,4 +1,4 @@
-# Planetarium and star planner (5.1 preview)
+# Planetarium and star planner (5.2)
 
 The **Planetarium** tab is available in the FLTK workbench and the `navalm -d`
 browser interface, immediately before Annual book. It uses NAVALM's existing

@@ -71,6 +71,50 @@ int main() {
         s.dr_lon = -(117 + 21.9 / 60);
         auto red = reduce(s);
         require(std::fabs(red.intercept_nm - 6.8) < .06, "README intercept");
+        auto direct = s;
+        direct.reduce_at_dr = 1;
+        auto dr = reduce(direct);
+        require(dr.ap_lat == s.dr_lat && dr.ap_lon == s.dr_lon &&
+                    std::fabs(dr.lha_deg - std::round(dr.lha_deg)) > .01,
+                "direct reduction preserves fractional DR and LHA");
+        require(dr.ho == red.ho, "reduction method does not change altitude corrections");
+        // Independent spherical cosine law and azimuth check, including hemispheres,
+        // meridian crossing, the date line and polar latitudes.
+        constexpr double radians = 3.14159265358979323846 / 180;
+        for (double latitude : {-90., -74.3, -34.12, 0., 34.0416666666667, 74.3, 90.}) {
+            for (double longitude : {-180., -117.365, -10.2, 0., 65.1, 179.9}) {
+                auto test = direct;
+                test.dr_lat = latitude;
+                test.dr_lon = longitude;
+                double h = (red.gha + longitude) * radians;
+                double phi = latitude * radians, dec = red.dec * radians;
+                double expected = std::asin(std::sin(phi)*std::sin(dec) +
+                    std::cos(phi)*std::cos(dec)*std::cos(h)) / radians;
+                Reduction result{};
+                int status = navsight_reduce(&test, &result, err, sizeof err);
+                if (expected < -1) {
+                    require(status != 0, "below-horizon direct reduction rejected");
+                    continue;
+                }
+                require(status == 0 && std::fabs(result.hc_min / 60 - expected) <= .05/60 + 1e-10,
+                        "direct Hc agrees with independent spherical calculation");
+                if (std::fabs(latitude) < 90) {
+                    double z = std::acos(std::clamp((std::sin(dec) - std::sin(phi)*
+                        std::sin(expected*radians))/(std::cos(phi)*std::cos(expected*radians)), -1., 1.)) / radians;
+                    if (std::sin(h) > 0) z = 360 - z;
+                    require(std::fabs(std::remainder(result.zn-z,360)) < 1e-7,
+                            "direct azimuth quadrant agrees with cosine law");
+                }
+            }
+        }
+        auto overhead = direct;
+        overhead.dr_lat = red.dec;
+        overhead.dr_lon = std::remainder(-red.gha, 360);
+        Reduction undefined{};
+        require(navsight_reduce(&overhead, &undefined, err, sizeof err) != 0 &&
+                    std::string(err).find("undefined") != std::string::npos,
+                "zenith has no arbitrary azimuth");
+        std::puts("PASS direct-at-DR position, fractional LHA, Hc, azimuth and singularity checks");
         auto zero = s;
         zero.dr_lat = zero.dr_lon = 0;
         require(!navsight_validate(&zero, err, sizeof err), "zero/zero coordinates are valid");
@@ -120,6 +164,13 @@ int main() {
         if (navsight_store_load(&store, err, sizeof err))
             throw std::runtime_error(err);
         require(store.n == 1 && std::string(store.v[0].label) == "edited", "store roundtrip");
+        require(store.v[0].reduce_at_dr == 0, "old store defaults to HO 229");
+        store.v[0].reduce_at_dr = 1;
+        if (navsight_store_save(&store, err, sizeof err)) throw std::runtime_error(err);
+        navsight_store_free(&store);
+        if (navsight_store_load(&store, err, sizeof err)) throw std::runtime_error(err);
+        require(store.v[0].reduce_at_dr == 1 && reduce(store.v[0]).ap_lat == store.v[0].dr_lat,
+                "saved direct method survives reloading and re-reduction");
         navsight_store_free(&store);
         std::puts("PASS shared precise reduction and store persistence");
         fs::create_directories(".build/desktop-test");
@@ -162,6 +213,21 @@ int main() {
                         count(sheet, "assumed-position") == 3 &&
                         count(sheet, "intercept-arrow") == 3,
                     "web sheet compass, AP markers, arrows and enlarged cocked hat");
+            auto mixed_sights = sights;
+            mixed_sights[0].reduce_at_dr = 1;
+            auto mixed_red = r;
+            mixed_red[0] = reduce(mixed_sights[0]);
+            FixResult mixed_fix{};
+            require(!navsight_fix(mixed_sights.data(), mixed_red.data(), mixed_sights.size(),
+                        0,0,0,0,0,0,0,&mixed_fix,err,sizeof err), "mixed AP/DR fix succeeds");
+            auto mixed_overlay = overlay(mixed_sights,mixed_red,mixed_fix);
+            require(mixed_overlay.reductions[0].ap_lat == sights[0].dr_lat &&
+                        std::fabs(mixed_fix.lat-f.lat)*60 < .15 &&
+                        std::fabs(mixed_fix.lon-f.lon)*60 < .15,
+                    "mixed fix and plotting retain the direct DR reference");
+            const bool mixed_visible[4] = {true,true,true,true};
+            auto mixed_svg = svg(mixed_overlay, mixed_visible, 1);
+            require(mixed_svg.find("DR 1") != std::string::npos, "direct plotting marker is labelled DR");
             auto two = o;
             two.sights.pop_back();
             two.reductions.pop_back();

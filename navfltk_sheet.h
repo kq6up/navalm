@@ -197,7 +197,7 @@ inline Sheet make_sheet(const Overlay &o) {
                {c, "none", "", 2.2}, 1, 0, "lop");
         d.path({{ap.x, ap.y - 5}, {ap.x + 4.5, ap.y + 3}, {ap.x - 4.5, ap.y + 3}},
                {c, "none", "", 1.4}, 1, 0, true, "assumed-position");
-        d.text({ap.x + 7, ap.y + 12}, "AP " + std::to_string(i + 1), 2, 0, 9.5, c, "start", true,
+        d.text({ap.x + 7, ap.y + 12}, std::string(o.sights[i].reduce_at_dr ? "DR " : "AP ") + std::to_string(i + 1), 2, 0, 9.5, c, "start", true,
                true, false, true, true);
         Point a{l.e + pe * LL * .72, l.n + pn * LL * .72},
             b{l.e - pe * LL * .72, l.n - pn * LL * .72};
@@ -247,7 +247,7 @@ inline Sheet make_sheet(const Overlay &o) {
     sbtext << sb;
     d.text({bx + bw / 2, by + 2}, sbtext.str() + " NM", 0, -1, 9, MUT, "middle", true);
     d.text({PAD, PAD - 14}, "UNIVERSAL PLOTTING SHEET", 0, -1, 11, INK, "start", false, true);
-    d.text({PAD + pw, PAD - 14}, "each sight from its own HO 229 assumed position", 0, -1, 10, MUT,
+    d.text({PAD + pw, PAD - 14}, "each sight from its own calculation position (AP or DR)", 0, -1, 10, MUT,
            "end", false, false, true);
     double sy = PAD + ph + 16;
     if (hat.size() == 3) {
@@ -293,7 +293,7 @@ inline Sheet make_sheet(const Overlay &o) {
         "Grid intervals: latitude " + decimal(step, step < 1 ? 1 : 0) + "', longitude " +
             decimal(lonStep, lonStep < 1 ? 1 : 0) + "'.",
         "",
-        "Every sight keeps its own HO 229 assumed position. The intercept",
+        "Every sight keeps its own calculation position (AP or DR). The intercept",
         "is stepped toward the body when Ho is the greater and away when",
         "it is the less, then the LOP is drawn square to the azimuth."};
     for (size_t i = 0; i < footer.size(); ++i)

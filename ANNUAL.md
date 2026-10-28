@@ -1,4 +1,4 @@
-# Annual practice almanac — 5.1 development preview
+# Annual practice almanac — 5.2
 
 The **Annual book** tab builds a PDF for a chosen Gregorian year with independently
 selectable Sun/Moon, planets, stars, Greenwich events, increments, altitude
@@ -212,7 +212,8 @@ file replacement passed automated checks. Whole-year and leap-year PDFs
 were generated; representative page styles were rendered and visually checked,
 and printable text bounds were checked across the full preview. The Windows
 cross-build is a compilation check, not proof that this new feature runs on Windows.
-No 5.1 release has been published.
+The 5.2 release includes this practice-book generator; it remains incomplete
+compared with the official Nautical Almanac.
 
 The familiar three-day organization was studied from the [1981 USCG examination
 reference](https://www.dco.uscg.mil/Portals/9/NMC/pdfs/examinations/10_1981_nautical_almanac.pdf)

@@ -341,7 +341,7 @@ class Workbench {
     Fl_Input *date, *time, *hs, *label, *lat, *lon, *ie, *height, *temp, *press, *course, *speed,
         *set, *drift;
     Fl_Input *al_date, *al_time, *al_lat, *al_lon, *fix_date, *fix_time;
-    Fl_Check_Button *motion, *fix_at, *layers[4], *map_toggle;
+    Fl_Check_Button *at_dr, *motion, *fix_at, *layers[4], *map_toggle;
     Fl_Value_Slider *opacity;
     Fl_Multi_Browser *saved;
     Plot *plot;
@@ -477,13 +477,15 @@ class Workbench {
         units = choice(386, 478, 90, "Units", "Feet|Metres");
         temp = input(36, 540, 210, "Temperature · Celsius");
         press = input(266, 540, 210, "Pressure · millibars");
-        motion = new Fl_Check_Button(36, 584, 430, 25,
+        at_dr = new Fl_Check_Button(36, 574, 430, 22, "Reduce at DR (no whole-degree LHA)");
+        at_dr->labelsize(13);
+        motion = new Fl_Check_Button(36, 601, 430, 22,
                                      "Advance this LOP using vessel motion and current");
         motion->labelsize(13);
-        course = input(36, 640, 100, "Course · true");
-        speed = input(149, 640, 100, "Speed · kn");
-        set = input(262, 640, 100, "Set · true");
-        drift = input(375, 640, 101, "Drift · kn");
+        course = input(36, 650, 100, "Course · true");
+        speed = input(149, 650, 100, "Speed · kn");
+        set = input(262, 650, 100, "Set · true");
+        drift = input(375, 650, 101, "Drift · kn");
         reduce_button = button(36, 696, 130, "Reduce sight", [this] { reduce_sight(); }, true);
         save_button = button(178, 696, 140, "Save as new", [this] { save_sight(false); });
         update_button = button(330, 696, 146, "Update edited", [this] { save_sight(true); });
@@ -698,7 +700,7 @@ class Workbench {
         book_shade_rows->labelsize(15);
         book_shade_rows->value(0);
         auto *book_note = new Fl_Box(36, 521, 1090, 116,
-            "5.1 DEVELOPMENT PREVIEW\n"
+            "5.2 PRACTICE BOOK\n"
             "Ageton can be added, substituted for the calculator guide, or omitted.\n"
             "NAO Concise lookup tables and several official-book sections are still to come.\n"
             "For learning and recreation. For navigation, buy and use the official Nautical Almanac.");
@@ -1054,6 +1056,7 @@ class Workbench {
         s.temp_c = number(temp->value(), "Temperature", -100, 100);
         s.press_mb = number(press->value(), "Pressure", 0, 1200);
         coordinates(lat, lat_hemi, lon, lon_hemi, s);
+        s.reduce_at_dr = at_dr->value();
         s.has_motion = motion->value();
         if (s.has_motion) {
             s.course = number(course->value(), "Course", 0, 360);
@@ -1096,6 +1099,7 @@ class Workbench {
         units->value(s.he_metres);
         temp->value(fmt(s.temp_c).c_str());
         press->value(fmt(s.press_mb).c_str());
+        at_dr->value(s.reduce_at_dr);
         motion->value(s.has_motion);
         course->value(fmt(s.course).c_str());
         speed->value(fmt(s.speed).c_str());
@@ -2003,8 +2007,22 @@ static int self_test() {
             "loaded DR stays in degrees/minutes");
     auto r = reduce(s);
     require(std::fabs(r.intercept_nm - 6.8) < .06, "README Sun intercept");
+    app.at_dr->value(1);
+    auto direct_sight = app.read_sight();
+    auto direct_result = reduce(direct_sight);
+    require(direct_sight.reduce_at_dr == 1 && direct_result.ap_lat == direct_sight.dr_lat &&
+                direct_result.ap_lon == direct_sight.dr_lon, "checkbox reduces at the full DR");
+    app.reduce_button->do_callback();
+    char *direct_report = app.report_buffer.text();
+    bool have_direct_report = std::string(direct_report).find("Direct reduction at DR") != std::string::npos;
+    std::free(direct_report);
+    require(have_direct_report, "direct method appears in native worked report");
     app.save_button->do_callback();
-    require(app.store.n == 1, "Save as new");
+    require(app.store.n == 1 && app.store.v[0].reduce_at_dr == 1, "Save as new preserves method");
+    app.load_store();
+    app.fill_sight(app.store.v[0]);
+    require(app.at_dr->value() == 1, "reopening native sight restores checkbox");
+    app.at_dr->value(0);
     int id = app.edit_id;
     app.label->value("Edited Sun example");
     app.update_button->do_callback();

@@ -199,6 +199,7 @@ table.air tr.half td{background:var(--mark)}
         to this sight alone; changing them here never changes Setup.</div>
     </details>
 
+    <label style="margin-top:.8rem"><input type="checkbox" id="f_at_dr" style="width:auto"> Reduce at DR (no whole-degree LHA)</label>
     <div class="tools">
       <button class="ghost" id="now">Now</button>
       <button class="ghost" id="loaddef">Reset to setup defaults</button>
@@ -387,7 +388,7 @@ table.air tr.half td{background:var(--mark)}
     <div id="book_path"></div>
     <a id="book_download" hidden>Download book</a>
   </div>
-  <p class="hint">5.1 development preview for learning and recreation. Several official-book sections
+  <p class="hint">5.2 practice book for learning and recreation. Several official-book sections
     are still missing. For navigation, buy and use the official Nautical Almanac.</p>
 </section>
 
@@ -497,6 +498,7 @@ function formSight(){
     horizon:$('f_horizon').value, he:fnum('f_he',0), heunit:$('f_heunit').value,
     limb:$('limb').value, temp:fnum('f_temp',10), press:fnum('f_press',1010),
     drlat:parsePos($('f_drlat').value), drlon:parsePos($('f_drlon').value),
+    at_dr:$('f_at_dr').checked?1:0,
     label:$('label').value.trim(),
     course:fnum('f_course',0), speed:fnum('f_speed',0),
     set:fnum('f_set',0), drift:fnum('f_drift',0)
@@ -523,6 +525,7 @@ function fillSight(s){
   $('limb').value=src.limb||'ll';
   $('f_temp').value=src.temp; $('f_press').value=src.press;
   $('f_drlat').value=src.drlat?lat(src.drlat):''; $('f_drlon').value=src.drlon?lon(src.drlon):'';
+  $('f_at_dr').checked=!!src.at_dr;
   $('f_course').value=src.course||''; $('f_speed').value=src.speed||'';
   $('f_set').value=src.set||''; $('f_drift').value=src.drift||'';
   $('starwrap').style.display=($('body').value==='star')?'':'none';
@@ -562,6 +565,7 @@ function query(s,i){
   add('hs',s.hs); add('ie',s.ie); add('iearc',s.iearc); add('horizon',s.horizon);
   add('he',s.he); add('heunit',s.heunit); add('limb',s.limb);
   add('temp',s.temp); add('press',s.press); add('drlat',s.drlat); add('drlon',s.drlon);
+  add('at_dr',s.at_dr?1:0);
   add('label',s.label||'');
   add('course',s.course||0); add('speed',s.speed||0);
   add('set',s.set||0); add('drift',s.drift||0);
@@ -638,6 +642,15 @@ function renderWorked(r){
   }
   h+='</table>';
 
+  if(r.at_dr){
+    h+='<h2 style="margin-top:1.2rem">Direct reduction at DR</h2><table class="work">';
+    h+=row('DR latitude','entered latitude, without rounding',lat(r.ap_lat));
+    h+=row('DR longitude','entered longitude, without rounding',lon(r.ap_lon));
+    h+=row('LHA','GHA + DR longitude',gha(r.lha_deg));
+    h+=row('Hc','spherical calculation using unrounded DR and declination',alt(r.hc_min/60));
+    h+=row('Zn','true bearing from DR',num(r.zn,1)+'\u00b0');
+    h+='</table>';
+  } else {
   /* assumed position and HO 229 */
   h+='<h2 style="margin-top:1.2rem">Assumed position</h2><table class="work">';
   h+=row('a-Lat','DR latitude to the whole degree',lat(r.ap_lat));
@@ -656,6 +669,8 @@ function renderWorked(r){
         (r.ap_lat<0?'S':'N')+' '+num(r.z,1)+'\u00b0 '+(r.lha>180?'E':'W'));
   h+=row('Zn','from Z by the LHA rule',pad(Math.round(r.zn),3)+'\u00b0');
   h+='</table>';
+
+  }
 
   h+='<h2 style="margin-top:1.2rem">Line of position</h2><table class="work">';
   h+=row('Ho','',alt(r.ho));
@@ -888,7 +903,7 @@ function plotSheetGeometry(r){
     const z=l.zn*Math.PI/180;
     const u={e:Math.sin(z), n:Math.cos(z)};          /* toward the body */
     const t={e:ap.e+l.intercept_nm*u.e, n:ap.n+l.intercept_nm*u.n};
-    return {name:l.name, zn:l.zn, a:l.intercept_nm, adv:adv,
+    return {name:l.name, at_dr:!!l.at_dr, zn:l.zn, a:l.intercept_nm, adv:adv,
             ap0:a0, ap:ap, u:u, t:t,
             p:{e:Math.cos(z), n:-Math.sin(z)}};      /* along the LOP */
   });
@@ -1001,7 +1016,7 @@ function plotSheet(r){
     e.push('<path d="M '+(X(x.ap)).toFixed(1)+' '+(Y(x.ap)-5).toFixed(1)+' L '+
            (X(x.ap)+4.5).toFixed(1)+' '+(Y(x.ap)+3).toFixed(1)+' L '+
            (X(x.ap)-4.5).toFixed(1)+' '+(Y(x.ap)+3).toFixed(1)+' Z" fill="none" stroke="'+c+'" stroke-width="1.4"/>');
-    HALO(X(x.ap)+7, Y(x.ap)+12, 'AP '+(i+1), {size:9.5,fill:c,mono:1,weight:'bold'});
+    HALO(X(x.ap)+7, Y(x.ap)+12, (x.at_dr?'DR ':'AP ')+(i+1), {size:9.5,fill:c,mono:1,weight:'bold'});
     /* name the end of the LOP that falls farther from the fix, so the
        label never lands on the fix symbol */
     const lpA={e:x.t.e+x.p.e*LL*0.72, n:x.t.n+x.p.n*LL*0.72},
@@ -1049,7 +1064,7 @@ function plotSheet(r){
     '<path d="M 0 0 L 10 5 L 0 10 z" fill="'+COL[i%COL.length]+'"/></marker>').join('');
 
   T(PAD, PAD-14, 'UNIVERSAL PLOTTING SHEET', {size:11,fill:INK,weight:'bold'});
-  T(PAD+pw, PAD-14, 'each sight from its own HO 229 assumed position',
+  T(PAD+pw, PAD-14, 'each sight from its own calculation position (AP or DR)',
     {size:10,fill:MUT,anchor:'end',style:'italic'});
   /* The cocked hat, enlarged.  At sheet scale three good lines cross in
      something smaller than the fix symbol, which hides the one thing a
@@ -1090,7 +1105,7 @@ function plotSheet(r){
   ['Longitude scale uses cos '+Math.abs(gridLat).toFixed(1)+'\u00b0 = '+CL.toFixed(3)+'.',
    'Grid intervals: latitude '+step+"', longitude "+lonStep+"'.",
    '',
-   'Every sight keeps its own HO 229 assumed position. The intercept',
+   'Every sight keeps its own calculation position (AP or DR). The intercept',
    'is stepped toward the body when Ho is the greater and away when',
    'it is the less, then the LOP is drawn square to the azimuth.'
   ].forEach((t,i)=>{ if(t) T(PAD, sy+14+i*15, t, {size:9.5,fill:MUT}); });
@@ -1398,7 +1413,7 @@ function setNow(){
 
 ['body','limb','date','time','hsd','hsm','label',
  'f_ie','f_iearc','f_horizon','f_he','f_heunit','f_temp','f_press',
- 'f_drlat','f_drlon','f_course','f_speed','f_set','f_drift'].forEach(id=>{
+ 'f_at_dr','f_drlat','f_drlon','f_course','f_speed','f_set','f_drift'].forEach(id=>{
   $(id).addEventListener('input',()=>{ refresh(); renderActiveDR(); });
   $(id).addEventListener('change',()=>{ refresh(); renderActiveDR(); });
 });
@@ -1411,6 +1426,7 @@ $('star').addEventListener('input',()=>{ starMatch(); refresh(); });
 $('now').onclick=()=>{ setNow(); refresh(); };
 $('loaddef').onclick=()=>{
   const st=loadSetup();
+  $('f_at_dr').checked=false;
   $('f_ie').value=st.ie; $('f_iearc').value=st.iearc; $('f_horizon').value=st.horizon;
   $('f_he').value=st.he; $('f_heunit').value=st.heunit;
   $('f_temp').value=st.temp; $('f_press').value=st.press;

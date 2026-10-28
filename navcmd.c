@@ -111,6 +111,10 @@ static int parse_sight_options(int argc,char **argv,int start,Sight *si,
             int k = parse_position(argc,argv,i,&si->dr_lat,&si->dr_lon);
             if(k < 0){ fprintf(stderr,"%s wants LATdeg LATmin N|S LONdeg LONmin E|W\n",o); return 1; }
             *have_dr = 1; i += k;
+        } else if(!strcmp(o,"--at-dr")){
+            si->reduce_at_dr = 1;
+        } else if(!strcmp(o,"--ho229")){
+            si->reduce_at_dr = 0;
         } else if(!strcmp(o,"--label")){
             if(!need(argc,i,1,o)) return 1;
             strncpy(si->label,argv[i+1],sizeof si->label-1);

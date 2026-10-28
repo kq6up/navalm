@@ -217,6 +217,7 @@ static void web_sight(const char *qs,int i,Sight *si){
     }
     ikey(key,sizeof key,"temp",i);   si->temp_c   = qs_num(qs,key,10.0);
     ikey(key,sizeof key,"press",i);  si->press_mb = qs_num(qs,key,1010.0);
+    ikey(key,sizeof key,"at_dr",i);  si->reduce_at_dr = qs_int(qs,key,0);
     ikey(key,sizeof key,"drlat",i);  si->dr_lat   = qs_num(qs,key,0.0);
     ikey(key,sizeof key,"drlon",i);  si->dr_lon   = qs_num(qs,key,0.0);
 
@@ -282,6 +283,8 @@ static void json_reduction(Json *j,const Sight *si,const Reduction *r){
     jnum(j,"ap_lat",r->ap_lat);
     jnum(j,"ap_lon",r->ap_lon);
     jint(j,"lha",r->lha);
+    jnum(j,"lha_deg",r->lha_deg);
+    jint(j,"at_dr",si->reduce_at_dr);
     jint(j,"same_name",r->same_name);
     jint(j,"dec_deg_whole",r->dec_deg_whole);
     jnum(j,"tab_hc_min",r->tab_hc_min);
@@ -552,6 +555,7 @@ static size_t api_fix(const char *qs,char *out,size_t cap){
         jnum(&j,"hc",red[i].hc_min/60.0);
         jnum(&j,"ap_lat",red[i].ap_lat);
         jnum(&j,"ap_lon",red[i].ap_lon);
+        jint(&j,"at_dr",sel[i].reduce_at_dr);
         jnum(&j,"advanced_nm",fx.advanced_nm[i]);
         jnum(&j,"advanced_brg",fx.advanced_brg[i]);
         jnum(&j,"residual_nm",fx.residual_nm[i]);

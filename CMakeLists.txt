@@ -44,6 +44,9 @@ target_link_libraries(navalm-desktop PRIVATE navcore fltk::fltk)
 if(WIN32)
     enable_language(RC)
     target_sources(navalm-desktop PRIVATE tools/windows.rc)
+    set_property(SOURCE tools/windows.rc APPEND PROPERTY OBJECT_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/nav_version.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/windows.manifest")
     target_link_libraries(navalm-desktop PRIVATE winhttp)
     target_compile_definitions(navalm-desktop PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     set_target_properties(navalm-desktop PROPERTIES OUTPUT_NAME NAVALM)

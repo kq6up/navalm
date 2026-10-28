@@ -38,6 +38,8 @@ for(const [name,{result}] of Object.entries(fixtures.cases)){
 }
 
 const sample=fixtures.cases.stationary.result;
+const direct=clone(sample); direct.lops[0].at_dr=1;
+assert.ok(render(direct).includes('DR 1'));
 const two=clone(sample); two.lops.pop();
 assert.ok(!render(two).includes('COCKED HAT'));
 const parallel=clone(sample); parallel.lops.forEach(l=>l.zn=90);

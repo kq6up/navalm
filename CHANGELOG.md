@@ -1,13 +1,19 @@
-# NAVALM 5.1 development preview (unreleased)
+# Changes in NAVALM 5.2
 
+- Added a per-sight **Reduce at DR (no whole-degree LHA)** checkbox in the
+  native and browser interfaces, plus CLI `--at-dr` / `--ho229` switches. Direct
+  spherical reduction preserves full DR latitude/longitude and fractional LHA;
+  Hc and intercept still round to 0.1 arcminute/NM. Saved observations retain
+  their method, and fixes/plots use each sight's corresponding AP or DR.
+  Existing observations and unchecked forms retain the HO 229 workflow.
 - Added Planetarium before Annual book in the FLTK and browser interfaces:
   a 58-star sky chart, UTC/DR and altitude/magnitude filters, three/four-star
   bearing-spread planning, next morning/evening Sun -8 degree times, and a
   selected-star handoff to a new sight. The browser also exports sky SVGs.
   Shared C tests cover both astronomy engines, coordinate conversion, polar
   cases and selection; HTTP and browser tests cover input and error handling.
-- Updated application and package version labels to 5.1-dev (numeric platform
-  metadata 5.1.0), distinguishing this preview from the released 5.0 downloads.
+- Unified application, browser, macOS and Windows version labels at 5.2
+  (numeric platform metadata 5.2.0).
 - Added Annual book as the final browser tab, with selectable sections,
   PDF/LaTeX output, shading, background progress, home-folder exports and downloads.
 - Rewrote Ageton guidance in plain language with traditional t, K, K~L, Hc
