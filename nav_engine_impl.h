@@ -28,6 +28,7 @@ int    nav_x_moon_geocentric(double jd_ut, double *lon_deg, double *lat_deg,
                              double *distance_km);
 int    nav_x_almanac(NavBody body, double jd_ut, NavAlmanac *out);
 int    nav_x_star_almanac(size_t index, double jd_ut, NavStarAlmanac *out);
+int    nav_x_catalog_star_almanac(const NavStarCat *, double jd_ut, NavStarAlmanac *out);
 
 #ifndef NAVALM_NO_PRECISE
 double nav_n_gast_deg(double jd_ut);
@@ -36,6 +37,7 @@ int    nav_n_moon_geocentric(double jd_ut, double *lon_deg, double *lat_deg,
                              double *distance_km);
 int    nav_n_almanac(NavBody body, double jd_ut, NavAlmanac *out);
 int    nav_n_star_almanac(size_t index, double jd_ut, NavStarAlmanac *out);
+int    nav_n_catalog_star_almanac(const NavStarCat *, double jd_ut, NavStarAlmanac *out);
 #endif
 
 #endif

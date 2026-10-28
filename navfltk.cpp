@@ -359,6 +359,11 @@ class Workbench {
     Fl_Box *sky_status,*sky_summary,*sky_detail;
     Fl_Button *sky_sight;
     SkyCanvas *sky_canvas;
+    std::unique_ptr<SkyWindow> sky_window;
+    Fl_Check_Button *sky_layers[3], *sky_detached_layers[3]{};
+    Fl_Check_Button *sky_detached_names=nullptr;
+    Fl_Box *sky_placeholder, *sky_detached_detail=nullptr;
+    Fl_Button *sky_detach, *sky_fullscreen=nullptr;
     std::vector<int> sky_rows;
     Sight sky_at{};
     Fl_Input *book_year;
@@ -651,9 +656,19 @@ class Workbench {
         button(894,232,247,"Next evening sights",[this]{update_sky(0);});
         sky_status=new Fl_Box(36,274,1105,35,"Enter a DR and UTC time. All 58 catalogue stars include Polaris.");
         sky_status->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);sky_status->labelsize(13);
-        sky_names=new Fl_Check_Button(36,308,420,25,"Star names (bodies always labelled)");sky_names->value(1);
-        bind(sky_names,[this]{sky_canvas->names=sky_names->value();sky_canvas->redraw();});
-        sky_canvas=new SkyCanvas(36,338,565,416);
+        sky_names=new Fl_Check_Button(36,308,375,25,"Star names (bodies always labelled)");sky_names->value(1);
+        bind(sky_names,[this]{update_sky_layers();});
+        sky_detach=button(425,306,176,"Detach sky…",[this]{
+            if(sky_window && sky_window->shown())reattach_sky();else detach_sky();
+        });
+        const char *layer_labels[]={"Constellations","Constellation names","Supporting stars"};
+        for(int i=0;i<3;i++){
+            sky_layers[i]=new Fl_Check_Button(36+i*190,340,190,25,layer_labels[i]);
+            sky_layers[i]->value(i!=1);bind(sky_layers[i],[this]{update_sky_layers();});
+        }
+        sky_placeholder=new Fl_Box(36,372,565,382,"Sky is open in its own window.\nUse Reattach sky to return it here.");
+        sky_placeholder->hide();
+        sky_canvas=new SkyCanvas(36,372,565,382);
         sky_canvas->choose=[this](int index){select_sky_star(index);};
         sky_below=new Fl_Check_Button(625,308,320,25,"Include below-horizon objects in list");
         bind(sky_below,[this]{render_sky_list();});
@@ -700,7 +715,7 @@ class Workbench {
         book_shade_rows->labelsize(15);
         book_shade_rows->value(0);
         auto *book_note = new Fl_Box(36, 521, 1090, 116,
-            "5.3 PRACTICE BOOK\n"
+            "5.4 PRACTICE BOOK\n"
             "Ageton can be added, substituted for the calculator guide, or omitted.\n"
             "NAO Concise lookup tables and several official-book sections are still to come.\n"
             "For learning and recreation. For navigation, buy and use the official Nautical Almanac.");
@@ -726,6 +741,7 @@ class Workbench {
                 auto *app = static_cast<Workbench *>(p);
                 if (app->expanded_window)
                     app->expanded_window->hide();
+                if(app->sky_window)app->sky_window->hide();
                 w->hide();
             },
             this);
@@ -774,9 +790,56 @@ class Workbench {
         std::snprintf(text,sizeof text,"%s%02ld %04.1f",value<0?"-":"",tenth/600,(tenth%600)/10.);
         return text;
     }
+    void update_sky_layers() {
+        sky_canvas->names=sky_names->value();sky_canvas->lines=sky_layers[0]->value();
+        sky_canvas->constellation_names=sky_layers[1]->value();sky_canvas->supporting=sky_layers[2]->value();
+        if(sky_detached_names)sky_detached_names->value(sky_names->value());
+        for(int i=0;i<3;i++)if(sky_detached_layers[i])sky_detached_layers[i]->value(sky_layers[i]->value());
+        sky_canvas->redraw();
+    }
+    void toggle_sky_fullscreen() {
+        if(sky_window->fullscreen_active())sky_window->fullscreen_off();else sky_window->fullscreen();
+        sky_fullscreen->copy_label(sky_window->fullscreen_active()?"Windowed (F11)":"Full screen (F11)");
+    }
+    void reattach_sky() {
+        if(!sky_window || sky_canvas->parent()!=sky_window.get())return;
+        if(sky_window->fullscreen_active())toggle_sky_fullscreen();
+        sky_window->resizable(nullptr);sky_window->remove(sky_canvas);sky_tab->add(sky_canvas);
+        sky_canvas->resize(sky_placeholder->x(),sky_placeholder->y(),sky_placeholder->w(),sky_placeholder->h());
+        sky_window->hide();sky_placeholder->hide();sky_canvas->show();
+        sky_detach->copy_label("Detach sky…");sky_tab->redraw();
+    }
+    void detach_sky() {
+        if(!sky_window){
+            sky_window=std::make_unique<SkyWindow>(1040,850,"NAVALM — Planetarium");
+            sky_window->begin();
+            sky_detached_names=new Fl_Check_Button(12,10,120,26,"Star names");
+            bind(sky_detached_names,[this]{sky_names->value(sky_detached_names->value());update_sky_layers();});
+            const char *labels[]={"Constellations","Constellation names","Supporting stars"};
+            for(int i=0;i<3;i++){
+                sky_detached_layers[i]=new Fl_Check_Button(140+i*215,10,215,26,labels[i]);
+                bind(sky_detached_layers[i],[this,i]{sky_layers[i]->value(sky_detached_layers[i]->value());update_sky_layers();});
+            }
+            sky_fullscreen=button(12,42,190,"Full screen (F11)",[this]{toggle_sky_fullscreen();});
+            button(214,42,150,"Reattach sky",[this]{reattach_sky();});
+            button(376,42,220,"Use selected for a sight",[this]{sky_to_sight();if(tabs->value()==sight_tab)reattach_sky();});
+            sky_detached_detail=new Fl_Box(608,42,420,34,"Click a navigation star or body for details.");
+            sky_detached_detail->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);sky_detached_detail->labelsize(12);
+            sky_window->end();sky_window->size_range(1040,600);
+            sky_window->toggle_fullscreen=[this]{toggle_sky_fullscreen();};
+            sky_window->callback([](Fl_Widget*,void *p){static_cast<Workbench*>(p)->reattach_sky();},this);
+        }
+        sky_tab->remove(sky_canvas);sky_window->add(sky_canvas);
+        sky_canvas->resize(0,84,sky_window->w(),sky_window->h()-84);
+        sky_window->resizable(sky_canvas);sky_placeholder->show();
+        sky_detach->copy_label("Reattach sky");update_sky_layers();
+        sky_detached_detail->copy_label(sky_detail->label());
+        sky_window->show();sky_canvas->show();sky_canvas->take_focus();
+    }
     void invalidate_sky() {
         sky_canvas->ready=false;sky_canvas->redraw();sky_list->clear();sky_rows.clear();
         sky_sight->deactivate();sky_summary->copy_label("");sky_detail->copy_label("");
+        if(sky_detached_detail)sky_detached_detail->copy_label("Update sky to recalculate.");
         sky_status->copy_label("Engine changed. Update sky to recalculate the planner.");
     }
     void render_sky_list() {
@@ -806,7 +869,9 @@ class Workbench {
         const auto &s=sky_canvas->object(index);
         std::string detail=std::string(s.name)+" · Hc "+sky_angle(s.altitude)+" · Zn "+
             (s.azimuth_defined?fmt(s.azimuth,1)+" T":"undefined at zenith")+" · mag "+fmt(s.magnitude,1);
+        if(!s.is_body && s.constellation && *s.constellation)detail+=" · "+std::string(s.constellation);
         sky_detail->copy_label(detail.c_str());
+        if(sky_detached_detail)sky_detached_detail->copy_label(detail.c_str());
         if(s.altitude>0) sky_sight->activate(); else sky_sight->deactivate();
         for(size_t row=0;row<sky_rows.size();row++) if(sky_rows[row]==index) sky_list->value(int(row)+1);
     }
@@ -848,6 +913,7 @@ class Workbench {
             message("Sky updated · next sight-window buttons seek Sun -8 deg within 48 hours.");
         } catch(...) {
             sky_canvas->ready=false;sky_canvas->redraw();sky_list->clear();sky_rows.clear();
+            if(sky_detached_detail)sky_detached_detail->copy_label("Sky unavailable. Correct entries and update.");
             sky_status->copy_label("Sky unavailable. Correct the entries and update again.");
             sky_summary->copy_label("");sky_detail->copy_label("");sky_sight->deactivate();throw;
         }
@@ -1976,7 +2042,32 @@ static int self_test() {
                 app.store.n==0 && std::string(app.date->value())==planned_date,
                 "native Sun/Moon/planet handoff uses body, planned UTC and empty Hs");
     }
-    std::puts("PASS planetarium: stars, Sun/Moon/planets, body selection, sight transfer and stale errors");
+    app.tabs->value(app.sky_tab);
+    auto *original_sky=app.sky_canvas;
+    app.detach_sky();Fl::check();
+    require(app.sky_window->shown() && app.sky_canvas->parent()==app.sky_window.get() &&
+            app.sky_placeholder->visible(),"detached sky uses original live canvas");
+    app.sky_window->size(1200,900);Fl::check();
+    require(app.sky_canvas->w()==1200 && app.sky_canvas->h()==816,"detached sky resizes");
+    app.sky_detached_layers[1]->value(1);app.sky_detached_layers[1]->do_callback();
+    require(app.sky_canvas->constellation_names && app.sky_layers[1]->value(),"detached names synchronize");
+    app.sky_layers[0]->value(0);app.sky_layers[0]->do_callback();
+    require(!app.sky_canvas->lines && !app.sky_detached_layers[0]->value(),"docked options synchronize");
+    app.toggle_sky_fullscreen();Fl::check();
+    require(app.sky_window->fullscreen_active(),"native full screen enters");
+    app.toggle_sky_fullscreen();Fl::check();
+    require(!app.sky_window->fullscreen_active(),"native full screen exits");
+    app.sky_window->do_callback();Fl::check();
+    require(!app.sky_window->shown() && app.sky_canvas==original_sky && app.sky_canvas->parent()==app.sky_tab &&
+            app.sky_canvas->w()==app.sky_placeholder->w(),"reattach restores live chart and dock size");
+    app.detach_sky();app.sky_min->value("90");rejects([&]{app.update_sky();});
+    require(!app.sky_canvas->ready && std::string(app.sky_detached_detail->label()).find("unavailable")!=std::string::npos,
+            "detached error clears original live chart");
+    app.reattach_sky();app.sky_min->value("15");app.update_sky();
+    require(app.sky_canvas->object_count()==65 && app.sky_canvas->sky.context_count==712,
+            "supporting stars are separate from selectable navigation objects");
+    app.sky_layers[0]->value(1);app.sky_layers[1]->value(0);app.update_sky_layers();
+    std::puts("PASS planetarium: native layers, detach/resize/fullscreen/reattach, stars, bodies, sight handoff and errors");
     app.example();
     auto before_missing = app.store.n;
     app.lat->value("");

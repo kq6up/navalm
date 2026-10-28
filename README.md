@@ -13,7 +13,7 @@ See [MAPS.md](MAPS.md) for downloads/OpenCPN coastlines and [WINDOWS.md](WINDOWS
 for the portable Windows x64 desktop build.
 The existing CLI, `--gui`, and `-d` browser interface remain available.
 
-Current released version: **5.3**.
+Current development version: **5.4**; latest published release: **5.3**.
 
 Version 5.2 includes a custom annual practice-book
 preview with selectable sections, compact Ageton tables and optional LaTeX source
@@ -31,7 +31,10 @@ Version 5.2 also adds a **Planetarium** tab to both interfaces: a sky chart
 of 58 navigation stars, three/four-star sight planning, altitude/brightness
 filters and morning/evening planning times. **Version 5.3** adds the Sun, Moon,
 Mercury, Venus, Mars, Jupiter and Saturn, with distinct markers and selection
-to start the matching sight. See [PLANETARIUM.md](PLANETARIUM.md).
+to start the matching sight. **Version 5.4** adds offline constellation figures,
+separate constellation-name/supporting-star toggles, brighter native planet
+labels and a detachable full-screen sky window. Browser users can expand the
+chart or enter full screen. See [PLANETARIUM.md](PLANETARIUM.md).
 
 Check **Reduce at DR (no whole-degree LHA)** on the Sight tab to keep the full
 DR latitude and longitude. Leave it unchecked for the usual whole-degree
@@ -147,7 +150,7 @@ If you downloaded a source archive, extract it and enter its source directory, t
 
 **Run `make page` before `make`.** The first command runs `mkpage.sh` to convert `page.html` into `navweb_page.h`, embedding the browser interface in the program. The second compiles the C sources and creates the `navalm` executable. Plain `make` does not regenerate the page header automatically.
 
-The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 5.3`. The executable is built in the source directory and can be run there without an installation step.
+The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 5.4`. The executable is built in the source directory and can be run there without an installation step.
 
 ### Build without ncurses
 

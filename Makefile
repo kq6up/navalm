@@ -15,7 +15,7 @@ SRC = navalm.c navsight.c navcmd.c navrc.c navweb.c navsky.c \
       nav_engine_sel.c nav_engine_x.c nav_engine_n.c \
       nav_solsys440.c nav_eph440.c nav_stars_x.c
 HDR = navfile.h nav_notice.h nav_version.h nav_engine.h nav_engine_impl.h nav_stars_x.h \
-      navsight.h navrc.h navsky.h navweb_page.h navweb_book.h air_daily.inc nav_eph440.h nav_solsys440.h
+      navsight.h navrc.h navsky.h navsky_data.inc navweb_page.h navweb_book.h air_daily.inc nav_eph440.h nav_solsys440.h
 
 # NOVAS C3.1, U.S. Naval Observatory, vendored unmodified under novas/.
 # solsys1.c, solsys2.c, solsys3.c and eph_manager.c are deliberately NOT

@@ -3,12 +3,26 @@
 #define NAVFLTK_SKY_H
 #include "navsky.h"
 #include <FL/Fl_Widget.H>
+#include <FL/Fl_Double_Window.H>
 #include <FL/Fl.H>
 #include <FL/fl_draw.H>
 #include <algorithm>
 #include <cmath>
 #include <functional>
 #include <vector>
+
+class SkyWindow : public Fl_Double_Window {
+  public:
+    std::function<void()> toggle_fullscreen;
+    using Fl_Double_Window::Fl_Double_Window;
+    int handle(int event) override {
+        if(event==FL_SHORTCUT && (Fl::event_key()==FL_F+11 ||
+           (Fl::event_key()==FL_Escape && fullscreen_active()))){
+            if(toggle_fullscreen)toggle_fullscreen();return 1;
+        }
+        return Fl_Double_Window::handle(event);
+    }
+};
 
 class SkyCanvas : public Fl_Widget {
     double radius() const { return std::max(30.,std::min(w(),h())*.5-32); }
@@ -18,7 +32,7 @@ class SkyCanvas : public Fl_Widget {
     }
   public:
     NavSky sky{};
-    bool ready=false, names=true;
+    bool ready=false, names=true, lines=true, constellation_names=false, supporting=true;
     size_t object_count() const { return sky.count+sky.body_count; }
     const NavSkyStar &object(size_t i) const { return *navsky_object(&sky,i); }
     int selected=-1;
@@ -44,6 +58,28 @@ class SkyCanvas : public Fl_Widget {
             fl_font(FL_HELVETICA,13);
             fl_draw("Enter a DR and UTC time, then Update sky.",x(),y(),w(),h(),FL_ALIGN_CENTER);
             fl_pop_clip(); return;
+        }
+        // Identification layers never enter the selectable navigation catalogue.
+        auto project=[&](double altitude,double azimuth,double &px,double &py){
+            NavSkyStar at{};at.altitude=altitude;at.azimuth=azimuth;point(at,px,py);
+        };
+        if(lines){
+            fl_color(fl_rgb_color(80,112,154));
+            for(size_t i=0;i<sky.path_count;i++){
+                const auto &path=sky.paths[i];
+                fl_begin_line();
+                for(size_t j=0;j<path.count;j++){
+                    const auto &at=sky.points[path.start+j];double px,py;
+                    project(at.altitude,at.azimuth,px,py);fl_vertex(px,py);
+                }
+                fl_end_line();
+            }
+        }
+        if(supporting){
+            fl_color(fl_rgb_color(151,173,201));
+            for(size_t i=0;i<sky.context_count;i++) if(sky.context[i].altitude>0){
+                double px,py;point(sky.context[i],px,py);fl_pie(px-1.5,py-1.5,3,3,0,360);
+            }
         }
         std::vector<int> order;
         for(size_t i=0;i<object_count();i++) if(object(i).altitude>0) order.push_back(int(i));
@@ -90,7 +126,26 @@ class SkyCanvas : public Fl_Widget {
                     if(label.x<other.x+other.w && label.x+label.w>other.x &&
                        label.y<other.y+other.h && label.y+label.h>other.y){overlap=true;break;}
                 if(!overlap){
-                    labels.push_back(label); fl_draw(s.name,int(label.x),int(label.y+11)); break;
+                    labels.push_back(label); fl_color(color); fl_draw(s.name,int(label.x),int(label.y+11)); break;
+                }
+            }
+        }
+        if(constellation_names){
+            fl_font(FL_HELVETICA,12);
+            for(size_t i=0;i<sky.figure_count;i++){
+                const auto &figure=sky.figures[i];if(!figure.visible)continue;
+                double px,py;project(figure.altitude,figure.azimuth,px,py);
+                double width=fl_width(figure.name);
+                for(int offset : {0,18,-18,36,-36}){
+                    Rect label{px-width/2,py+offset-12,width+4,16};
+                    if(label.x<x()+3 || label.x+width>x()+w()-3 || label.y<y()+12 || label.y+16>y()+h()-12)continue;
+                    bool overlap=false;
+                    for(const auto &other:labels)if(label.x<other.x+other.w && label.x+label.w>other.x &&
+                        label.y<other.y+other.h && label.y+label.h>other.y){overlap=true;break;}
+                    if(overlap)continue;
+                    labels.push_back(label);
+                    fl_color(fl_rgb_color(16,28,48));fl_rectf(int(label.x-2),int(label.y-1),int(width+5),17);
+                    fl_color(fl_rgb_color(158,199,241));fl_draw(figure.name,int(label.x),int(label.y+12));break;
                 }
             }
         }

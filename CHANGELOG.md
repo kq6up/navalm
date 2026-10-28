@@ -1,3 +1,16 @@
+# Changes in NAVALM 5.4 (local build; not yet published)
+
+- Added independent constellation-line, constellation-name and supporting-star
+  toggles in both planetariums. Offline XEphem figures cover all 88 constellations;
+  712 supporting stars complete the shapes without changing the 58-star sight
+  catalogue or planner. Navigation-star details now show constellation membership.
+- Fixed dark FLTK planet labels by restoring the object colour before drawing text.
+- Added a detachable, resizable FLTK sky window with synchronized controls,
+  full-screen/F11 and Esc to leave full screen, reattachment, and sight handoff.
+  Browser Expand sky / Full screen controls and SVG exports use the same layers.
+- Extended shared-engine, horizon-clipping, real HTTP, browser and native callback
+  checks. The astronomy calculations, CLI and web entry points remain available.
+
 # Changes in NAVALM 5.3
 
 - Added the Sun, Moon, Mercury, Venus, Mars, Jupiter and Saturn to the native

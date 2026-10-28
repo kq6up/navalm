@@ -6,6 +6,7 @@
 #define NAV_ENGINE_H
 
 #include <stddef.h>
+#include "nav_stars_x.h"
 
 typedef enum {
     NAV_SUN, NAV_MOON, NAV_MERCURY, NAV_VENUS, NAV_MARS, NAV_JUPITER, NAV_SATURN, NAV_ARIES
@@ -44,6 +45,8 @@ size_t nav_star_count_get(void);
 const char *nav_star_name(size_t index);
 int nav_star_find(const char *name);
 int nav_star_almanac(size_t index,double jd_ut,NavStarAlmanac *out);
+/* Arbitrary J2000 catalogue star, for display layers; does not extend the navigation catalogue. */
+int nav_catalog_star_almanac(const NavStarCat *,double jd_ut,NavStarAlmanac *out);
 
 /* ------------------------------------------------------------- engines
  *

@@ -1,4 +1,4 @@
-# Planetarium and star planner (5.3)
+# Planetarium and star planner (5.4)
 
 The **Planetarium** tab is available in the FLTK workbench and the `navalm -d`
 browser interface, immediately before Annual book. It uses NAVALM's existing
@@ -32,6 +32,38 @@ the right. The rim is the horizon and the centre is the zenith. Rings mark
 0°, 30° and 60° altitude. The browser can save a standalone sky SVG.
 The native table displays Hc as degrees and decimal minutes; bearings are
 decimal degrees true.
+
+## Find the constellations
+
+Three independent checkboxes control the identification layers:
+
+- **Constellations** draws the traditional connecting lines.
+- **Constellation names** labels visible figures in pale blue. Navigation-star
+  and body names take priority where labels would collide.
+- **Supporting stars** adds the smaller, muted stars needed to complete the shapes.
+
+Lines and supporting stars start enabled; constellation names start hidden.
+The star-name checkbox is independent; body labels remain visible. Selecting a
+navigation star also shows its constellation in the details. Supporting stars
+are identification aids and do not enter the 58-star list, planner or sight form.
+These layers work offline. Figures cover all 88 constellations (Serpens has two
+parts). Only portions above the horizon are shown. See [data provenance](data/sky/README.md)
+for source, licensing and the one approximate variable-star vertex.
+
+## A larger sky view
+
+In FLTK, **Detach sky…** opens the same live canvas in a separate resizable
+window. Its checkboxes stay synchronized with the docked controls. Choose
+**Full screen (F11)** or press F11; Esc returns to the window. **Reattach sky**
+or closing the detached window returns it to the Planetarium tab, preserving
+selections, data and layers. **Use selected for a sight** returns to the sight form.
+UTC and DR inputs stay on the main Planetarium tab; Update sky refreshes the
+live detached canvas too.
+
+In the browser, **Expand sky** fills the page with the chart and its controls.
+**Full screen** also requests browser full screen where supported; an expanded
+view remains available if the browser restricts full screen. **Restore sky** or
+Esc returns to the normal layout. Saved SVGs include the chosen layers.
 
 ## What the suggested set means
 
@@ -73,6 +105,10 @@ and rising/setting Sun −8° crossings. Random cases compare all 58 stars in bo
 engines with a separate spherical-coordinate formula (13,920 comparisons).
 A further 1,680 Sun/Moon/planet positions are checked against independent
 spherical formulas; body markers do not enter the suggested star sets.
+Another 170,880 supporting-star positions and the visible great-circle paths
+are checked across both engines, including polar and horizon cases. Native
+callbacks check layer synchronization, live canvas ownership, resizing, full
+screen, reattachment and stale-data rejection.
 It also exercises the real HTTP endpoint and browser input/projection/error
 handling, including overlapping requests. These checks validate the coordinate
 conversion and planner integration; the underlying ephemeris validation remains

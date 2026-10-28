@@ -52,7 +52,7 @@ with tempfile.TemporaryDirectory(prefix='navalm-direct-dr-') as temporary:
         assert 'Direct reduction at DR' in cli('lop','show','1')
         cli('lop','edit','1','--ho229')
         assert 'HO 229' in cli('lop','show','1')
-        assert '5.3' in cli('-v')
-        print('direct-dr: HTTP calculation, errors, CLI save/reopen/method edit and 5.3 version passed')
+        assert '5.4' in cli('-v')
+        print('direct-dr: HTTP calculation, errors, CLI save/reopen/method edit and 5.4 version passed')
     finally:
         proc.terminate();proc.wait(timeout=10)

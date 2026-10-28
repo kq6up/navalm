@@ -20,6 +20,19 @@ with tempfile.TemporaryDirectory(prefix='navalm-sky-') as temporary:
             data=sky(count=count)
             assert data['ok']==1 and data['engine']=='precise',data
             assert len(data['stars'])==data['catalogue_count']==58
+            assert len(data['context_stars'])==712
+            assert [s['index'] for s in data['context_stars']]==list(range(65,777))
+            for star in data['context_stars']:
+                assert star['is_context']==1 and star['constellation']
+                assert -90<=star['altitude']<=90 and 0<=star['azimuth']<360
+                assert 'selected' not in star and 'eligible' not in star
+            assert any(f['name']=='Ursa Major' for f in data['constellations'])
+            assert len(data['constellation_paths'])>100
+            for path in data['constellation_paths']:
+                assert len(path)>=4 and len(path)%2==0
+                assert all(0<=h<=90 for h in path[::2])
+                assert all(0<=z<360 for z in path[1::2])
+            assert any(s['name']=='Sirius' and s['constellation']=='Canis Major' for s in data['stars'])
             assert len(data['bodies'])==7
             assert [s['name'] for s in data['bodies']]==['Sun','Moon','Mercury','Venus','Mars','Jupiter','Saturn']
             assert [s['index'] for s in data['bodies']]==list(range(58,65))

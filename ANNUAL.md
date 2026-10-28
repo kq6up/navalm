@@ -1,4 +1,4 @@
-# Annual practice almanac — 5.3
+# Annual practice almanac — 5.4
 
 The **Annual book** tab builds a PDF for a chosen Gregorian year with independently
 selectable Sun/Moon, planets, stars, Greenwich events, increments, altitude

@@ -167,21 +167,20 @@ int nav_x_almanac(NavBody body,double jd_ut,NavAlmanac *out)
 
 /* ------------------------------------------------------------ stars */
 
-int nav_x_star_almanac(size_t index,double jd_ut,NavStarAlmanac *out)
+int nav_x_catalog_star_almanac(const NavStarCat *sc,double jd_ut,NavStarAlmanac *out)
 {
-    const NavStarCat *sc;
     Now nw;
     Obj o;
     double gast,dec_rad;
 
-    if(!out || index >= nav_star_cat_count) return 1;
-    sc = &nav_star_cat[index];
+    if(!out || !sc) return 1;
 
     now_at(&nw,jd_ut);
     memset(&o,0,sizeof o);
     o.o_type = FIXED;
     o.f_class = 'S';
-    strcpy(o.o_name,sc->name);
+    strncpy(o.o_name,sc->name,sizeof o.o_name-1);
+    o.o_name[sizeof o.o_name-1]=0;
     o.f_RA  = (float)degrad(sc->ra2000_deg);
     o.f_dec = (float)degrad(sc->dec2000_deg);
     o.f_epoch = J2000;
@@ -204,4 +203,10 @@ int nav_x_star_almanac(size_t index,double jd_ut,NavStarAlmanac *out)
     out->gha_deg   = norm360(gast - out->ra_deg);
     out->magnitude = sc->magnitude;
     return 0;
+}
+
+int nav_x_star_almanac(size_t index,double jd_ut,NavStarAlmanac *out)
+{
+    if(index>=nav_star_cat_count) return 1;
+    return nav_x_catalog_star_almanac(&nav_star_cat[index],jd_ut,out);
 }

@@ -7,9 +7,10 @@ vm.runInContext(page.slice(page.indexOf('const pad ='),page.indexOf('const alt =
 assert.equal(vm.runInContext('dm(5+9.99/60,2)',formatting),'05° 10.0′');
 assert.equal(vm.runInContext('dm(5+59.99/60,2)',formatting),'06° 00.0′');
 const nodes={};
-const $=id=>nodes[id]??=({value:'',checked:true,disabled:false,reportValidity:()=>true});
+const $=id=>nodes[id]??=({value:'',checked:true,disabled:false,reportValidity:()=>true,
+  classList:{present:false,toggle(_,value){this.present=value;},contains(){return this.present;}}});
 const pending=[];
-const context=vm.createContext({$,console,URLSearchParams,Date,Math,Number,String,Error,
+const context=vm.createContext({document:{addEventListener:()=>{}},$,console,URLSearchParams,Date,Math,Number,String,Error,
   lat:x=>x+' N',lon:x=>x+' E',alt:x=>String(x),loadSetup:()=>({}),
   endEdit:()=>{},fillSight:s=>context.transferred=s,show:s=>context.shown=s,renderActiveDR:()=>{},refresh:()=>{},
   fetch:()=>new Promise(resolve=>pending.push(resolve))});
@@ -32,7 +33,18 @@ context.fixture={date:'2026-06-21',time:'03:00:00',lat:34,lon:-117,catalogue_cou
   bodies:[{index:58,name:'Sun',body:'Sun',is_body:1,altitude:30,azimuth:180,magnitude:-26.7,selected:0,azimuth_defined:1},
           {index:59,name:'Moon',body:'Moon',is_body:1,altitude:-20,azimuth:280,magnitude:-10,selected:0,azimuth_defined:1}],
   stars:[{index:0,name:'<test&star>',altitude:45,azimuth:90,magnitude:1,eligible:1,selected:1,azimuth_defined:1}]};
+context.fixture.context_stars=[{index:65,name:'support',altitude:35,azimuth:100}];
+context.fixture.constellations=[{name:'Orion',altitude:60,azimuth:180}];
+context.fixture.constellation_paths=[[0,90,30,90,60,90]];
 const svg=call('skySVG(fixture)');
+assert(svg.includes('class="constellation-line"') && svg.includes('class="supporting-star"'));
+assert(!svg.includes('data-sky-star="65"'),'support stars cannot be handed to a sight');
+assert(!call('skySVG(fixture,true,-1,{})').includes('class="constellation-line"'));
+assert(!call('skySVG(fixture,true,-1,{})').includes('class="supporting-star"'));
+assert(call('skySVG(fixture,true,-1,{labels:true})').includes('>Orion</text>'));
+assert(!svg.includes('>Orion</text>'),'constellation labels independently hidden');
+$('sky_expand').onclick();assert($('sky_card').classList.present);
+$('sky_expand').onclick();assert(!$('sky_card').classList.present);
 assert(svg.includes('&lt;test&amp;star&gt;') && !svg.includes('<test&star>'));
 assert(svg.includes('Sun') && !svg.includes('data-sky-star="59"'));
 assert(call('skySVG(fixture,false)').includes('>Sun</text>'));

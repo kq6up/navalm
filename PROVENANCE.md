@@ -71,6 +71,15 @@ Canopus, respectively. Catalog fields come from the cited XEphem source.
 Acrux and Rigil Kentaurus use individual bright components; results may
 differ from almanacs representing a combined pair.
 
+## Planetarium constellation figures (5.4)
+
+The offline identification layers derive from XEphem's `classicfigs.csf` and
+`SKY2k65.edb` at the reference commit above. `tools/mksky.py` generates
+`navsky_data.inc`; it retains all 88 constellation figures and 712 supporting
+vertices in addition to the unchanged navigation catalogue. These figures are
+identification aids, not IAU boundary outlines. See [data/sky/README.md](data/sky/README.md)
+for exact source hashes, attribution, derivation and the one approximate variable-star vertex.
+
 ## In memory of Dr. Thomas R. Metcalf
 
 Dr. Thomas R. Metcalf's celestial-navigation software helped make

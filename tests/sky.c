@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "navsky_data.inc"
 #define R (3.14159265358979323846/180.)
 static double difference(double a,double b){return fabs(remainder(a-b,360));}
 static void horizontal(double gha,double dec,double lat,double lon,double altitude,double azimuth,int defined){
@@ -71,7 +72,62 @@ int main(void){
                 if(sin((a.gha_deg+o.longitude)*R)>0) z=360-z;
                 assert(difference(s->azimuth,z)<1e-6);
             }
-            assert(navsky_object(&sky,sky.count+sky.body_count)==NULL);
+            assert(sky.context_count==712 && sky.figure_count==89);
+            for(i=0;i<sky.context_count;i++){
+                const NavSkyStar *s=navsky_object(&sky,sky.count+sky.body_count+i);
+                assert(s==&sky.context[i] && s->is_context && !s->is_body && !s->selected && !s->eligible);
+                assert(isfinite(s->altitude) && s->altitude>=-90 && s->altitude<=90);
+                assert(isfinite(s->azimuth) && s->azimuth>=0 && s->azimuth<360);
+                assert(s->constellation && *s->constellation);
+                NavStarAlmanac a;assert(!nav_catalog_star_almanac(&sky_context_catalogue[i],o.jd,&a));
+                double h=asin(sin(o.latitude*R)*sin(a.dec_deg*R)+cos(o.latitude*R)*cos(a.dec_deg*R)*cos((a.gha_deg+o.longitude)*R))/R;
+                assert(fabs(s->altitude-h)<1e-7);
+                double c=(sin(a.dec_deg*R)-sin(h*R)*sin(o.latitude*R))/(cos(h*R)*cos(o.latitude*R));
+                double z=acos(fmax(-1,fmin(1,c)))/R;
+                if(sin((a.gha_deg+o.longitude)*R)>0)z=360-z;
+                assert(difference(s->azimuth,z)<1e-6);
+            }
+            assert(navsky_object(&sky,sky.count+sky.body_count+sky.context_count)==NULL);
+            assert(sky.path_count>0 && sky.point_count>0);
+            for(i=0;i<sky.path_count;i++){
+                const NavSkyPath *path=&sky.paths[i];size_t j;
+                assert(path->figure<sky.figure_count && path->count>=2);
+                assert(path->start+path->count<=sky.point_count);
+                for(j=0;j<path->count;j++){
+                    const NavSkyPoint *p=&sky.points[path->start+j];
+                    assert(isfinite(p->altitude) && p->altitude>=0 && p->altitude<=90);
+                    assert(isfinite(p->azimuth) && p->azimuth>=0 && p->azimuth<360);
+                }
+            }
+            // Every sampled point must remain on its source great-circle plane.
+            size_t edge,path_index=0;
+            for(edge=0;edge<sizeof sky_figure_edges/sizeof sky_figure_edges[0];edge++){
+                const NavSkyStar *a=navsky_object(&sky,sky_figure_edges[edge].a);
+                const NavSkyStar *b=navsky_object(&sky,sky_figure_edges[edge].b);
+                if(a->altitude<=0 && b->altitude<=0)continue;
+                assert(path_index<sky.path_count);
+                const NavSkyPath *path=&sky.paths[path_index++];
+                double av[3]={cos(a->altitude*R)*sin(a->azimuth*R),cos(a->altitude*R)*cos(a->azimuth*R),sin(a->altitude*R)};
+                double bv[3]={cos(b->altitude*R)*sin(b->azimuth*R),cos(b->altitude*R)*cos(b->azimuth*R),sin(b->altitude*R)};
+                double normal[3]={av[1]*bv[2]-av[2]*bv[1],av[2]*bv[0]-av[0]*bv[2],av[0]*bv[1]-av[1]*bv[0]};
+                size_t j;
+                for(j=0;j<path->count;j++){
+                    const NavSkyPoint *p=&sky.points[path->start+j];
+                    double v[3]={cos(p->altitude*R)*sin(p->azimuth*R),cos(p->altitude*R)*cos(p->azimuth*R),sin(p->altitude*R)};
+                    assert(fabs(v[0]*normal[0]+v[1]*normal[1]+v[2]*normal[2])<1e-10);
+                }
+                if(a->altitude<0 || b->altitude<0)
+                    assert(sky.points[path->start].altitude<1e-10 || sky.points[path->start+path->count-1].altitude<1e-10);
+            }
+            assert(path_index==sky.path_count);
+            for(i=0;i<sky.count;i++){
+                if(!strcmp(sky.stars[i].name,"Sirius"))assert(!strcmp(sky.stars[i].constellation,"Canis Major"));
+                if(!strcmp(sky.stars[i].name,"Betelgeuse"))assert(!strcmp(sky.stars[i].constellation,"Orion"));
+                NavStarAlmanac a,b;
+                assert(!nav_star_almanac(i,o.jd,&a));
+                assert(!nav_catalog_star_almanac(&nav_star_cat[i],o.jd,&b));
+                assert(a.gha_deg==b.gha_deg && a.dec_deg==b.dec_deg);
+            }
             assert(fabs(sky.bodies[NAV_SUN].altitude-sky.sun_altitude)<1e-10);
             assert(eligible==sky.eligible && selected==sky.selected);
             assert(selected==(eligible<o.requested?eligible:o.requested));
@@ -103,6 +159,6 @@ int main(void){
         }
     }
     puts("Sky: cardinal/zenith cases, UTC round trips, 13,920 independent star-coordinate checks,");
-    puts("1,680 independent Sun/Moon/planet positions, filters, star sets, twilight and invalid inputs passed.");
+    puts("1,680 independent body positions, 170,880 support positions, clipped figures, filters and twilight passed.");
     nav_engine_shutdown();return 0;
 }

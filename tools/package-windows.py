@@ -99,6 +99,9 @@ shutil.copy2(exe, stage / 'NAVALM.exe')
 for name in ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'PROVENANCE.md', 'SAFETY.md', 'CHANGELOG.md',
              'WINDOWS.md', 'DESKTOP.md', 'MAPS.md', 'ANNUAL.md', 'PLANETARIUM.md']:
     shutil.copy2(root / name, stage / name)
+sky_data = stage / 'data/sky'
+sky_data.mkdir(parents=True, exist_ok=True)
+shutil.copy2(root / 'data/sky/README.md', sky_data / 'README.md')
 license_dir = stage / 'licenses'
 license_dir.mkdir(exist_ok=True)
 shutil.copy2(root / 'libastro/LICENSE.XEphem', license_dir / 'LICENSE.XEphem')
@@ -128,7 +131,9 @@ report = (f'NAVALM {version} Windows x64 build inspection\n\n'
     'Saved sights + plotting: calculate a fix, then toggle Map or Detach sheet.\n'
     'Wheel/+/- zoom; drag pans; Fit or 0 restores the sheet.\n\n'
     'Planetarium: enter UTC and DR, then Update sky or choose morning/evening.\n'
-    'Pick a star, Sun, Moon or planet to start a sight; enter your actual Hs.\n\n'
+    'Pick a star, Sun, Moon or planet to start a sight; enter your actual Hs.\n'
+    'Toggle constellation lines/names/supporting stars; Detach sky resizes independently.\n'
+    'Full screen / F11 enlarges the sky; Esc returns; Reattach sky docks it again.\n\n'
     'Annual book (last tab): choose a year and sections, then export PDF\n'
     'or editable LaTeX source. PDF export needs no TeX installation.\n'
     'This Windows package is the native GUI; it does not include the Unix web server.\n\n'
@@ -139,7 +144,7 @@ archive = out / 'NAVALM-Windows-x64.zip'
 files = [stage / n for n in ['NAVALM.exe', 'LICENSE', 'THIRD_PARTY_NOTICES.md',
          'PROVENANCE.md', 'SAFETY.md', 'CHANGELOG.md', 'WINDOWS.md', 'DESKTOP.md', 'MAPS.md', 'ANNUAL.md', 'PLANETARIUM.md',
          'START-HERE.txt', 'BUILD-VALIDATION.txt']]
-files += list(license_dir.iterdir())
+files += list(license_dir.iterdir()) + [sky_data / 'README.md']
 with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
     for path in sorted(files):
         z.write(path, path.relative_to(out))

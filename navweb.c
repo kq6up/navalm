@@ -60,7 +60,7 @@
 
 #define REQ_MAX     16384
 #define HDR_MAX       64
-#define JSON_MAX   32768
+#define JSON_MAX   524288
 #define MAXFIX        16
 
 extern int navalm_write_daily_html(FILE *out,int y,int m,int d);
@@ -352,6 +352,7 @@ static size_t api_sky(const char *qs,char *out,size_t cap){
     for(i=0;i<sky.count;i++){
         const NavSkyStar *s=&sky.stars[i];
         jput(&j,"{"); jint(&j,"index",(long)i); jstr(&j,"name",s->name);
+        jstr(&j,"constellation",s->constellation);
         jnum(&j,"altitude",s->altitude); jnum(&j,"azimuth",s->azimuth); jnum(&j,"magnitude",s->magnitude);
         jint(&j,"azimuth_defined",s->azimuth_defined); jint(&j,"eligible",s->eligible); jint(&j,"selected",s->selected);
         jtrim(&j); jput(&j,"},");
@@ -364,6 +365,29 @@ static size_t api_sky(const char *qs,char *out,size_t cap){
         jnum(&j,"altitude",s->altitude); jnum(&j,"azimuth",s->azimuth); jnum(&j,"magnitude",s->magnitude);
         jint(&j,"azimuth_defined",s->azimuth_defined); jint(&j,"eligible",0); jint(&j,"selected",0);
         jtrim(&j); jput(&j,"},");
+    }
+    jtrim(&j); jput(&j,"],\"context_stars\":[");
+    for(i=0;i<sky.context_count;i++){
+        const NavSkyStar *s=&sky.context[i];
+        jput(&j,"{");jint(&j,"index",(long)(sky.count+sky.body_count+i));jstr(&j,"name",s->name);
+        jstr(&j,"constellation",s->constellation);jint(&j,"is_context",1);
+        jnum(&j,"altitude",s->altitude);jnum(&j,"azimuth",s->azimuth);
+        jtrim(&j);jput(&j,"},");
+    }
+    jtrim(&j);jput(&j,"],\"constellations\":[");
+    for(i=0;i<sky.figure_count;i++)if(sky.figures[i].visible){
+        const NavSkyFigure *f=&sky.figures[i];
+        jput(&j,"{");jstr(&j,"name",f->name);jnum(&j,"altitude",f->altitude);jnum(&j,"azimuth",f->azimuth);
+        jtrim(&j);jput(&j,"},");
+    }
+    jtrim(&j);jput(&j,"],\"constellation_paths\":[");
+    for(i=0;i<sky.path_count;i++){
+        size_t k;const NavSkyPath *p=&sky.paths[i];jput(&j,"[");
+        for(k=0;k<p->count;k++){
+            const NavSkyPoint *v=&sky.points[p->start+k];
+            jput(&j,"%.6f,%.6f,",v->altitude,v->azimuth);
+        }
+        jtrim(&j);jput(&j,"],");
     }
     jtrim(&j); jput(&j,"]}"); return j.n;
 invalid_date:

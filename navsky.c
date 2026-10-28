@@ -1,5 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 #include "navsky.h"
+#include "libastro/astro.h"
+#undef lat /* libastro observer macro; this module uses ordinary coordinate arguments */
+#include "navsky_data.inc"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -73,7 +76,81 @@ static int sky_sun(double jd,double lat,double lon,double *alt){
 const NavSkyStar *navsky_object(const NavSky *sky,size_t index){
     if(index<sky->count) return &sky->stars[index];
     index-=sky->count;
-    return index<sky->body_count?&sky->bodies[index]:NULL;
+    if(index<sky->body_count) return &sky->bodies[index];
+    index-=sky->body_count;
+    return index<sky->context_count?&sky->context[index]:NULL;
+}
+static const char *sky_constellation(const NavStarCat *star){
+    int id=cns_pick(star->ra2000_deg*SKY_RAD,star->dec2000_deg*SKY_RAD,J2000);
+    return id>=0?cns_name(id)+5:"";
+}
+static void sky_vector(const NavSkyStar *s,double v[3]){
+    double h=s->altitude*SKY_RAD,z=s->azimuth*SKY_RAD;
+    v[0]=cos(h)*sin(z);v[1]=cos(h)*cos(z);v[2]=sin(h);
+}
+static void sky_direction(const double v[3],double *h,double *z){
+    *h=atan2(v[2],hypot(v[0],v[1]))/SKY_RAD;
+    *z=atan2(v[0],v[1])/SKY_RAD;if(*z<0)*z+=360;
+}
+/* Clip on the celestial sphere before projecting. A straight chord between
+ * below-horizon endpoints would otherwise cut across the visible chart. */
+static int sky_arc(NavSky *sky,const NavSkyStar *first,const NavSkyStar *last,int figure){
+    double a[3],b[3],dot,angle,den;int j,n,k;
+    if(first->altitude<=0 && last->altitude<=0)return 0;
+    sky_vector(first,a);sky_vector(last,b);
+    if(a[2]<0 || b[2]<0){
+        double t=a[2]/(a[2]-b[2]),v[3],length;
+        for(j=0;j<3;j++)v[j]=a[j]+t*(b[j]-a[j]);
+        length=hypot(hypot(v[0],v[1]),v[2]);if(length<1e-12)return 0;
+        double *clipped=a[2]<0?a:b;
+        for(j=0;j<3;j++)clipped[j]=v[j]/length;
+    }
+    dot=a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+    angle=acos(sky_clamp(dot,-1,1));den=sin(angle);
+    if(angle<1e-10 || fabs(den)<1e-12)return 0;
+    n=(int)ceil(angle/(3*SKY_RAD));if(n<1)n=1;
+    if(sky->path_count>=NAVSKY_MAX_PATHS || sky->point_count+n+1>NAVSKY_MAX_POINTS)return 1;
+    NavSkyPath *path=&sky->paths[sky->path_count++];
+    path->start=(unsigned short)sky->point_count;path->count=(unsigned short)(n+1);path->figure=(unsigned short)figure;
+    for(k=0;k<=n;k++){
+        double t=(double)k/n,v[3],sa=sin((1-t)*angle)/den,sb=sin(t*angle)/den;
+        NavSkyPoint *p=&sky->points[sky->point_count++];
+        for(j=0;j<3;j++)v[j]=sa*a[j]+sb*b[j];
+        sky_direction(v,&p->altitude,&p->azimuth);
+        p->altitude=fmax(0,p->altitude);
+    }
+    return 0;
+}
+static int sky_context(const NavSkyOptions *o,NavSky *sky,char *error,size_t capacity){
+    size_t i;double centres[NAVSKY_MAX_FIGURES][3]={{0}};
+    sky->context_count=sizeof sky_context_catalogue/sizeof sky_context_catalogue[0];
+    sky->figure_count=sizeof sky_figure_names/sizeof sky_figure_names[0];
+    if(sky->context_count>NAVSKY_MAX_CONTEXT || sky->figure_count>NAVSKY_MAX_FIGURES)
+        return sky_error(error,capacity,"Constellation catalogue exceeds display capacity.");
+    for(i=0;i<sky->context_count;i++){
+        NavStarAlmanac a;NavSkyStar *s=&sky->context[i];
+        if(nav_catalog_star_almanac(&sky_context_catalogue[i],o->jd,&a))
+            return sky_error(error,capacity,nav_engine_last_error());
+        s->name=a.name;s->magnitude=a.magnitude;s->is_context=1;
+        s->constellation=sky_constellation(&sky_context_catalogue[i]);
+        navsky_horizontal(a.gha_deg,a.dec_deg,o->latitude,o->longitude,&s->altitude,&s->azimuth,&s->azimuth_defined);
+    }
+    for(i=0;i<sizeof sky_figure_edges/sizeof sky_figure_edges[0];i++){
+        int f=sky_figure_edges[i].figure,j,k;
+        const NavSkyStar *ends[]={navsky_object(sky,sky_figure_edges[i].a),navsky_object(sky,sky_figure_edges[i].b)};
+        if(!ends[0] || !ends[1])return sky_error(error,capacity,"Invalid constellation vertex.");
+        if(sky_arc(sky,ends[0],ends[1],f))return sky_error(error,capacity,"Constellation path exceeds display capacity.");
+        for(j=0;j<2;j++)if(ends[j]->altitude>0){
+            double v[3];sky_vector(ends[j],v);
+            for(k=0;k<3;k++)centres[f][k]+=v[k];
+            sky->figures[f].visible=1;
+        }
+    }
+    for(i=0;i<sky->figure_count;i++){
+        sky->figures[i].name=sky_figure_names[i];
+        sky_direction(centres[i],&sky->figures[i].altitude,&sky->figures[i].azimuth);
+    }
+    return 0;
 }
 int navsky_compute(const NavSkyOptions *o,NavSky *out,char *error,size_t capacity){
     size_t i;
@@ -112,6 +189,7 @@ int navsky_compute(const NavSkyOptions *o,NavSky *out,char *error,size_t capacit
         NavSkyStar *s=&out->stars[i];
         if(nav_star_almanac(i,o->jd,&a)) return sky_error(error,capacity,nav_engine_last_error());
         s->name=a.name; s->magnitude=a.magnitude;
+        s->constellation=sky_constellation(&nav_star_cat[i]);
         navsky_horizontal(a.gha_deg,a.dec_deg,o->latitude,o->longitude,
                           &s->altitude,&s->azimuth,&s->azimuth_defined);
         s->eligible=s->azimuth_defined && s->altitude>0 && s->altitude>=o->min_altitude &&
@@ -124,6 +202,7 @@ int navsky_compute(const NavSkyOptions *o,NavSky *out,char *error,size_t capacit
                 .4*sky_clamp(1-fabs(s->altitude-45)/45,0,1);
         }
     }
+    if(sky_context(o,out,error,capacity)) return 1;
     out->eligible=search.n; search.wanted=search.n<o->requested?search.n:o->requested;
     if(search.wanted){
         sky_search(&search,0,0,0,0,0,0,0,0);

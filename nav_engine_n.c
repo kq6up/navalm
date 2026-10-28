@@ -329,16 +329,14 @@ int nav_n_moon_geocentric(double jd_ut, double *lon_deg, double *lat_deg,
     return 0;
 }
 
-int nav_n_star_almanac(size_t index, double jd_ut, NavStarAlmanac *out)
+int nav_n_catalog_star_almanac(const NavStarCat *sc, double jd_ut, NavStarAlmanac *out)
 {
-    const NavStarCat *sc;
     cat_entry star;
     char name[SIZE_OF_OBJ_NAME], cat[SIZE_OF_CAT_NAME];
     double jd_tt, jd_tdb, gast, ra_h = 0.0, dec = 0.0;
 
-    if (!out || index >= nav_star_cat_count) return 1;
+    if (!out || !sc) return 1;
     if (!nav_solsys_handle()) return 1;
-    sc = &nav_star_cat[index];
 
     times_from_ut(jd_ut, &jd_tt, &jd_tdb);
     if (!in_range(jd_tdb)) return 1;
@@ -349,7 +347,7 @@ int nav_n_star_almanac(size_t index, double jd_ut, NavStarAlmanac *out)
      * how the catalogue stores it.  Parallax and radial velocity are not in
      * the catalogue and are passed as zero; see VALIDATION.md for the size
      * of that omission. */
-    if (make_cat_entry(name, cat, (long)index + 1,
+    if (make_cat_entry(name, cat, 1,
                        sc->ra2000_deg / 15.0, sc->dec2000_deg,
                        sc->pm_ra_mas, sc->pm_dec_mas, 0.0, 0.0, &star) != 0)
         return 1;
@@ -364,4 +362,10 @@ int nav_n_star_almanac(size_t index, double jd_ut, NavStarAlmanac *out)
     out->gha_deg   = norm360(gast - out->ra_deg);
     out->magnitude = sc->magnitude;
     return 0;
+}
+
+int nav_n_star_almanac(size_t index,double jd_ut,NavStarAlmanac *out)
+{
+    if(index>=nav_star_cat_count) return 1;
+    return nav_n_catalog_star_almanac(&nav_star_cat[index],jd_ut,out);
 }

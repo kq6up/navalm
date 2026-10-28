@@ -32,7 +32,7 @@ add_library(navastro STATIC ${ASTRO})
 add_library(navnovas STATIC novas/novas.c novas/novascon.c novas/nutation.c novas/readeph0.c)
 target_include_directories(navnovas PRIVATE novas)
 target_compile_definitions(navnovas PRIVATE nutation=novas_nutation refract=novas_refract)
-add_library(navcore STATIC navsight.c navrc.c navsky.c nav_engine_sel.c nav_engine_x.c nav_engine_n.c
+add_library(navcore STATIC navsight.c navrc.c navsky.c navsky_data.inc nav_engine_sel.c nav_engine_x.c nav_engine_n.c
     nav_solsys440.c nav_eph440.c nav_stars_x.c)
 target_include_directories(navcore PUBLIC . PRIVATE novas)
 target_link_libraries(navcore PUBLIC navastro navnovas)

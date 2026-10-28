@@ -10,6 +10,7 @@ and MinGW runtime components under their accompanying notices.
 | XEphem / libastro | MIT | Keep the copyright and permission notice |
 | NOVAS C3.1 (USNO) | Public domain, US Government work | Nothing required; acknowledgement requested |
 | JPL DE440s ephemeris | Public domain, US Government data | Nothing required; citation customary |
+| XEphem classic constellation figures | MIT, via XEphem | Keep the XEphem notice and original contributor credits |
 | SKY2000 / navigation-star data | MIT, via XEphem | Keep the XEphem notice |
 | FLTK 1.4.5 (optional desktop) | LGPL-2.0-or-later with static-linking exception | Include COPYING and preserve the exception |
 | Natural Earth land map (optional desktop) | Public domain | Source credit included in MAPS.md |
@@ -36,6 +37,12 @@ vendored library or its astronomical theories.
 
 libastro remains in the tree and is still a selectable engine
 (`--engine classic`), so this notice continues to apply in full.
+
+The planetarium also bundles XEphem's `classicfigs.csf` and `SKY2k65.edb`
+from that revision. Original figures are credited to Chris Marriott, with
+incorporation by Elwood Downey. Source hashes, derivation and the display-only
+chi Cygni approximation are documented in [data/sky/README.md](data/sky/README.md).
+The same XEphem MIT grant applies to the bundled data and derived display tables.
 
 ## NOVAS C3.1
 

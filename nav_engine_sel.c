@@ -402,3 +402,9 @@ int nav_star_almanac(size_t index, double jd_ut, NavStarAlmanac *out)
     DISPATCH(nav_n_star_almanac(index, jd_ut, out),
              nav_x_star_almanac(index, jd_ut, out));
 }
+
+int nav_catalog_star_almanac(const NavStarCat *star,double jd_ut,NavStarAlmanac *out)
+{
+    DISPATCH(nav_n_catalog_star_almanac(star,jd_ut,out),
+             nav_x_catalog_star_almanac(star,jd_ut,out));
+}

@@ -1,10 +1,12 @@
 # Portable Windows desktop
 
-The current release is **5.3**. Its final **Annual book** tab
+The current source/build is **5.4**; the latest published release is **5.3**. Its final **Annual book** tab
 exports selectable annual sections and compact Ageton tables directly to PDF,
 or to editable LaTeX source. Direct PDF export needs no TeX installation.
 The **Planetarium** tab adds a sky view of 58 navigation stars, Sun, Moon and five planets,
-plus a three/four-star sight planner;
+plus a three/four-star sight planner. Version 5.4 adds constellation figures,
+independent name/supporting-star toggles, readable planet labels and a
+resizable detached sky window with full screen (F11) and reattachment;
 see [PLANETARIUM.md](PLANETARIUM.md).
 The Sight tab includes **Reduce at DR (no whole-degree LHA)**; the method is
 saved with each sight. Download the [5.3 Windows ZIP](https://github.com/kq6up/navalm/releases/download/v5.3/NAVALM-Windows-x64.zip).
@@ -79,11 +81,11 @@ embedded in the executable. Defaults match the script's prepared inputs.
 
 ## Validation status
 
-The 5.3 Windows executable was cross-compiled on macOS, and its PE structure,
+The 5.4 Windows executable was cross-compiled on macOS, and its PE structure,
 imports and embedded resources were inspected. The shared desktop/map tests and
 native callback/download checks passed on macOS. The user retested the corrected
 5.0 release on Windows 10 and reported that it seemed fine. That report does not
-cover the features added since 5.0. **Version 5.3 still needs a Windows runtime
+cover the features added since 5.0. **Version 5.4 still needs a Windows runtime
 retest**, including direct-at-DR reduction, planetarium, annual PDF/LaTeX generation,
 file pickers, and save/reopen.
 
