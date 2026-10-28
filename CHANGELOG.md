@@ -1,3 +1,12 @@
+# Changes in NAVALM 5.4.1
+
+- Fixed native desktop builds with Slackware 15.0 FLTK 1.3.8 by isolating X11's
+  `None` macro and preferring system FLTK on Linux over stale local libraries.
+  No SlackBuild or system package patch is needed.
+- Preserved macOS's private FLTK preference and explicit `FLTK_CONFIG` overrides.
+- Added Linux build and native callback coverage for system FLTK 1.3.8 alongside
+  the pinned FLTK 1.4.5 configuration.
+
 # Changes in NAVALM 5.4
 
 - Released the portable Windows x64 ZIP with updated instructions and checksums.

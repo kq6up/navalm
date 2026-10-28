@@ -8,8 +8,10 @@ For Ubuntu packages, native launch commands and virtual-display testing, see
 
 ## Build and open
 
-Requires a C/C++17 compiler and FLTK 1.4. On this sandbox a private FLTK 1.4.5
-is already built in `.deps/fltk`; it is statically linked into the application.
+Requires a C/C++17 compiler and FLTK 1.3.8 or 1.4.5. The optional private
+bootstrap builds static FLTK 1.4.5 into `.deps/fltk`. macOS prefers this private
+build; Linux prefers `fltk-config` on PATH, falling back to the private build.
+An explicit `FLTK_CONFIG` overrides either default.
 
 ```sh
 make fltk-deps        # once; needs CMake, curl, tar, shasum and internet

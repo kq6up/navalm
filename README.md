@@ -14,7 +14,7 @@ for the portable Windows x64 desktop build. See [LINUX.md](LINUX.md) for Ubuntu
 build commands and the Linux CI checks.
 The existing CLI, `--gui`, and `-d` browser interface remain available.
 
-Current released version: **5.4**.
+Current source version: **5.4.1**. The Windows binary release remains **5.4**.
 
 Version 5.2 includes a custom annual practice-book
 preview with selectable sections, compact Ageton tables and optional LaTeX source
@@ -151,7 +151,7 @@ If you downloaded a source archive, extract it and enter its source directory, t
 
 **Run `make page` before `make`.** The first command runs `mkpage.sh` to convert `page.html` into `navweb_page.h`, embedding the browser interface in the program. The second compiles the C sources and creates the `navalm` executable. Plain `make` does not regenerate the page header automatically.
 
-The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 5.4`. The executable is built in the source directory and can be run there without an installation step.
+The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 5.4.1`. The executable is built in the source directory and can be run there without an installation step.
 
 ### Build without ncurses
 

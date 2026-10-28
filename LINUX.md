@@ -20,7 +20,7 @@ From a fresh clone or after `git pull`:
 ```sh
 make ephem-fetch      # once: download the JPL input
 make ephem            # once: convert it for NAVALM
-make fltk-deps        # once: private, pinned FLTK 1.4.5
+make fltk-deps        # once, if system FLTK is unavailable: pinned FLTK 1.4.5
 make -j4 navalm navalm-book desktop
 ./navalm-fltk         # native desktop, in your graphical session
 ```
@@ -40,6 +40,25 @@ Download the optional coastline with the desktop's **Charts + setup** controls.
 The planetarium constellation figures and supporting stars are compiled in;
 they require no additional data download.
 
+## Slackware 15.0 / FLTK 1.3.8
+
+Use Slackware 15.0's FLTK 1.3.8 package from `extra` (or the matching
+[SlackBuild](https://slackbuilds.org/repository/15.0/libraries/fltk/)). No FLTK
+package patch or libdecor dependency is required. From a Linux-only checkout:
+
+```sh
+make desktop
+make check-desktop check-book
+```
+
+Linux prefers the system `fltk-config` on PATH even if `.deps/fltk` exists.
+Force a particular installation with `make desktop FLTK_CONFIG=/usr/bin/fltk-config`.
+To select the private build explicitly, use
+`make desktop FLTK_CONFIG="$PWD/.deps/fltk/bin/fltk-config"`.
+When changing FLTK installations after a successful build, remove `navalm-fltk`
+first so it is relinked. Copied macOS/Windows libraries in `.deps` are not usable
+Linux build dependencies; rebuild locally if using the private toolkit.
+
 ## Automated validation
 
 The 5.4 code passed the complete workflow on **28 October 2026**:
@@ -48,7 +67,7 @@ This was an actual Ubuntu runner; the release workstation itself was macOS.
 
 [Linux build and runtime checks](https://github.com/kq6up/navalm/actions/workflows/linux.yml)
 runs on Ubuntu 24.04. It builds the precise ephemeris, verifies the Natural Earth
-map hash, builds all interfaces with pinned FLTK, and exercises:
+map hash, builds all interfaces with both pinned FLTK 1.4.5 and system FLTK 1.3.8, and exercises:
 
 - Paper almanac, sight list, plotting geometry and desktop core calculations.
 - Both-engine planetarium coordinates, constellation paths, filters and twilight.
