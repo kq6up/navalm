@@ -1,0 +1,43 @@
+name: Linux build and runtime checks
+
+on:
+  push:
+    branches: [main, feature/annual-almanac-5.1]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Install build and virtual-display dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake curl python3 nodejs perl \
+            libncurses-dev libx11-dev libxext-dev libxft-dev libxrender-dev \
+            libxinerama-dev libxcursor-dev libfontconfig1-dev xvfb xauth
+      - name: Prepare precise ephemeris and offline map
+        run: |
+          make ephem-fetch
+          make ephem
+          mkdir -p .local/maps
+          curl --fail --location --retry 2 --output .local/maps/ne_10m_land.shp \
+            https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/10m_physical/ne_10m_land.shp
+          echo '4cad3a49bc75c1a4c2f3d7efae04f2f8e63151c96764b2658effabf524331fa6  .local/maps/ne_10m_land.shp' | sha256sum -c -
+      - name: Build pinned FLTK and all interfaces
+        run: |
+          make fltk-deps
+          make -j4 navalm navalm-book desktop
+          ./navalm -v
+      - name: Navigation, plotting, planetarium and book checks
+        run: |
+          make check-paper check-plot check-list check-desktop check-sky check-direct-dr check-book check-web-book
+      - name: Run native GUI callbacks on a virtual X11 display
+        run: xvfb-run -a -s '-screen 0 1920x1080x24' ./navalm-fltk --self-test
