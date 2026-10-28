@@ -11,11 +11,11 @@ GUI_CFLAGS = -DNAVALM_GUI
 GUI_SRC    = navgui.c
 GUI_LIBS   = -lncurses
 
-SRC = navalm.c navsight.c navcmd.c navrc.c navweb.c \
+SRC = navalm.c navsight.c navcmd.c navrc.c navweb.c navsky.c \
       nav_engine_sel.c nav_engine_x.c nav_engine_n.c \
       nav_solsys440.c nav_eph440.c nav_stars_x.c
 HDR = navfile.h nav_notice.h nav_version.h nav_engine.h nav_engine_impl.h nav_stars_x.h \
-      navsight.h navrc.h navweb_page.h navweb_book.h air_daily.inc nav_eph440.h nav_solsys440.h
+      navsight.h navrc.h navsky.h navweb_page.h navweb_book.h air_daily.inc nav_eph440.h nav_solsys440.h
 
 # NOVAS C3.1, U.S. Naval Observatory, vendored unmodified under novas/.
 # solsys1.c, solsys2.c, solsys3.c and eph_manager.c are deliberately NOT
@@ -49,7 +49,7 @@ all: navalm
 
 # Optional native desktop. C objects are shared directly, without a subprocess
 # or a web server. The normal CLI build remains independent of FLTK.
-DESKTOP_SRC = navsight.c navrc.c nav_engine_sel.c nav_engine_x.c nav_engine_n.c \
+DESKTOP_SRC = navsight.c navrc.c navsky.c nav_engine_sel.c nav_engine_x.c nav_engine_n.c \
               nav_solsys440.c nav_eph440.c nav_stars_x.c
 DESKTOP_OBJ = $(addprefix .build/desktop/,$(DESKTOP_SRC:.c=.o))
 
@@ -57,7 +57,7 @@ DESKTOP_OBJ = $(addprefix .build/desktop/,$(DESKTOP_SRC:.c=.o))
 	@mkdir -p .build/desktop
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-navalm-fltk: navfltk.cpp navfltk_model.h navfltk_plot.h navfltk_sheet.h navfltk_map.h navplatform.h navdownload.cpp navdownload.h navbook.cpp navbook.h navbook_lm_metrics.h $(DESKTOP_OBJ) libastro.a novas.a
+navalm-fltk: navfltk.cpp navfltk_sky.h navfltk_model.h navfltk_plot.h navfltk_sheet.h navfltk_map.h navplatform.h navdownload.cpp navdownload.h navbook.cpp navbook.h navbook_lm_metrics.h $(DESKTOP_OBJ) libastro.a novas.a
 	@command -v $(FLTK_CONFIG) >/dev/null || { echo 'FLTK missing: run make fltk-deps, or set FLTK_CONFIG.'; exit 1; }
 	$(CXX) $(CXXFLAGS) -I. `$(FLTK_CONFIG) --cxxflags` -o $@ navfltk.cpp navdownload.cpp navbook.cpp \
 	  $(DESKTOP_OBJ) libastro.a novas.a `$(FLTK_CONFIG) --ldflags`
@@ -181,9 +181,17 @@ check-web-book: navalm
 	python3 tests/web_book.py
 	node tests/web_book_ui.js
 
+.build/sky-check: tests/sky.c navsky.c navsky.h $(DESKTOP_OBJ) libastro.a novas.a
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ tests/sky.c $(DESKTOP_OBJ) libastro.a novas.a $(LDLIBS)
+
+check-sky: .build/sky-check navalm
+	./.build/sky-check
+	python3 tests/sky_web.py
+	node tests/sky_ui.js
+
 # Removes the generated ephemeris too, but never the downloaded .bsp.
 distclean: clean
 	rm -f $(EPHEM_NAV)
 
 .PHONY: all nogui classic-only ephem ephem-fetch stars page clean distclean check-paper check-plot check-list
-.PHONY: desktop fltk-deps desktop-app check-desktop desktop-checks-app check-book check-web-book
+.PHONY: desktop fltk-deps desktop-app check-desktop desktop-checks-app check-book check-web-book check-sky

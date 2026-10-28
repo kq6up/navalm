@@ -1,5 +1,11 @@
 # NAVALM 5.1 development preview (unreleased)
 
+- Added Planetarium before Annual book in the FLTK and browser interfaces:
+  a 58-star sky chart, UTC/DR and altitude/magnitude filters, three/four-star
+  bearing-spread planning, next morning/evening Sun -8 degree times, and a
+  selected-star handoff to a new sight. The browser also exports sky SVGs.
+  Shared C tests cover both astronomy engines, coordinate conversion, polar
+  cases and selection; HTTP and browser tests cover input and error handling.
 - Updated application and package version labels to 5.1-dev (numeric platform
   metadata 5.1.0), distinguishing this preview from the released 5.0 downloads.
 - Added Annual book as the final browser tab, with selectable sections,

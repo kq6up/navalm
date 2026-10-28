@@ -9,6 +9,7 @@
 #include "navfile.h"
 #include "navfltk_map.h"
 #include "navfltk_plot.h"
+#include "navfltk_sky.h"
 #include <FL/Fl.H>
 #include <FL/Fl_Box.H>
 #include <FL/Fl_Button.H>
@@ -16,6 +17,7 @@
 #include <FL/Fl_Choice.H>
 #include <FL/Fl_Double_Window.H>
 #include <FL/Fl_Input.H>
+#include <FL/Fl_Hold_Browser.H>
 #include <FL/Fl_Multi_Browser.H>
 #include <FL/Fl_Native_File_Chooser.H>
 #include <FL/Fl_Progress.H>
@@ -349,6 +351,16 @@ class Workbench {
     Fl_Button *detach_button, *download_map_button, *cancel_map_button;
     Fl_Box *map_information;
     Fl_Group *book_tab;
+    Fl_Group *sky_tab;
+    Fl_Input *sky_date,*sky_time,*sky_lat,*sky_lon,*sky_min,*sky_max,*sky_mag;
+    Fl_Choice *sky_lat_hemi,*sky_lon_hemi,*sky_count;
+    Fl_Check_Button *sky_names,*sky_below;
+    Fl_Hold_Browser *sky_list;
+    Fl_Box *sky_status,*sky_summary,*sky_detail;
+    Fl_Button *sky_sight;
+    SkyCanvas *sky_canvas;
+    std::vector<int> sky_rows;
+    Sight sky_at{};
     Fl_Input *book_year;
     Fl_Check_Button *book_sections[8];
     Fl_Check_Button *book_shade_rows;
@@ -616,6 +628,49 @@ class Workbench {
             "Calculations continue to use NAVALM's existing C engine.");
         chart_tab->resizable(charts);
         chart_tab->end();
+        sky_tab = new Fl_Group(16,130,1148,672,"Planetarium");
+        sky_date=input(36,166,175,"UTC date · YYYY-MM-DD");
+        sky_time=input(225,166,140,"UTC time · HH:MM:SS");
+        sky_lat=input(380,166,140,"DR latitude · DD MM.m");
+        sky_lat_hemi=choice(528,166,50,"","N|S");
+        sky_lon=input(593,166,150,"DR longitude · DDD MM.m");
+        sky_lon_hemi=choice(751,166,50,"","E|W");
+        button(817,166,100,"Now UTC",[this]{now(sky_date,sky_time);update_sky();});
+        button(931,166,210,"Use current sight DR",[this]{
+            sky_lat->value(lat->value());sky_lon->value(lon->value());
+            sky_lat_hemi->value(lat_hemi->value());sky_lon_hemi->value(lon_hemi->value());
+        });
+        sky_min=input(36,232,100,"Min altitude deg");sky_min->value("15");
+        sky_max=input(150,232,100,"Max altitude deg");sky_max->value("75");
+        sky_mag=input(264,232,100,"Faintest magnitude");sky_mag->value("3.0");
+        sky_count=choice(378,232,100,"Suggested set","3 stars|4 stars");
+        button(496,232,130,"Update sky",[this]{update_sky();},true);
+        button(640,232,240,"Next morning sights",[this]{update_sky(1);});
+        button(894,232,247,"Next evening sights",[this]{update_sky(0);});
+        sky_status=new Fl_Box(36,274,1105,35,"Enter a DR and UTC time. All 58 catalogue stars include Polaris.");
+        sky_status->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);sky_status->labelsize(13);
+        sky_names=new Fl_Check_Button(36,308,200,25,"Star names");sky_names->value(1);
+        bind(sky_names,[this]{sky_canvas->names=sky_names->value();sky_canvas->redraw();});
+        sky_canvas=new SkyCanvas(36,338,565,416);
+        sky_canvas->choose=[this](int index){select_sky_star(index);};
+        sky_below=new Fl_Check_Button(625,308,320,25,"Include below-horizon stars in list");
+        bind(sky_below,[this]{render_sky_list();});
+        auto *sky_columns=new Fl_Box(625,339,515,23,"   Star                 Hc        Zn T     Mag");
+        sky_columns->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);sky_columns->labelfont(FL_COURIER);
+        sky_columns->labelsize(12);
+        sky_list=new Fl_Hold_Browser(625,365,515,269);
+        sky_list->textfont(FL_COURIER);sky_list->textsize(12);sky_list->format_char(0);
+        bind(sky_list,[this]{int row=sky_list->value();if(row>0 && row<=int(sky_rows.size()))select_sky_star(sky_rows[row-1]);});
+        sky_summary=new Fl_Box(625,642,515,56,"");
+        sky_summary->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);sky_summary->labelsize(12);
+        sky_detail=new Fl_Box(625,700,515,40,"Select a star on the chart or in the list.");
+        sky_detail->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);sky_detail->labelsize(13);
+        sky_sight=button(625,748,515,"Use selected star for a sight",[this]{sky_to_sight();});
+        sky_sight->deactivate();
+        auto *sky_hint=new Fl_Box(36,758,565,38,"Looking up: N top / E left. Rim = horizon; centre = zenith.\nGold = suggested set. Altitudes are geometric Hc; bearings true.");
+        sky_hint->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);sky_hint->labelsize(11);
+        sky_tab->end();
+
         book_tab = new Fl_Group(16, 130, 1148, 672, "Annual book");
         auto *book_title = new Fl_Box(36, 148, 1080, 35, "Build a custom annual practice almanac");
         book_title->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
@@ -674,6 +729,7 @@ class Workbench {
             this);
         new_sight();
         now(al_date, al_time);
+        now(sky_date,sky_time);
         al_lat->value("00 00.0");
         al_lon->value("000 00.0");
         for (auto *field : {lat, al_lat})
@@ -709,6 +765,102 @@ class Workbench {
         fix_display->buffer(nullptr);
         chart_display->buffer(nullptr);
         navsight_store_free(&store);
+    }
+    static std::string sky_angle(double value) {
+        long tenth=std::lround(std::abs(value)*600);
+        char text[32];
+        std::snprintf(text,sizeof text,"%s%02ld %04.1f",value<0?"-":"",tenth/600,(tenth%600)/10.);
+        return text;
+    }
+    void invalidate_sky() {
+        sky_canvas->ready=false;sky_canvas->redraw();sky_list->clear();sky_rows.clear();
+        sky_sight->deactivate();sky_summary->copy_label("");sky_detail->copy_label("");
+        sky_status->copy_label("Engine changed. Update sky to recalculate the planner.");
+    }
+    void render_sky_list() {
+        sky_list->clear(); sky_rows.clear();
+        if(!sky_canvas->ready) return;
+        for(size_t i=0;i<sky_canvas->sky.count;i++)
+            if(sky_below->value() || sky_canvas->sky.stars[i].altitude>0) sky_rows.push_back(int(i));
+        std::stable_sort(sky_rows.begin(),sky_rows.end(),[this](int a,int b){
+            const auto &x=sky_canvas->sky.stars[a], &y=sky_canvas->sky.stars[b];
+            if(x.selected!=y.selected) return x.selected>y.selected;
+            if(x.eligible!=y.eligible) return x.eligible>y.eligible;
+            return x.azimuth<y.azimuth;
+        });
+        for(size_t row=0;row<sky_rows.size();row++){
+            int i=sky_rows[row]; const auto &s=sky_canvas->sky.stars[i];
+            char text[200];
+            std::snprintf(text,sizeof text,"%c %-18s %8s  %6.1f  %4.1f",
+                s.selected?'*':' ',s.name,sky_angle(s.altitude).c_str(),s.azimuth,s.magnitude);
+            sky_list->add(text);
+            if(i==sky_canvas->selected) sky_list->value(int(row)+1);
+        }
+    }
+    void select_sky_star(int index) {
+        if(!sky_canvas->ready || index<0 || index>=int(sky_canvas->sky.count)) return;
+        sky_canvas->selected=index;sky_canvas->redraw();
+        const auto &s=sky_canvas->sky.stars[index];
+        std::string detail=std::string(s.name)+" · Hc "+sky_angle(s.altitude)+" · Zn "+
+            (s.azimuth_defined?fmt(s.azimuth,1)+" T":"undefined at zenith")+" · mag "+fmt(s.magnitude,1);
+        sky_detail->copy_label(detail.c_str());
+        if(s.altitude>0) sky_sight->activate(); else sky_sight->deactivate();
+        for(size_t row=0;row<sky_rows.size();row++) if(sky_rows[row]==index) sky_list->value(int(row)+1);
+    }
+    void update_sky(int morning=-1) {
+        try {
+            if(book_running) throw std::runtime_error("Wait for the annual book to finish.");
+            Sight at{};date_time(sky_date->value(),sky_time->value(),at);
+            if(!sky_lat->value()[0] || !sky_lon->value()[0])
+                throw std::runtime_error("Enter DR latitude and longitude, or copy the current sight DR.");
+            coordinates(sky_lat,sky_lat_hemi,sky_lon,sky_lon_hemi,at);
+            NavSkyOptions options{};
+            options.jd=navsight_jd(&at);options.latitude=at.dr_lat;options.longitude=at.dr_lon;
+            options.min_altitude=number(sky_min->value(),"Minimum altitude",0,90);
+            options.max_altitude=number(sky_max->value(),"Maximum altitude",0,90);
+            options.max_magnitude=number(sky_mag->value(),"Faintest magnitude",-2,6);
+            options.requested=sky_count->value()?4:3;
+            char error[512]{};
+            if(morning>=0){
+                if(navsky_twilight(options.jd,at.dr_lat,at.dr_lon,morning,&options.jd,error,sizeof error))
+                    throw std::runtime_error(error);
+                char d[32],t[32];navsky_utc(options.jd,d,sizeof d,t,sizeof t);
+                sky_date->value(d);sky_time->value(t);date_time(d,t,at);
+            }
+            if(navsky_compute(&options,&sky_canvas->sky,error,sizeof error)) throw std::runtime_error(error);
+            sky_at=at;sky_canvas->ready=true;
+            auto &sky=sky_canvas->sky;
+            std::string summary=std::to_string(sky.count)+" stars including Polaris · "+sky.light+
+                " · Sun "+fmt(sky.sun_altitude,1)+" deg · "+nav_engine_name();
+            if(sky.sun_altitude> -6) summary+=" · Bright sky: stars may be hard to see.";
+            else if(sky.sun_altitude< -12) summary+=" · Sea horizon may be hard to see.";
+            sky_status->copy_label(summary.c_str());
+            std::string plan=std::to_string(sky.selected)+" suggested / "+std::to_string(sky.eligible)+
+                " eligible. Bearing geometry "+fmt(sky.geometry*100,0)+" / 100.\n"+
+                (sky.selected<options.requested?"Too few eligible stars. ":"")+std::string("* = suggested. Spread, brightness and moderate Hc guide selection.");
+            sky_summary->copy_label(plan.c_str());
+            render_sky_list();
+            if(sky_canvas->selected>=0) select_sky_star(sky_canvas->selected);
+            sky_canvas->redraw();
+            message("Sky updated · next sight-window buttons seek Sun -8 deg within 48 hours.");
+        } catch(...) {
+            sky_canvas->ready=false;sky_canvas->redraw();sky_list->clear();sky_rows.clear();
+            sky_status->copy_label("Sky unavailable. Correct the entries and update again.");
+            sky_summary->copy_label("");sky_detail->copy_label("");sky_sight->deactivate();throw;
+        }
+    }
+    void sky_to_sight() {
+        int index=sky_canvas->selected;
+        if(!sky_canvas->ready || index<0 || sky_canvas->sky.stars[index].altitude<=0) return;
+        Sight at=sky_at;
+        new_sight();body->value(7);star->value(index);
+        char planned_date[32],planned_time[32];
+        navsky_utc(navsight_jd(&at),planned_date,sizeof planned_date,planned_time,sizeof planned_time);
+        date->value(planned_date);time->value(planned_time);
+        lat->value(angle_entry(at.dr_lat,2).c_str());lat_hemi->value(at.dr_lat<0?1:0);
+        lon->value(angle_entry(at.dr_lon,3).c_str());lon_hemi->value(at.dr_lon<0?1:0);
+        hs->value("");body_state();tabs->value(sight_tab);
+        message("Planning "+std::string(nav_star_name(index))+" · enter your measured Hs before reducing.");
     }
     static void book_tick(void *p) { static_cast<Workbench *>(p)->poll_book(); }
     void begin_book(const navbook::Options &options, const std::string &path) {
@@ -1544,6 +1696,7 @@ class Workbench {
         report_buffer.text("");
         headline->copy_label("Engine changed — reduce the sight again.");
         al_buffer.text("");
+        invalidate_sky();
         engine_info();
         message("Using " + std::string(nav_engine_name()));
     }
@@ -1551,6 +1704,7 @@ class Workbench {
         auto path = choose_file("Select repacked JPL ephemeris", "NAVALM ephemeris\t*.nav", false);
         if (path.empty())
             return;
+        invalidate_sky();
         nav_engine_shutdown();
         nav_engine_set_ephemeris_path(path.c_str());
         nav_engine_select("precise");
@@ -1776,6 +1930,30 @@ static int self_test() {
     }
     require(std::string(app.lat->value()).empty() && std::string(app.lon->value()).empty(),
             "new form without DR defaults has explicitly empty coordinates");
+    app.sky_date->value("2026-06-21");app.sky_time->value("00:00:00");
+    app.sky_lat->value("34 02.5");app.sky_lon->value("117 21.9");
+    app.sky_lon_hemi->value(1);app.update_sky(0);
+    require(app.sky_canvas->ready && app.sky_canvas->sky.count==58 &&
+            std::abs(app.sky_canvas->sky.sun_altitude+8)<.001,"native evening sky");
+    int planned_star=-1;
+    for(size_t i=0;i<app.sky_canvas->sky.count;i++)
+        if(app.sky_canvas->sky.stars[i].selected){planned_star=int(i);break;}
+    require(planned_star>=0,"native suggested star exists");
+    app.select_sky_star(planned_star);
+    std::string planned_date=app.sky_date->value(), planned_time=app.sky_time->value();
+    app.sky_date->value("2000-01-01");app.sky_lat->value("0");
+    app.sky_to_sight();
+    require(app.tabs->value()==app.sight_tab && app.star->value()==planned_star &&
+            std::string(app.date->value())==planned_date && std::string(app.time->value())==planned_time &&
+            std::abs(angle(app.lat->value(),"Latitude",90)-(34+2.5/60))<1e-8 &&
+            std::string(app.hs->value()).empty() && app.store.n==0,
+            "native transfer uses calculated UTC/DR, clears Hs and never saves");
+    app.sky_min->value("90");rejects([&]{app.update_sky();});
+    require(!app.sky_canvas->ready && !app.sky_sight->active() && app.sky_list->size()==0,
+            "invalid native sky clears stale chart, list and transfer");
+    app.sky_min->value("15");app.sky_date->value(planned_date.c_str());
+    app.update_sky();
+    std::puts("PASS planetarium: evening crossing, star selection, sight transfer and stale errors");
     app.example();
     auto before_missing = app.store.n;
     app.lat->value("");
@@ -2042,7 +2220,8 @@ static int self_test() {
     std::puts("PASS offline map: linked visibility and synthetic coastal fix");
     app.engine->value(1);
     app.change_engine();
-    require(!app.plot->ready && app.fix_buffer.length() == 0, "engine change clears stale fix");
+    require(!app.plot->ready && app.fix_buffer.length() == 0 && !app.sky_canvas->ready &&
+            !app.sky_sight->active(), "engine change clears stale fix and sky");
     app.win.hide();
     Fl::check();
     std::puts("All desktop checks passed; no personal navigation files used.");

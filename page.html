@@ -27,6 +27,10 @@ nav button{flex:1;min-width:88px;background:none;border:none;border-bottom:2px s
   color:var(--dim);font:inherit;padding:.55rem .4rem;cursor:pointer}
 nav button.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
 main{max-width:52rem;margin:0 auto;padding:1rem}
+main.skywide{max-width:82rem}
+.skycolumns{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:1rem;align-items:start}
+.skycolumns>*{min-width:0}
+@media(max-width:900px){.skycolumns{display:block}}
 section{display:none} section.on{display:block}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
   padding:.9rem 1rem;margin-bottom:1rem}
@@ -104,6 +108,15 @@ table.air tr.half td{background:var(--mark)}
 .bookchecks input{width:auto;margin-top:.35rem;flex:none}
 #book_progress{width:100%;accent-color:var(--accent);margin:.8rem 0 .3rem}
 #book_path{overflow-wrap:anywhere;font:13px/1.6 var(--mono);margin:.6rem 0}
+.skyview{background:#101c30;border-radius:8px;max-width:46rem;margin:auto;overflow:hidden}
+.skyview svg{display:block;width:100%;height:auto}
+.skyview [data-sky-star]{cursor:pointer;outline:none}
+.skyview [data-sky-star]:focus circle{stroke:#fff;stroke-width:3}
+.skyselected{background:var(--mark)}
+.skytable{max-height:25rem;overflow:auto}
+.skytable button{font:inherit;color:var(--accent);background:none;border:0;padding:0;text-align:left;cursor:pointer}
+#sky_detail{padding:.6rem 0}
+#sky_status{margin:.6rem 0}
 </style>
 </head>
 <body>
@@ -115,6 +128,7 @@ table.air tr.half td{background:var(--mark)}
     <button data-tab="list">Sights</button>
     <button data-tab="fix">Fix</button>
     <button data-tab="setup">Setup</button>
+    <button data-tab="sky">Planetarium</button>
     <button data-tab="book">Annual book</button>
   </nav>
 </header>
@@ -285,6 +299,58 @@ table.air tr.half td{background:var(--mark)}
   </div>
 </section>
 
+<section id="sky">
+  <div class="card">
+    <h2>Planetarium &amp; star planner</h2>
+    <div class="grid">
+      <div><label for="sky_date">Date UTC</label><input id="sky_date" type="date" required></div>
+      <div><label for="sky_time">Time UTC</label><input id="sky_time" type="time" step="1" required></div>
+      <div><label for="sky_lat">DR latitude · DD MM.m N/S</label><input id="sky_lat" placeholder="34 02.5 N"></div>
+      <div><label for="sky_lon">DR longitude · DDD MM.m E/W</label><input id="sky_lon" placeholder="117 21.9 W"></div>
+    </div>
+    <div class="tools">
+      <button class="act" id="sky_update">Update sky</button><button class="ghost" id="sky_now">Now UTC</button>
+      <button class="ghost" id="sky_dr">Use setup DR</button>
+      <button class="ghost" id="sky_morning">Next morning sights</button>
+      <button class="ghost" id="sky_evening">Next evening sights</button>
+    </div>
+    <div class="grid">
+      <div><label for="sky_min">Minimum altitude &deg;</label><input id="sky_min" type="number" min="0" max="89" value="15"></div>
+      <div><label for="sky_max">Maximum altitude &deg;</label><input id="sky_max" type="number" min="1" max="90" value="75"></div>
+      <div><label for="sky_mag">Faintest magnitude</label><input id="sky_mag" type="number" min="-2" max="6" step="0.1" value="3.0"></div>
+      <div><label for="sky_count">Suggested set</label><select id="sky_count"><option value="3">3 stars</option><option value="4">4 stars</option></select></div>
+    </div>
+    <p class="hint">Smaller magnitudes mean brighter stars. Morning/evening buttons find the next Sun altitude of &minus;8&deg; within 48 hours.
+      These are planning times; clouds, haze and the visible horizon still matter.</p>
+    <div id="sky_status" role="status">Choose a DR and UTC time.</div>
+  </div>
+  <div class="skycolumns">
+  <div class="card">
+    <h2>Sky above your horizon</h2>
+    <div class="skyview" id="sky_chart"></div>
+    <p class="hint">Looking up: north at the top, east on the left. Rim = horizon, centre = zenith.
+      Gold stars form the suggested set; muted stars are outside your filters. Click a star for details.</p>
+    <div class="tools"><label><input type="checkbox" id="sky_names" checked style="width:auto"> Star names</label>
+      <button class="ghost" id="sky_export" disabled>Save sky SVG</button></div>
+    <div id="sky_detail"></div>
+    <button class="act" id="sky_sight" disabled>Use selected star for a sight</button>
+  </div>
+  <div>
+  <div class="card">
+    <h2>Suggested stars</h2><div id="sky_plan"></div>
+    <p class="hint">The planner favours well-spaced true bearings, then brighter stars and moderate altitudes.
+      Its geometry score describes bearing spread, not expected fix accuracy. Altitudes are geometric Hc;
+      refraction, dip and sextant corrections are applied when reducing an actual sight.</p>
+  </div>
+  <div class="card">
+    <h2>Navigation star catalogue</h2>
+    <label><input type="checkbox" id="sky_below" style="width:auto"> Include below-horizon stars in the list</label>
+    <div class="skytable" id="sky_list"></div>
+  </div>
+  </div>
+  </div>
+</section>
+
 <section id="book">
   <div class="card">
     <h2>Custom annual practice almanac</h2>
@@ -336,8 +402,8 @@ const LS_SIGHTS = 'navalm.sights', LS_SETUP = 'navalm.setup';
 const pad = (n,w)=>String(n).padStart(w,'0');
 function dm(x,degw){
   const s = x<0?'\u2212':''; x=Math.abs(x);
-  let d=Math.floor(x), m=(x-d)*60;
-  if(m>=59.95){m=0;d++;}
+  const tenth=Math.round(x*600);
+  const d=Math.floor(tenth/600), m=(tenth%600)/10;
   return s+pad(d,degw)+'\u00b0 '+(m<10?'0':'')+m.toFixed(1)+'\u2032';
 }
 const alt = x=>dm(x,2);
@@ -1089,6 +1155,144 @@ function saveSetup(){
   refresh(); refreshAlmanac();
 }
 
+/* ---------- planetarium ---------- */
+let skyResult=null, skySelected=-1, skyRequest=0, skyInitialized=false;
+const skyEscape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function skyPoint(altitude,azimuth){
+  const r=(90-altitude)/90*310, angle=azimuth*Math.PI/180;
+  return {x:360-r*Math.sin(angle),y:360-r*Math.cos(angle)};
+}
+function skySVG(result,names=true,selected=-1){
+  let out='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 760" role="img" aria-label="Navigation stars above the horizon, looking up; east is left">';
+  out+='<rect width="720" height="760" fill="#101c30"/>';
+  for(const altitude of [0,30,60]){
+    const r=(90-altitude)/90*310;
+    out+=`<circle cx="360" cy="360" r="${r}" fill="none" stroke="#42516a"/><text x="366" y="${360-r+15}" fill="#a7b5cb" font-size="12">${altitude}°</text>`;
+  }
+  out+='<path d="M50 360H670 M360 50V670" stroke="#2a3951"/><g fill="#d5dfed" font-family="sans-serif" font-size="18" text-anchor="middle">';
+  out+='<text x="360" y="30">N</text><text x="25" y="366">E</text><text x="360" y="704">S</text><text x="695" y="366">W</text></g>';
+  const occupied=[], plotted=result.stars.filter(s=>s.altitude>0).sort((a,b)=>b.selected-a.selected || a.magnitude-b.magnitude);
+  for(const s of plotted){
+    const p=skyPoint(s.altitude,s.azimuth), r=Math.max(2,5-s.magnitude*.65);
+    const color=s.selected?'#ffda78':s.eligible?'#e1eaf7':'#8291a9';
+    out+=`<g data-sky-star="${s.index}" role="button" tabindex="0" aria-label="${skyEscape(s.name)}, altitude ${s.altitude.toFixed(1)} degrees, bearing ${s.azimuth.toFixed(1)} true">`;
+    out+=`<title>${skyEscape(s.name)} · Hc ${s.altitude.toFixed(1)}° · Zn ${s.azimuth.toFixed(1)}°T · mag ${s.magnitude.toFixed(1)}</title>`;
+    out+=`<circle cx="${p.x}" cy="${p.y}" r="13" fill="transparent"/>`;
+    if(s.selected || s.index===selected) out+=`<circle cx="${p.x}" cy="${p.y}" r="${s.index===selected?12:9}" fill="none" stroke="${s.index===selected?'#7bd8e6':color}" stroke-width="1.5"/>`;
+    out+=`<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${color}"/>`;
+    if(names){
+      const width=s.name.length*6.8;
+      let label;
+      for(const [dx,dy] of [[12,-9],[12,18],[-width-12,-9],[-width-12,18],[12,-25],[-width-12,34]]){
+        const box={x:p.x+dx,y:p.y+dy-12,w:width,h:15};
+        if(box.x<6 || box.x+box.w>714 || box.y<40 || box.y+box.h>680) continue;
+        if(!occupied.some(b=>box.x<b.x+b.w && box.x+box.w>b.x && box.y<b.y+b.h && box.y+box.h>b.y)){
+          label=box; occupied.push(box); break;
+        }
+      }
+      if(label) out+=`<text x="${label.x}" y="${label.y+12}" fill="${color}" font-family="sans-serif" font-size="12">${skyEscape(s.name)}</text>`;
+    }
+    out+='</g>';
+  }
+  return out+`<text x="360" y="739" fill="#a7b5cb" text-anchor="middle" font-family="sans-serif" font-size="12">${skyEscape(result.date)} ${skyEscape(result.time)} UTC · ${skyEscape(lat(result.lat))} · ${skyEscape(lon(result.lon))}</text></svg>`;
+}
+function skyTable(stars){
+  return '<table class="lops"><thead><tr><th>Star</th><th>Hc</th><th>Zn °T</th><th>Mag</th></tr></thead><tbody>'+stars.map(s=>
+    `<tr class="${s.selected?'skyselected':''}"><td><button data-sky-star="${s.index}">${s.selected?'★ ':''}${skyEscape(s.name)}</button></td><td>${alt(s.altitude)}</td><td>${s.azimuth_defined?s.azimuth.toFixed(1):'—'}</td><td>${s.magnitude.toFixed(1)}</td></tr>`).join('')+'</tbody></table>';
+}
+function drawSky(){
+  if(!skyResult) return;
+  $('sky_chart').innerHTML=skySVG(skyResult,$('sky_names').checked,skySelected);
+  const visible=skyResult.stars.filter(s=>$('sky_below').checked || s.altitude>0);
+  visible.sort((a,b)=>b.selected-a.selected || b.eligible-a.eligible || a.azimuth-b.azimuth);
+  $('sky_list').innerHTML=skyTable(visible);
+  const chosen=skyResult.stars.filter(s=>s.selected).sort((a,b)=>a.azimuth-b.azimuth);
+  $('sky_plan').innerHTML=(chosen.length?skyTable(chosen):'<p>No stars match these filters.</p>')+
+    `<p class="hint">${skyResult.eligible} eligible of ${skyResult.catalogue_count} catalogue stars · bearing geometry ${Math.round(skyResult.geometry*100)} / 100`+
+    (skyResult.selected<skyResult.requested?' · Too few eligible stars for a complete set.':'')+'</p>';
+  const selected=skyResult.stars[skySelected];
+  $('sky_sight').disabled=!selected || selected.altitude<=0;
+  $('sky_detail').textContent=selected?`${selected.name} · Hc ${alt(selected.altitude)} · Zn ${selected.azimuth_defined?selected.azimuth.toFixed(1)+'°T':'undefined at zenith'} · magnitude ${selected.magnitude.toFixed(1)}`:'Select a star on the chart or in a table.';
+  $('sky_export').disabled=false;
+}
+function skyUseDR(){
+  const setup=loadSetup(); $('sky_lat').value=lat(setup.drlat); $('sky_lon').value=lon(setup.drlon);
+}
+function skyNow(){
+  const date=new Date(); $('sky_date').value=date.toISOString().slice(0,10); $('sky_time').value=date.toISOString().slice(11,19);
+}
+function skyPosition(text,isLon){
+  let raw=text.trim().toUpperCase();
+  const prefix=raw.match(/^([NSEW])\s*/);
+  if(prefix) raw=raw.slice(prefix[0].length)+' '+prefix[1];
+  const m=raw.match(/^([+-]?\d+(?:\.\d*)?)(?:[\s°:]+(\d+(?:\.\d*)?)(?:[\s'′:]+(\d+(?:\.\d*)?))?)?[\s°'′"″]*([NSEW])?$/);
+  if(!m) throw new Error('Use degrees and minutes, followed by N/S or E/W.');
+  const deg=Number(m[1]), minute=Number(m[2]||0), sec=Number(m[3]||0), hemi=m[4];
+  if(minute>=60 || sec>=60 || (m[2] && !Number.isInteger(deg)) || (m[3] && !Number.isInteger(minute)) ||
+     (hemi && !(isLon?'EW':'NS').includes(hemi))) throw new Error('Check the degrees, minutes and hemisphere.');
+  let value=Math.abs(deg)+minute/60+sec/3600;
+  if(hemi) value*=('SW'.includes(hemi)?-1:1); else if(m[1].startsWith('-')) value*=-1;
+  if(Math.abs(value)>(isLon?180:90)) throw new Error('DR coordinates are out of range.');
+  return value;
+}
+async function refreshSky(event=''){
+  const request=++skyRequest;
+  try{
+    if(!$('sky_date').reportValidity() || !$('sky_time').reportValidity()) return;
+    const dp=$('sky_date').value.split('-'), tp=$('sky_time').value.split(':');
+    const q=new URLSearchParams({y:dp[0],mo:dp[1],d:dp[2],h:tp[0],mi:tp[1],s:tp[2]||0,
+      lat:skyPosition($('sky_lat').value,false),lon:skyPosition($('sky_lon').value,true),min_alt:$('sky_min').value,
+      max_alt:$('sky_max').value,max_mag:$('sky_mag').value,count:$('sky_count').value,event});
+    $('sky_status').textContent=event?'Finding the next sight window…':'Calculating the sky…';
+    const response=await fetch('/api/sky?'+q), result=await response.json();
+    if(request!==skyRequest) return;
+    if(!response.ok || result.error) throw new Error(result.error || 'Could not calculate the sky.');
+    skyResult=result;
+    $('sky_date').value=result.date; $('sky_time').value=result.time;
+    $('sky_status').textContent=`${result.catalogue_count} stars (including Polaris) · ${result.light} · Sun ${result.sun_altitude.toFixed(1)}° · ${result.engine}`+
+      (result.sun_altitude> -6?' · Bright sky: many stars may be difficult to see.':result.sun_altitude< -12?' · A sea horizon may be difficult to see.':' · Check the actual sky and horizon.');
+    drawSky();
+  }catch(error){
+    if(request!==skyRequest) return;
+    skyResult=null; $('sky_status').textContent=error.message;
+    $('sky_chart').innerHTML=''; $('sky_plan').innerHTML=''; $('sky_list').innerHTML='';
+    $('sky_detail').textContent=''; $('sky_sight').disabled=true; $('sky_export').disabled=true;
+  }
+}
+function showSky(){
+  if(!skyInitialized){ skyNow(); skyUseDR(); skyInitialized=true; refreshSky(); }
+}
+for(const id of ['sky_chart','sky_plan','sky_list']){
+  const select=event=>{
+    const item=event.target.closest('[data-sky-star]');
+    if(item && skyResult){ skySelected=Number(item.dataset.skyStar); drawSky(); }
+  };
+  $(id).onclick=select;
+  $(id).onkeydown=event=>{if(event.key==='Enter' || event.key===' '){event.preventDefault();select(event);}};
+}
+$('sky_update').onclick=()=>refreshSky();
+$('sky_now').onclick=()=>{skyNow();refreshSky();};
+$('sky_dr').onclick=()=>{skyUseDR();refreshSky();};
+$('sky_morning').onclick=()=>refreshSky('morning');
+$('sky_evening').onclick=()=>refreshSky('evening');
+$('sky_names').onchange=drawSky; $('sky_below').onchange=drawSky;
+$('sky_export').onclick=()=>{
+  if(!skyResult) return;
+  const url=URL.createObjectURL(new Blob([skySVG(skyResult,$('sky_names').checked,skySelected)],{type:'image/svg+xml'}));
+  const a=document.createElement('a'); a.href=url; a.download='NAVALM-sky-'+skyResult.date+'.svg'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+$('sky_sight').onclick=()=>{
+  if(!skyResult || skySelected<0) return;
+  const star=skyResult.stars[skySelected], st=loadSetup();
+  const d=skyResult.date.split('-').map(Number), t=skyResult.time.split(':').map(Number);
+  endEdit('Planning a new star sight. Enter your measured Hs.');
+  fillSight({...st,body:'star',star:star.name,y:d[0],mo:d[1],d:d[2],h:t[0],mi:t[1],s:t[2],hs:0,
+    drlat:skyResult.lat,drlon:skyResult.lon,course:0,speed:0,set:0,drift:0,label:'Planned '+star.name});
+  $('f_drlat').value=lat(skyResult.lat); $('f_drlon').value=lon(skyResult.lon);
+  $('hsd').value=''; $('hsm').value=''; show('sight'); renderActiveDR(); refresh();
+};
+
 /* ---------- annual book ---------- */
 let bookTimer;
 let bookRequest=0, bookStarting=false;
@@ -1164,12 +1368,14 @@ $('book_build').onclick=buildBook;
 
 /* ---------- tabs and wiring ---------- */
 function show(id){
+  document.querySelector('main').classList.toggle('skywide',id==='sky');
   document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id===id));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===id));
   if(id==='list'){ renderList(); }
   if(id==='almanac'){ refreshAlmanac(); }
   if(id==='fix'){ renderMotion(); }
   if(id==='book'){ refreshBook(); }
+  if(id==='sky'){ showSky(); }
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.tab));
 

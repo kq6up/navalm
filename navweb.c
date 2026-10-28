@@ -33,6 +33,7 @@
 #include "navsight.h"
 #include "navrc.h"
 #include "nav_engine.h"
+#include "navsky.h"
 #include "navweb_page.h"
 
 #include <stdio.h>
@@ -296,6 +297,68 @@ static void json_reduction(Json *j,const Sight *si,const Reduction *r){
 
 /* ------------------------------------------------------------- endpoints */
 
+static int sky_query_number(const char *qs,const char *key,double fallback,double *value){
+    char text[64], *end;
+    if(!qs_get(qs,key,text,sizeof text)){ *value=fallback; return 0; }
+    *value=strtod(text,&end);
+    return end==text || *end || !isfinite(*value);
+}
+static size_t api_sky(const char *qs,char *out,size_t cap){
+    Json j={out,0,cap};
+    NavSkyOptions o;
+    NavSky sky;
+    char err[512]="", date[32], time[32], event[32];
+    double values[6], requested;
+    const char *keys[]={"y","mo","d","h","mi","s"};
+    double defaults[]={2026,1,1,0,0,0};
+    size_t i;
+    jput(&j,"{");
+    for(i=0;i<6;i++){
+        if(sky_query_number(qs,keys[i],defaults[i],&values[i]) ||
+           fabs(values[i])>10000 || (i<5 && floor(values[i])!=values[i])) goto invalid_date;
+    }
+    if(navsky_jd((int)values[0],(int)values[1],(int)values[2],(int)values[3],
+                  (int)values[4],values[5],&o.jd)) goto invalid_date;
+    if(!qs_get(qs,"lat",date,sizeof date) || !qs_get(qs,"lon",time,sizeof time) ||
+       sky_query_number(qs,"lat",NAN,&o.latitude) || sky_query_number(qs,"lon",NAN,&o.longitude) ||
+       fabs(o.latitude)>90 || fabs(o.longitude)>180){
+        strcpy(err,"Enter DR latitude (-90 to 90) and longitude (-180 to 180)."); goto failed;
+    }
+    if(sky_query_number(qs,"min_alt",15,&o.min_altitude) ||
+       sky_query_number(qs,"max_alt",75,&o.max_altitude) ||
+       sky_query_number(qs,"max_mag",3,&o.max_magnitude) ||
+       sky_query_number(qs,"count",3,&requested) || (requested!=3 && requested!=4)){
+        strcpy(err,"Enter valid altitude, magnitude and star-count filters."); goto failed;
+    }
+    o.requested=(int)requested;
+    if(qs_get(qs,"event",event,sizeof event) && event[0]){
+        if(strcmp(event,"morning") && strcmp(event,"evening")){
+            strcpy(err,"Choose morning or evening sights."); goto failed;
+        }
+        if(navsky_twilight(o.jd,o.latitude,o.longitude,!strcmp(event,"morning"),&o.jd,err,sizeof err)) goto failed;
+    }
+    if(navsky_compute(&o,&sky,err,sizeof err)) goto failed;
+    navsky_utc(o.jd,date,sizeof date,time,sizeof time);
+    jint(&j,"ok",1); jstr(&j,"date",date); jstr(&j,"time",time);
+    jstr(&j,"engine",nav_engine_name()); jstr(&j,"light",sky.light);
+    jnum(&j,"lat",o.latitude); jnum(&j,"lon",o.longitude);
+    jnum(&j,"sun_altitude",sky.sun_altitude); jnum(&j,"geometry",sky.geometry);
+    jnum(&j,"score",sky.score); jint(&j,"eligible",sky.eligible); jint(&j,"selected",sky.selected);
+    jint(&j,"requested",o.requested); jint(&j,"catalogue_count",(long)sky.count);
+    jput(&j,"\"stars\":[");
+    for(i=0;i<sky.count;i++){
+        const NavSkyStar *s=&sky.stars[i];
+        jput(&j,"{"); jint(&j,"index",(long)i); jstr(&j,"name",s->name);
+        jnum(&j,"altitude",s->altitude); jnum(&j,"azimuth",s->azimuth); jnum(&j,"magnitude",s->magnitude);
+        jint(&j,"azimuth_defined",s->azimuth_defined); jint(&j,"eligible",s->eligible); jint(&j,"selected",s->selected);
+        jtrim(&j); jput(&j,"},");
+    }
+    jtrim(&j); jput(&j,"]}"); return j.n;
+invalid_date:
+    strcpy(err,"Enter a valid Gregorian UTC date (1600-2399) and time; seconds must be below 60.");
+failed:
+    jstr(&j,"error",err[0]?err:"Could not calculate the sky."); jtrim(&j); jput(&j,"}"); return j.n;
+}
 
 static int web_body_id(const char *name,NavBody *b){
     static const char *names[]={"sun","moon","mercury","venus","mars","jupiter","saturn","aries"};
@@ -656,6 +719,11 @@ static void handle_request(int fd,const char *req)
     }
     if(!strcmp(target,"/api/almanac")){
         n = api_almanac(qs,json,sizeof json);
+        send_response(fd,"200 OK","application/json",json,n);
+        return;
+    }
+    if(!strcmp(target,"/api/sky")){
+        n=api_sky(qs,json,sizeof json);
         send_response(fd,"200 OK","application/json",json,n);
         return;
     }

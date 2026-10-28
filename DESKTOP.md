@@ -31,6 +31,10 @@ Charts + setup page show the selected engine and ephemeris details.
 
 - **Almanac:** UTC date/time, body or catalogue star, DR; paper almanac or a
   complete hourly table, with text export.
+- **Planetarium (5.1 preview):** view the 58-star sky for a DR and UTC time;
+  suggest three/four stars by bearing spread, brightness and altitude. Jump to
+  morning/evening sight windows and carry a selected star into a new observation.
+  See [PLANETARIUM.md](PLANETARIUM.md) for orientation and planning conventions.
 - **Annual book (5.1 preview):** choose a year and sections, then export a vector
   PDF or editable LaTeX source with progress and cancellation. LaTeX compilation
   is a separate step requiring TeX. Calculator formulas and compact Ageton tables

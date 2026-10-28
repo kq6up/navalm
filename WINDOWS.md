@@ -3,6 +3,8 @@
 The current annual-book preview is **5.1-dev**. Its final **Annual book** tab
 exports selectable annual sections and compact Ageton tables directly to PDF,
 or to editable LaTeX source. Direct PDF export needs no TeX installation.
+The **Planetarium** tab adds a 58-star sky view and three/four-star sight planner;
+see [PLANETARIUM.md](PLANETARIUM.md).
 The public 5.0 release ZIP is a separate, older build.
 
 `NAVALM.exe` targets **Windows 10/11 x64**. FLTK, the C++ library and compiler

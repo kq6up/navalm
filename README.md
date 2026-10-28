@@ -28,6 +28,10 @@ conventions and the official-book sections that are still missing.
 
 NAVALM 5.0 adds the FLTK workbench, a detachable plotting sheet with zoom and transparent vector exports, offline coastlines, and a portable Windows build. [Download the Windows x64 ZIP](https://github.com/kq6up/navalm/releases/download/v5.0/NAVALM-Windows-x64.zip) or see the [release notes](CHANGELOG.md). It includes the ICE F7-style almanac for working a fix on paper. It retains the two astronomy engines introduced in 4.0p: XEphem libastro and NOVAS C3.1 with the JPL DE440s ephemeris; either can be selected at run time. The older v2.8g release still contains the legacy engine and is not covered by this license transition.
 
+The 5.1 preview also adds a **Planetarium** tab to both interfaces: a sky chart
+of 58 navigation stars, three/four-star sight planning, altitude/brightness
+filters and morning/evening planning times. See [PLANETARIUM.md](PLANETARIUM.md).
+
 ## Features
 
 - **Almanac:** Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn, Aries, and navigation stars.
