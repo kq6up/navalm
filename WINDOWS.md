@@ -1,6 +1,6 @@
 # Portable Windows desktop
 
-The current source/build is **5.4**; the latest published release is **5.3**. Its final **Annual book** tab
+The current release is **5.4**. Its final **Annual book** tab
 exports selectable annual sections and compact Ageton tables directly to PDF,
 or to editable LaTeX source. Direct PDF export needs no TeX installation.
 The **Planetarium** tab adds a sky view of 58 navigation stars, Sun, Moon and five planets,
@@ -9,7 +9,7 @@ independent name/supporting-star toggles, readable planet labels and a
 resizable detached sky window with full screen (F11) and reattachment;
 see [PLANETARIUM.md](PLANETARIUM.md).
 The Sight tab includes **Reduce at DR (no whole-degree LHA)**; the method is
-saved with each sight. Download the [5.3 Windows ZIP](https://github.com/kq6up/navalm/releases/download/v5.3/NAVALM-Windows-x64.zip).
+saved with each sight. Download the [5.4 Windows ZIP](https://github.com/kq6up/navalm/releases/download/v5.4/NAVALM-Windows-x64.zip).
 
 `NAVALM.exe` targets **Windows 10/11 x64**. FLTK, the C++ library and compiler
 support are linked statically. It needs no FLTK DLLs, compiler installation or
@@ -81,13 +81,16 @@ embedded in the executable. Defaults match the script's prepared inputs.
 
 ## Validation status
 
-The 5.4 Windows executable was cross-compiled on macOS, and its PE structure,
-imports and embedded resources were inspected. The shared desktop/map tests and
-native callback/download checks passed on macOS. The user retested the corrected
-5.0 release on Windows 10 and reported that it seemed fine. That report does not
-cover the features added since 5.0. **Version 5.4 still needs a Windows runtime
-retest**, including direct-at-DR reduction, planetarium, annual PDF/LaTeX generation,
-file pickers, and save/reopen.
+The user reported successful Windows testing of version **5.4** on
+**28 October 2026**. The released executable is byte-for-byte identical to the
+previous local 5.4 Windows ZIP supplied for that test; only the packaged
+instructions, release notes and validation record were updated.
+
+The executable was cross-compiled on macOS. Its PE version/manifest, system-only
+DLL imports, embedded ephemeris/map bytes and ZIP integrity were inspected.
+Shared desktop/map, planetarium, CLI/web and native callback checks passed on
+macOS. Windows runtime success is the user's report; these automated checks
+were not independently executed on a Windows host by the release tooling.
 
 The cross-build also produces `desktop-core-check.exe` for a Windows test host;
 run it from the source directory with `ephem/de440s.nav` present. The desktop's

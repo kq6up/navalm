@@ -3,6 +3,9 @@
 The optional desktop calls the existing C astronomy, sight-reduction, store,
 and fix APIs directly. `make` still builds the CLI, terminal, and web program.
 
+For Ubuntu packages, native launch commands and virtual-display testing, see
+[LINUX.md](LINUX.md).
+
 ## Build and open
 
 Requires a C/C++17 compiler and FLTK 1.4. On this sandbox a private FLTK 1.4.5

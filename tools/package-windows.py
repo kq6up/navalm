@@ -13,6 +13,8 @@ import zipfile
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--toolchain', required=True, type=Path)
 parser.add_argument('--output', required=True, type=Path)
+parser.add_argument('--windows-tested', action='store_true',
+                    help='Record an explicit user report of successful Windows runtime testing')
 args = parser.parse_args()
 root = Path(__file__).resolve().parent.parent
 version = re.search(r'^#define NAVALM_VERSION "([^"]+)"',
@@ -97,7 +99,7 @@ stage = out / 'NAVALM-Windows-x64'
 stage.mkdir(exist_ok=True)
 shutil.copy2(exe, stage / 'NAVALM.exe')
 for name in ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'PROVENANCE.md', 'SAFETY.md', 'CHANGELOG.md',
-             'WINDOWS.md', 'DESKTOP.md', 'MAPS.md', 'ANNUAL.md', 'PLANETARIUM.md']:
+             'WINDOWS.md', 'DESKTOP.md', 'MAPS.md', 'ANNUAL.md', 'PLANETARIUM.md', 'LINUX.md']:
     shutil.copy2(root / name, stage / name)
 sky_data = stage / 'data/sky'
 sky_data.mkdir(parents=True, exist_ok=True)
@@ -112,11 +114,15 @@ shutil.copy2(fltk_license, license_dir / 'FLTK-COPYING')
 shutil.copy2(args.toolchain / 'LICENSE.TXT', license_dir / 'LLVM-LICENSE.TXT')
 for source in (args.toolchain / 'x86_64-w64-mingw32/share/mingw32').glob('COPYING*'):
     shutil.copy2(source, license_dir / source.name)
+runtime_status = ('Windows runtime testing reported successful by the user; see WINDOWS.md.\n'
+                  if args.windows_tested else
+                  'Not executed on Windows or under Wine by this build tooling.\n')
 report = (f'NAVALM {version} Windows x64 build inspection\n\n'
           'PE32+ x86-64; Windows GUI subsystem.\n'
           'FLTK/C++ support linked statically; DLL imports are Windows system components.\n'
           'Map and precise ephemeris are embedded byte-for-byte and unpack on first launch.\n'
-          'Not executed on Windows or under Wine. macOS shared/native tests passed.\n\n'
+          'macOS shared/native tests passed.\n'
+          + runtime_status + '\n'
           + '\n'.join(asset_notes) + '\n\nDLL imports:\n' + '\n'.join(names)
           + '\n\nNAVALM.exe SHA256: ' + hashlib.sha256(data).hexdigest() + '\n')
 (stage / 'BUILD-VALIDATION.txt').write_text(report)
@@ -137,12 +143,12 @@ report = (f'NAVALM {version} Windows x64 build inspection\n\n'
     'Annual book (last tab): choose a year and sections, then export PDF\n'
     'or editable LaTeX source. PDF export needs no TeX installation.\n'
     'This Windows package is the native GUI; it does not include the Unix web server.\n\n'
-    'This unsigned build was cross-compiled on macOS. It still needs\n'
-    'a real Windows launch and save/reopen test. See WINDOWS.md.\n')
+    'This unsigned build was cross-compiled on macOS.\n'
+    + runtime_status)
 archive = out / 'NAVALM-Windows-x64.zip'
 # Explicit file list avoids carrying state from any previous staging-directory run.
 files = [stage / n for n in ['NAVALM.exe', 'LICENSE', 'THIRD_PARTY_NOTICES.md',
-         'PROVENANCE.md', 'SAFETY.md', 'CHANGELOG.md', 'WINDOWS.md', 'DESKTOP.md', 'MAPS.md', 'ANNUAL.md', 'PLANETARIUM.md',
+         'PROVENANCE.md', 'SAFETY.md', 'CHANGELOG.md', 'WINDOWS.md', 'DESKTOP.md', 'MAPS.md', 'ANNUAL.md', 'PLANETARIUM.md', 'LINUX.md',
          'START-HERE.txt', 'BUILD-VALIDATION.txt']]
 files += list(license_dir.iterdir()) + [sky_data / 'README.md']
 with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:

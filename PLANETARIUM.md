@@ -113,4 +113,5 @@ It also exercises the real HTTP endpoint and browser input/projection/error
 handling, including overlapping requests. These checks validate the coordinate
 conversion and planner integration; the underlying ephemeris validation remains
 in VALIDATION.md. Real macOS native and browser views were exercised. The Windows
-package is cross-built and inspected; this feature still needs a Windows run.
+package is cross-built and inspected; the user reported successful Windows
+5.4 testing on 28 October 2026. See LINUX.md for Ubuntu CI coverage.

@@ -10,10 +10,11 @@ It includes sight reductions, saved observations, fixes, and a geographic
 vector plotting overlay with transparent SVG export. See [DESKTOP.md](DESKTOP.md)
 for building, state paths, validation, and the offline coastline underlay.
 See [MAPS.md](MAPS.md) for downloads/OpenCPN coastlines and [WINDOWS.md](WINDOWS.md)
-for the portable Windows x64 desktop build.
+for the portable Windows x64 desktop build. See [LINUX.md](LINUX.md) for Ubuntu
+build commands and the Linux CI checks.
 The existing CLI, `--gui`, and `-d` browser interface remain available.
 
-Current development version: **5.4**; latest published release: **5.3**.
+Current released version: **5.4**.
 
 Version 5.2 includes a custom annual practice-book
 preview with selectable sections, compact Ageton tables and optional LaTeX source
@@ -25,7 +26,7 @@ conventions and the official-book sections that are still missing.
 
 **Informational and educational use only. Do not rely on NAVALM where an error could cause death, injury, or property damage. By using it, you accept the [safety and assumption-of-risk terms](SAFETY.md), to the extent permitted by law.**
 
-NAVALM 5.0 adds the FLTK workbench, a detachable plotting sheet with zoom and transparent vector exports, offline coastlines, and a portable Windows build. [Download the Windows x64 ZIP](https://github.com/kq6up/navalm/releases/download/v5.3/NAVALM-Windows-x64.zip) or see the [release notes](CHANGELOG.md). It includes the ICE F7-style almanac for working a fix on paper. It retains the two astronomy engines introduced in 4.0p: XEphem libastro and NOVAS C3.1 with the JPL DE440s ephemeris; either can be selected at run time. The older v2.8g release still contains the legacy engine and is not covered by this license transition.
+NAVALM 5.0 adds the FLTK workbench, a detachable plotting sheet with zoom and transparent vector exports, offline coastlines, and a portable Windows build. [Download the Windows x64 ZIP](https://github.com/kq6up/navalm/releases/download/v5.4/NAVALM-Windows-x64.zip) or see the [release notes](CHANGELOG.md). It includes the ICE F7-style almanac for working a fix on paper. It retains the two astronomy engines introduced in 4.0p: XEphem libastro and NOVAS C3.1 with the JPL DE440s ephemeris; either can be selected at run time. The older v2.8g release still contains the legacy engine and is not covered by this license transition.
 
 Version 5.2 also adds a **Planetarium** tab to both interfaces: a sky chart
 of 58 navigation stars, three/four-star sight planning, altitude/brightness

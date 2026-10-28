@@ -7,7 +7,7 @@ test "$(uname -s)" = Darwin || { echo 'desktop-app creates a macOS bundle. Use m
 app=NAVALM.app/Contents
 mkdir -p "$app/MacOS" "$app/Resources"
 cp navalm-fltk "$app/MacOS/navalm-fltk"
-cp LICENSE THIRD_PARTY_NOTICES.md SAFETY.md DESKTOP.md ANNUAL.md PLANETARIUM.md PROVENANCE.md "$app/Resources/"
+cp LICENSE THIRD_PARTY_NOTICES.md SAFETY.md DESKTOP.md ANNUAL.md PLANETARIUM.md LINUX.md PROVENANCE.md "$app/Resources/"
 mkdir -p "$app/Resources/data/sky"
 cp data/sky/README.md "$app/Resources/data/sky/"
 cp libastro/LICENSE.XEphem "$app/Resources/"

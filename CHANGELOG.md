@@ -1,5 +1,11 @@
-# Changes in NAVALM 5.4 (local build; not yet published)
+# Changes in NAVALM 5.4
 
+- Released the portable Windows x64 ZIP with updated instructions and checksums.
+  The user reported successful Windows testing of 5.4 on 28 October 2026.
+- Added Ubuntu CI to build the CLI, web interface, book generator and FLTK app,
+  exercise shared calculations and HTTP endpoints, and run native GUI callbacks
+  under a virtual X11 display. All checks passed on Ubuntu 24.04 on 28 October
+  2026. See LINUX.md for build and validation details.
 - Added independent constellation-line, constellation-name and supporting-star
   toggles in both planetariums. Offline XEphem figures cover all 88 constellations;
   712 supporting stars complete the shapes without changing the 58-star sight
