@@ -182,6 +182,7 @@ check-plot:
 
 check-list:
 	node tests/sight_list.js
+	node tests/workflow_ui.js
 
 check-direct-dr: navalm
 	python3 tests/direct_dr.py

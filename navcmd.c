@@ -77,9 +77,14 @@ static int parse_sight_options(int argc,char **argv,int start,Sight *si,
                 si->ie_on_arc = 1;           /* a negative value means on the arc */
             }
         } else if(!strcmp(o,"--ah") || !strcmp(o,"--artificial")){
-            si->artificial = 1;
+            si->artificial = 1;si->short_horizon_nm=0;
         } else if(!strcmp(o,"--sea")){
-            si->artificial = 0;
+            si->artificial = 0;si->short_horizon_nm=0;
+        } else if(!strcmp(o,"--short-horizon")){
+            if(!need(argc,i,1,o) || !num(argv[i+1],&a) || a<=0){
+                fprintf(stderr,"--short-horizon wants a positive waterline distance in NM\n");return 1;
+            }
+            si->artificial=0;si->short_horizon_nm=a;i++;
         } else if(!strcmp(o,"--he")){
             if(!need(argc,i,1,o)) return 1;
             if(!num(argv[i+1],&a) || a < 0){ fprintf(stderr,"--he wants a height\n"); return 1; }

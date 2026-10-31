@@ -23,6 +23,8 @@ typedef struct {
     int    limb;            /* +1 lower, 0 center, -1 upper */
     double temp_c;
     double press_mb;
+    double short_horizon_nm;
+    int    reduce_at_dr;    /* 0 = whole-degree LHA, 1 = exact DR */
     int    have_dr;
     double dr_lat, dr_lon;  /* east positive */
     int    have_motion;

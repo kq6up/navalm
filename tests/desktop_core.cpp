@@ -78,6 +78,16 @@ int main() {
                     std::fabs(dr.lha_deg - std::round(dr.lha_deg)) > .01,
                 "direct reduction preserves fractional DR and LHA");
         require(dr.ho == red.ho, "reduction method does not change altitude corrections");
+        auto short_sight=s;short_sight.artificial=0;short_sight.hs_deg=s.hs_deg/2;
+        short_sight.he=10;short_sight.short_horizon_nm=.5;
+        auto short_red=reduce(short_sight);
+        require(std::abs(short_red.dip_min-11.5)<.05,"Bowditch 2019 Table 14: 10 feet, 0.5 NM gives 11.5 arcminutes");
+        short_sight.he=3.048;short_sight.he_metres=1;
+        require(std::abs(reduce(short_sight).dip_min-short_red.dip_min)<1e-10,"short dip feet/metres agree");
+        short_sight.short_horizon_nm=5;rejects([&]{reduce(short_sight);});
+        short_sight.short_horizon_nm=-1;rejects([&]{reduce(short_sight);});
+        short_sight.short_horizon_nm=.5;short_sight.artificial=1;rejects([&]{reduce(short_sight);});
+        std::puts("PASS short-horizon dip: Bowditch reference, units and invalid/beyond-horizon rejection");
         // Independent spherical cosine law and azimuth check, including hemispheres,
         // meridian crossing, the date line and polar latitudes.
         constexpr double radians = 3.14159265358979323846 / 180;
@@ -171,6 +181,13 @@ int main() {
         if (navsight_store_load(&store, err, sizeof err)) throw std::runtime_error(err);
         require(store.v[0].reduce_at_dr == 1 && reduce(store.v[0]).ap_lat == store.v[0].dr_lat,
                 "saved direct method survives reloading and re-reduction");
+        store.v[0]=s;store.v[0].artificial=0;store.v[0].hs_deg=s.hs_deg/2;
+        store.v[0].he=10;store.v[0].short_horizon_nm=.5;
+        if(navsight_store_save(&store,err,sizeof err))throw std::runtime_error(err);
+        navsight_store_free(&store);
+        if(navsight_store_load(&store,err,sizeof err))throw std::runtime_error(err);
+        require(store.v[0].short_horizon_nm==.5 && std::abs(reduce(store.v[0]).dip_min-11.5)<.05,
+                "short-horizon distance survives save/reopen and re-reduction");
         navsight_store_free(&store);
         std::puts("PASS shared precise reduction and store persistence");
         fs::create_directories(".build/desktop-test");

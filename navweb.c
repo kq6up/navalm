@@ -217,6 +217,7 @@ static void web_sight(const char *qs,int i,Sight *si){
     }
     ikey(key,sizeof key,"temp",i);   si->temp_c   = qs_num(qs,key,10.0);
     ikey(key,sizeof key,"press",i);  si->press_mb = qs_num(qs,key,1010.0);
+    ikey(key,sizeof key,"short_horizon",i); si->short_horizon_nm = qs_num(qs,key,0.0);
     ikey(key,sizeof key,"at_dr",i);  si->reduce_at_dr = qs_int(qs,key,0);
     ikey(key,sizeof key,"drlat",i);  si->dr_lat   = qs_num(qs,key,0.0);
     ikey(key,sizeof key,"drlon",i);  si->dr_lon   = qs_num(qs,key,0.0);
@@ -241,6 +242,7 @@ static void json_reduction(Json *j,const Sight *si,const Reduction *r){
     jint(j,"ie_on_arc",si->ie_on_arc);
     jnum(j,"ie_min",si->ie_min);
     jnum(j,"he",si->he);
+    jnum(j,"short_horizon",si->short_horizon_nm);
     jint(j,"he_metres",si->he_metres);
     jnum(j,"temp_c",si->temp_c);
     jnum(j,"press_mb",si->press_mb);

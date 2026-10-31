@@ -163,3 +163,9 @@ The Sight tab has a **Reduce at DR (no whole-degree LHA)** checkbox. Checked
 sights use direct spherical reduction at their full entered DR; unchecked sights
 use the existing whole-degree HO 229 assumed position. Saved sights retain the
 choice, and fixes and plots can combine both methods.
+
+## Defaults and workflow
+
+See [DEFAULTS.md](DEFAULTS.md) for the dedicated Defaults tab, startup DR reuse,
+almanac handoff and nearer-waterline corrections. Saved sights keep their own
+settings. The Annual book tab remains last.

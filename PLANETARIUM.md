@@ -115,3 +115,16 @@ conversion and planner integration; the underlying ephemeris validation remains
 in VALIDATION.md. Real macOS native and browser views were exercised. The Windows
 package is cross-built and inspected; the user reported successful Windows
 5.4 testing on 28 October 2026. See LINUX.md for Ubuntu CI coverage.
+
+## Native sky zoom (5.5.0)
+
+Use **Zoom + / Zoom −**, the mouse wheel, or +/− with the chart focused.
+Zoom is limited to 4.5× (about 5% of the original plotted sky area). Drag to
+pan; **Centre selected** brings the selected navigation object into view.
+**All sky**, 0 or Home restores the full horizon with zenith at the centre.
+The same projection and hit testing apply to stars, planets and constellation
+layers. Zoom, pan, selection and layer choices survive detach/resize/full screen
+and reattachment. These zoom controls apply to the native FLTK chart.
+
+The page starts at saved DR and offers saved/current-sight DR buttons.
+See [DEFAULTS.md](DEFAULTS.md) for coordinate reuse and sight handoff.

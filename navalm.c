@@ -639,6 +639,7 @@ static void usage(const char *p){
   "        options: --ie MIN [on|off]   --ah | --he VAL [ft|m]   --limb ll|ul|center\n"
   "                 --temp C | --tempf F   --press MB | --inhg IN\n"
   "                 --dr LATdeg LATmin N|S LONdeg LONmin E|W\n"
+  "                 --short-horizon NM (distance to a nearer waterline; also set --he)\n"
   "                 --at-dr (full DR) | --ho229 (whole-degree AP, default)\n"
   "                 --course DEG --speed KT [--set DEG --drift KT]\n"
   "                 --label TEXT   --save   --brief\n"

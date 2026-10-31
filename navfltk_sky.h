@@ -25,11 +25,16 @@ class SkyWindow : public Fl_Double_Window {
 };
 
 class SkyCanvas : public Fl_Widget {
+    double view_zoom=1, centre_x=0, centre_y=0;
+    int drag_x=0,drag_y=0,press_x=0,press_y=0;
+    bool dragging=false, moved=false;
     double radius() const { return std::max(30.,std::min(w(),h())*.5-32); }
-    void point(const NavSkyStar &s,double &px,double &py) const {
-        double r=(90-s.altitude)/90*radius(), a=s.azimuth*3.14159265358979323846/180;
-        px=x()+w()*.5-r*std::sin(a); py=y()+h()*.5-r*std::cos(a);
+    void clamp_centre() {
+        if(view_zoom==1){centre_x=centre_y=0;return;}
+        double distance=std::hypot(centre_x,centre_y);
+        if(distance>1){centre_x/=distance;centre_y/=distance;}
     }
+    void changed() {clamp_centre();redraw();if(view_changed)view_changed();}
   public:
     NavSky sky{};
     bool ready=false, names=true, lines=true, constellation_names=false, supporting=true;
@@ -37,11 +42,48 @@ class SkyCanvas : public Fl_Widget {
     const NavSkyStar &object(size_t i) const { return *navsky_object(&sky,i); }
     int selected=-1;
     std::function<void(int)> choose;
-    SkyCanvas(int x,int y,int w,int h):Fl_Widget(x,y,w,h) {}
+    std::function<void()> view_changed;
+    double zoom() const {return view_zoom;}
+    void point(const NavSkyStar &s,double &px,double &py) const {
+        double r=(90-s.altitude)/90, a=s.azimuth*3.14159265358979323846/180;
+        px=x()+w()*.5+(-r*std::sin(a)-centre_x)*radius()*view_zoom;
+        py=y()+h()*.5+(-r*std::cos(a)-centre_y)*radius()*view_zoom;
+    }
+    int object_at(double px,double py) const {
+        int nearest=-1;double distance=16;
+        if(!ready || px<x() || py<y() || px>=x()+w() || py>=y()+h())return -1;
+        for(size_t i=0;i<object_count();i++)if(object(i).altitude>0){
+            double ox,oy;point(object(i),ox,oy);double d=std::hypot(px-ox,py-oy);
+            if(d<distance){nearest=int(i);distance=d;}
+        }
+        return nearest;
+    }
+    void reset_view() {view_zoom=1;centre_x=centre_y=0;changed();}
+    void zoom_by(double factor,double ax,double ay) {
+        if(!std::isfinite(factor) || factor<=0)return;
+        double next=std::max(1.,std::min(4.5,view_zoom*factor));
+        // Keep the position under the mouse fixed while changing scale.
+        double dx=(ax-x()-w()*.5)/radius(),dy=(ay-y()-h()*.5)/radius();
+        centre_x+=dx/view_zoom-dx/next;centre_y+=dy/view_zoom-dy/next;
+        view_zoom=next;changed();
+    }
+    void zoom_by(double factor) {zoom_by(factor,x()+w()*.5,y()+h()*.5);}
+    void pan_by(double dx,double dy) {
+        centre_x-=dx/(radius()*view_zoom);centre_y-=dy/(radius()*view_zoom);changed();
+    }
+    void centre_selected() {
+        if(!ready || selected<0 || selected>=int(object_count()) || object(selected).altitude<=0)return;
+        const auto &s=object(selected);double r=(90-s.altitude)/90,a=s.azimuth*3.14159265358979323846/180;
+        centre_x=-r*std::sin(a);centre_y=-r*std::cos(a);
+        if(view_zoom==1)view_zoom=2;changed();
+    }
+    SkyCanvas(int x,int y,int w,int h):Fl_Widget(x,y,w,h) {
+        tooltip("Wheel or +/− to zoom (up to 4.5×); drag to pan.\n0 restores all sky; Centre selected brings the chosen object into view.");
+    }
     void draw() override {
         fl_push_clip(x(),y(),w(),h());
         fl_color(fl_rgb_color(16,28,48)); fl_rectf(x(),y(),w(),h());
-        double cx=x()+w()*.5, cy=y()+h()*.5, r=radius();
+        double r=radius()*view_zoom, cx=x()+w()*.5-centre_x*r, cy=y()+h()*.5-centre_y*r;
         fl_font(FL_HELVETICA,11);
         for(int altitude : {0,30,60}){
             double ring=(90-altitude)/90.*r;
@@ -78,7 +120,8 @@ class SkyCanvas : public Fl_Widget {
         if(supporting){
             fl_color(fl_rgb_color(151,173,201));
             for(size_t i=0;i<sky.context_count;i++) if(sky.context[i].altitude>0){
-                double px,py;point(sky.context[i],px,py);fl_pie(px-1.5,py-1.5,3,3,0,360);
+                double px,py;point(sky.context[i],px,py);
+                if(px>=x()-2 && px<=x()+w()+2 && py>=y()-2 && py<=y()+h()+2)fl_pie(px-1.5,py-1.5,3,3,0,360);
             }
         }
         std::vector<int> order;
@@ -97,6 +140,7 @@ class SkyCanvas : public Fl_Widget {
         fl_font(FL_HELVETICA,11);
         for(int index:order){
             const auto &s=object(index); double px,py; point(s,px,py);
+            if(px<x()-12 || px>x()+w()+12 || py<y()-12 || py>y()+h()+12)continue;
             auto color=s.is_body?(s.body==NAV_SUN?fl_rgb_color(255,198,66):s.body==NAV_MOON?
                 fl_rgb_color(204,220,245):fl_rgb_color(255,156,112)):s.selected?fl_rgb_color(255,218,120):s.eligible?
                 fl_rgb_color(225,234,247):fl_rgb_color(130,145,169);
@@ -152,14 +196,31 @@ class SkyCanvas : public Fl_Widget {
         fl_pop_clip();
     }
     int handle(int event) override {
-        if(event==FL_PUSH && ready){
-            int nearest=-1; double distance=16;
-            for(size_t i=0;i<object_count();i++) if(object(i).altitude>0){
-                double px,py; point(object(i),px,py);
-                double d=std::hypot(px-Fl::event_x(),py-Fl::event_y());
-                if(d<distance){nearest=int(i);distance=d;}
-            }
-            if(nearest>=0){selected=nearest;redraw();if(choose) choose(nearest);return 1;}
+        if(event==FL_FOCUS || event==FL_UNFOCUS)return 1;
+        if(event==FL_MOUSEWHEEL){
+            take_focus();zoom_by(std::pow(1.2,-Fl::event_dy()),Fl::event_x(),Fl::event_y());return 1;
+        }
+        if(event==FL_KEYDOWN){
+            int key=Fl::event_key();
+            if(key=='+' || key=='='){zoom_by(1.3);return 1;}
+            if(key=='-' || key=='_'){zoom_by(1/1.3);return 1;}
+            if(key=='0' || key==FL_Home){reset_view();return 1;}
+        }
+        if(event==FL_PUSH && Fl::event_button()==FL_LEFT_MOUSE){
+            take_focus();dragging=true;moved=false;
+            drag_x=press_x=Fl::event_x();drag_y=press_y=Fl::event_y();return 1;
+        }
+        if(event==FL_DRAG && dragging){
+            int px=Fl::event_x(),py=Fl::event_y();
+            if(std::hypot(px-press_x,py-press_y)>3)moved=true;
+            if(moved)pan_by(px-drag_x,py-drag_y);
+            drag_x=px;drag_y=py;return 1;
+        }
+        if(event==FL_RELEASE && dragging){
+            dragging=false;
+            if(!moved){int nearest=object_at(Fl::event_x(),Fl::event_y());
+                if(nearest>=0){selected=nearest;redraw();if(choose)choose(nearest);}}
+            return 1;
         }
         return Fl_Widget::handle(event);
     }

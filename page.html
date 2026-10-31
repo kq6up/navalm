@@ -133,7 +133,7 @@ table.air tr.half td{background:var(--mark)}
     <button data-tab="almanac">Almanac</button>
     <button data-tab="list">Sights</button>
     <button data-tab="fix">Fix</button>
-    <button data-tab="setup">Setup</button>
+    <button data-tab="setup">Defaults</button>
     <button data-tab="sky">Planetarium</button>
     <button data-tab="book">Annual book</button>
   </nav>
@@ -188,8 +188,9 @@ table.air tr.half td{background:var(--mark)}
         <div><label>IE is</label><select id="f_iearc">
           <option value="off">off arc (+)</option><option value="on">on arc (&minus;)</option></select></div>
         <div><label>Horizon</label><select id="f_horizon">
-          <option value="sea">sea</option><option value="ah">artificial</option></select></div>
-        <div><label>Height of eye</label><input id="f_he" inputmode="decimal"></div>
+          <option value="sea">sea</option><option value="ah">artificial</option><option value="short">short of horizon</option></select></div>
+        <div><label>Eye height for dip</label><input id="f_he" inputmode="decimal"></div>
+        <div><label>Distance to waterline · NM (short horizon only)</label><input id="f_short" type="number" min="0.000001" step="any"></div>
         <div><label>HE units</label><select id="f_heunit">
           <option value="ft">feet</option><option value="m">metres</option></select></div>
         <div><label>Temperature &deg;C</label><input id="f_temp" inputmode="decimal"></div>
@@ -237,9 +238,14 @@ table.air tr.half td{background:var(--mark)}
       </div>
       <div><label>Date UTC</label><input id="a_date" placeholder="2026-09-22"></div>
       <div><label>Time UTC</label><input id="a_time" placeholder="20:00:00"></div>
+      <div><label>DR latitude</label><input id="a_lat" placeholder="34 02.5 N"></div>
+      <div><label>DR longitude</label><input id="a_lon" placeholder="117 21.9 W"></div>
     </div>
     <div class="tools">
       <button class="ghost" id="a_now">Now</button>
+      <button class="ghost" id="a_dr">Use saved DR</button>
+      <button class="ghost" id="a_sight_dr">Use current sight DR</button>
+      <button class="act" id="a_sight">Use object for a sight</button>
       <button class="ghost" id="a_naval">NAVAL daily table</button>
       <button class="ghost" id="a_air">AIR daily pages</button>
     </div>
@@ -292,16 +298,26 @@ table.air tr.half td{background:var(--mark)}
       <div><label>IE is</label><select id="s_iearc">
         <option value="off">off arc (+)</option><option value="on">on arc (&minus;)</option></select></div>
       <div><label>Horizon</label><select id="s_horizon">
-        <option value="sea">sea</option><option value="ah">artificial</option></select></div>
-      <div><label>Height of eye</label><input id="s_he" inputmode="decimal"></div>
+        <option value="sea">sea</option><option value="ah">artificial</option><option value="short">short of horizon</option></select></div>
+      <div><label>Eye height for dip</label><input id="s_he" inputmode="decimal"></div>
+      <div><label>Distance to waterline · NM (short horizon only)</label><input id="s_short" type="number" min="0.000001" step="any"></div>
+      <div><label>Preferred limb</label><select id="s_limb"><option value="ll">lower</option><option value="center">center</option><option value="ul">upper</option></select></div>
       <div><label>HE units</label><select id="s_heunit">
         <option value="ft">feet</option><option value="m">metres</option></select></div>
       <div><label>Temperature &deg;C</label><input id="s_temp" inputmode="decimal"></div>
       <div><label>Pressure mb</label><input id="s_press" inputmode="decimal"></div>
       <div><label>DR latitude</label><input id="s_drlat" placeholder="34 2.5 N"></div>
       <div><label>DR longitude</label><input id="s_drlon" placeholder="117 21.9 W"></div>
+      <div><label>Course · true</label><input id="s_course" inputmode="decimal"></div>
+      <div><label>Speed · kn</label><input id="s_speed" inputmode="decimal"></div>
+      <div><label>Set · true (current flows toward)</label><input id="s_set" inputmode="decimal"></div>
+      <div><label>Drift · kn</label><input id="s_drift" inputmode="decimal"></div>
     </div>
-    <div class="tools"><button class="act" id="s_save">Save defaults</button></div>
+    <label><input type="checkbox" id="s_at_dr" style="width:auto"> Reduce at DR (no whole-degree LHA)</label>
+    <div class="tools"><button class="act" id="s_save">Save defaults</button>
+      <button class="ghost" id="s_from_sight">Use current sight settings</button>
+      <button class="ghost" id="s_load_dr">Load saved DR into all pages</button></div>
+    <p class="hint">Sea horizon is the starting setting. Artificial horizon halves Hs with no dip; a nearer waterline uses its distance and eye height for short-horizon dip. Index error on arc subtracts; off arc adds. Each page loads saved DR at startup and keeps its own later edits. Set/drift advance LOPs for running fixes.</p>
     <div class="hint" id="setupmsg">Kept in this browser, separate from ~/.navalmrc.</div>
   </div>
 </section>
@@ -317,7 +333,8 @@ table.air tr.half td{background:var(--mark)}
     </div>
     <div class="tools">
       <button class="act" id="sky_update">Update sky</button><button class="ghost" id="sky_now">Now UTC</button>
-      <button class="ghost" id="sky_dr">Use setup DR</button>
+      <button class="ghost" id="sky_dr">Use saved DR</button>
+      <button class="ghost" id="sky_sight_dr">Use current sight DR</button>
       <button class="ghost" id="sky_morning">Next morning sights</button>
       <button class="ghost" id="sky_evening">Next evening sights</button>
     </div>
@@ -485,18 +502,15 @@ function loadSetup(){
 }
 function defSetup(){
   return {ie:0,iearc:'off',horizon:'sea',he:0,heunit:'ft',limb:'ll',
-          temp:10,press:1010,drlat:34.0415,drlon:-117.3645};
+          temp:10,press:1010,drlat:34.0415,drlon:-117.3645,short_horizon:0,at_dr:0,course:0,speed:0,set:0,drift:0};
 }
 
 /* ---------- the sight form ---------- */
 function renderActiveDR(){
-  const st=loadSetup(), box=$('activedr');
-  const la=$('f_drlat')?parsePos($('f_drlat').value):0;
-  const lo=$('f_drlon')?parsePos($('f_drlon').value):0;
-  const own=(la||lo);
-  box.innerHTML='<b>Active DR for this sight:</b> '+lat(own?la:st.drlat)+' &nbsp; '+
-    lon(own?lo:st.drlon)+' &nbsp; <span class="sub">('+
-    (own?'this sight\u2019s own DR':'from Setup')+'; live values, not examples)</span>';
+  const box=$('activedr');
+  try{ const la=skyPosition($('f_drlat').value,false),lo=skyPosition($('f_drlon').value,true);
+    box.innerHTML='<b>Active DR for this sight:</b> '+lat(la)+' &nbsp; '+lon(lo)+' <span class="sub">(this sight’s DR)</span>';
+  }catch(_){ box.textContent='Enter a valid DR or load saved defaults.'; }
 }
 /* Which sight is being edited, or null when entering a new one. */
 let editIndex=null;
@@ -512,7 +526,8 @@ function formSight(){
     h:tparts[0]||0, mi:tparts[1]||0, s:tparts[2]||0,
     hs:(parseFloat($('hsd').value)||0)+(parseFloat($('hsm').value)||0)/60,
     ie:fnum('f_ie',0), iearc:$('f_iearc').value,
-    horizon:$('f_horizon').value, he:fnum('f_he',0), heunit:$('f_heunit').value,
+    short_horizon:$('f_horizon').value==='short'?($('f_short').value.trim()?Number($('f_short').value):-1):0,
+    horizon:$('f_horizon').value==='ah'?'ah':'sea', he:fnum('f_he',0), heunit:$('f_heunit').value,
     limb:$('limb').value, temp:fnum('f_temp',10), press:fnum('f_press',1010),
     drlat:parsePos($('f_drlat').value), drlon:parsePos($('f_drlon').value),
     at_dr:$('f_at_dr').checked?1:0,
@@ -528,25 +543,28 @@ function fillSight(s){
   const st=loadSetup();
   const src = s || {ie:st.ie,iearc:st.iearc,horizon:st.horizon,he:st.he,heunit:st.heunit,
                     limb:st.limb||'ll',temp:st.temp,press:st.press,
-                    drlat:st.drlat,drlon:st.drlon,course:0,speed:0,set:0,drift:0};
+                    drlat:st.drlat,drlon:st.drlon,short_horizon:st.short_horizon,at_dr:st.at_dr,
+                    course:st.course,speed:st.speed,set:st.set,drift:st.drift};
   if(s){
     $('body').value=s.body; $('star').value=s.star||'';
     $('date').value=s.y+'-'+pad(s.mo,2)+'-'+pad(s.d,2);
-    $('time').value=pad(s.h,2)+':'+pad(s.mi,2)+':'+pad(Math.round(s.s),2);
+    $('time').value=pad(s.h,2)+':'+pad(s.mi,2)+':'+(s.s<10?'0':'')+String(s.s);
     const deg=Math.floor(s.hs), min=(s.hs-deg)*60;
     $('hsd').value=deg; $('hsm').value=min.toFixed(1);
     $('label').value=s.label||'';
   }
   $('f_ie').value=src.ie; $('f_iearc').value=src.iearc;
-  $('f_horizon').value=src.horizon; $('f_he').value=src.he; $('f_heunit').value=src.heunit;
+  $('f_horizon').value=src.horizon==='ah'?'ah':src.short_horizon>0?'short':'sea';
+  $('f_short').value=src.short_horizon||''; $('f_he').value=src.he; $('f_heunit').value=src.heunit;
   $('limb').value=src.limb||'ll';
   $('f_temp').value=src.temp; $('f_press').value=src.press;
-  $('f_drlat').value=src.drlat?lat(src.drlat):''; $('f_drlon').value=src.drlon?lon(src.drlon):'';
+  $('f_drlat').value=Number.isFinite(src.drlat)?lat(src.drlat):''; $('f_drlon').value=Number.isFinite(src.drlon)?lon(src.drlon):'';
   $('f_at_dr').checked=!!src.at_dr;
   $('f_course').value=src.course||''; $('f_speed').value=src.speed||'';
   $('f_set').value=src.set||''; $('f_drift').value=src.drift||'';
   $('starwrap').style.display=($('body').value==='star')?'':'none';
   $('limbwrap').style.display=(['sun','moon'].includes($('body').value))?'':'none';
+  horizonControls('f');
 }
 
 /* Open a stored sight for editing: every field, including the ones that
@@ -580,6 +598,7 @@ function query(s,i){
   add('body',s.body); add('star',s.star||'');
   add('y',s.y); add('mo',s.mo); add('d',s.d); add('h',s.h); add('mi',s.mi); add('s',s.s);
   add('hs',s.hs); add('ie',s.ie); add('iearc',s.iearc); add('horizon',s.horizon);
+  add('short_horizon',s.short_horizon??0);
   add('he',s.he); add('heunit',s.heunit); add('limb',s.limb);
   add('temp',s.temp); add('press',s.press); add('drlat',s.drlat); add('drlon',s.drlon);
   add('at_dr',s.at_dr?1:0);
@@ -603,7 +622,7 @@ function renderWorked(r){
   if(AH){
     h+=row('Ha',`${frac(v('Hs')+' + IC','2')}<span class="sub">artificial horizon: the reading is a double altitude, and there is no dip</span>`,alt(r.ha));
   }else{
-    h+=row('Dip',`${num(r.he_metres?1.76:0.97,2)}\u2032 ${sqrt(num(r.he,1)+(r.he_metres?' m':' ft'))}`,mins(-r.dip_min));
+    h+=row('Dip',r.short_horizon>0?`Short of horizon: waterline ${num(r.short_horizon,4)} NM (Bowditch Table 14)`:`${num(r.he_metres?1.76:0.97,2)}\u2032 ${sqrt(num(r.he,1)+(r.he_metres?' m':' ft'))}`,mins(-r.dip_min));
     h+=row('Ha',`${v('Hs')} + IC \u2212 dip`,alt(r.ha));
   }
   h+=row('R<sub>0</sub>',
@@ -731,15 +750,19 @@ async function starMatch(){
 
 /* ---------- almanac ---------- */
 function almanacQuery(){
-  const dp=($('a_date').value||'').split(/[-/ ]/).map(Number);
-  const tp=($('a_time').value||'').split(/[: ]/).map(Number);
+  const dateText=$('a_date').value.trim(),timeText=$('a_time').value.trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dateText) || !/^\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(timeText))
+    throw new Error('Enter UTC date YYYY-MM-DD and time HH:MM:SS.');
+  const dp=dateText.split('-').map(Number),tp=timeText.split(':').map(Number);
+  const leap=dp[0]%4===0 && (dp[0]%100!==0 || dp[0]%400===0),days=[31,leap?29:28,31,30,31,30,31,31,30,31,30,31];
+  if(dp[0]<1600 || dp[0]>2399 || dp[1]<1 || dp[1]>12 || dp[2]<1 || dp[2]>days[dp[1]-1] || tp[0]>23 || tp[1]>59 || (tp[2]||0)>=60)
+    throw new Error('Check the UTC calendar date and time.');
   const p=new URLSearchParams();
   p.set('body',$('a_body').value);
   p.set('star',$('a_star').value.trim());
   p.set('y',dp[0]||2026); p.set('mo',dp[1]||1); p.set('d',dp[2]||1);
   p.set('h',tp[0]||0); p.set('mi',tp[1]||0); p.set('s',tp[2]||0);
-  const setup=loadSetup();
-  p.set('drlat',setup.drlat); p.set('drlon',setup.drlon);
+  p.set('drlat',skyPosition($('a_lat').value,false)); p.set('drlon',skyPosition($('a_lon').value,true));
   return p.toString();
 }
 let almanacRequest=0;
@@ -747,7 +770,7 @@ function paperTable(p,r){
   let h='<h2>Celestial Navigation Data</h2><div class="papercontext">';
   h+=`${r.y}-${pad(r.mo,2)}-${pad(r.d,2)} ${pad(r.h,2)}:${pad(r.mi,2)}:${pad(Math.round(r.s),2)} UTC<br>`;
   h+=`Delta T = ${num(p.delta_t,1)} seconds (DUT1=0 assumed)<br>`;
-  h+=`For assumed location: ${lat(p.drlat)} &nbsp; ${lon(p.drlon)} <span class="hint">from Setup</span></div>`;
+  h+=`For assumed location: ${lat(p.drlat)} &nbsp; ${lon(p.drlon)} <span class="hint">Almanac DR</span></div>`;
   h+='<div class="paperscroll"><table class="paper"><thead><tr><th colspan="5">Almanac Data</th>';
   h+='<th class="corrections" colspan="4">Altitude Corrections</th></tr><tr>';
   h+='<th>Object</th><th>GHA<br>° ′</th><th>Dec<br>° ′</th><th>Hc<br>° ′</th><th>Zn<br>°</th>';
@@ -768,8 +791,9 @@ function paperTable(p,r){
   return h;
 }
 async function refreshAlmanac(){
-  const box=$('almanacout'), request=++almanacRequest, qs=almanacQuery();
+  const box=$('almanacout'), request=++almanacRequest;
   try{
+    const qs=almanacQuery();
     const [r,p]=await Promise.all([
       fetch('/api/almanac?'+qs).then(x=>x.json()),
       fetch('/api/paper?'+qs).then(x=>x.json())]);
@@ -794,10 +818,30 @@ async function refreshAlmanac(){
     }
     h+='</table></details>';
     box.innerHTML=h;
+    return {query:new URLSearchParams(qs),result:r};
   }catch(e){
     if(request!==almanacRequest) return;
-    box.innerHTML='<h2>Almanac result</h2><p class="err">Could not reach the almanac endpoint.</p>';
+    box.textContent=e.message||'Could not reach the almanac endpoint.';
   }
+}
+function almanacUseDR(){
+  const st=loadSetup();$('a_lat').value=lat(st.drlat);$('a_lon').value=lon(st.drlon);
+}
+function copySightDR(latitude,longitude){
+  try{const la=skyPosition($('f_drlat').value,false),lo=skyPosition($('f_drlon').value,true);
+    $(latitude).value=lat(la);$(longitude).value=lon(lo);return true;
+  }catch(e){$('savemsg').textContent='Enter a valid sight DR first.';return false;}
+}
+async function almanacToSight(){
+  if($('a_body').value==='aries'){$('almanacout').textContent='Aries is a reference point; choose an observed body or star.';return;}
+  const calculated=await refreshAlmanac();if(!calculated)return;
+  const p=calculated.query,st=loadSetup(),direct=$('f_at_dr').checked;
+  endEdit('Almanac object, UTC and DR copied. Enter measured Hs and check instrument settings.');
+  fillSight({...st,body:p.get('body'),star:p.get('star'),
+    limb:['sun','moon'].includes(p.get('body'))?st.limb:'center',
+    y:+p.get('y'),mo:+p.get('mo'),d:+p.get('d'),h:+p.get('h'),mi:+p.get('mi'),s:+p.get('s'),hs:0,
+    drlat:+p.get('drlat'),drlon:+p.get('drlon'),at_dr:direct,label:''});
+  $('hsd').value='';$('hsm').value='';show('sight');renderActiveDR();refresh();
 }
 function setAlmanacNow(){
   const d=new Date();
@@ -1168,23 +1212,40 @@ async function doFix(){
 }
 
 /* ---------- setup ---------- */
-function fillSetup(){
-  const s=loadSetup();
-  $('s_ie').value=s.ie; $('s_iearc').value=s.iearc; $('s_horizon').value=s.horizon;
-  $('s_he').value=s.he; $('s_heunit').value=s.heunit;
-  $('s_temp').value=s.temp; $('s_press').value=s.press;
-  $('s_drlat').value=s.drlat?lat(s.drlat):''; $('s_drlon').value=s.drlon?lon(s.drlon):'';
+function fillSetup(s=loadSetup()){
+  $('s_ie').value=s.ie; $('s_iearc').value=s.iearc;
+  $('s_horizon').value=s.horizon==='ah'?'ah':s.short_horizon>0?'short':'sea';
+  $('s_short').value=s.short_horizon||'';
+  $('s_he').value=s.he;$('s_heunit').value=s.heunit;$('s_limb').value=s.limb||'ll';
+  $('s_temp').value=s.temp;$('s_press').value=s.press;$('s_at_dr').checked=!!s.at_dr;
+  $('s_drlat').value=Number.isFinite(s.drlat)?lat(s.drlat):'';$('s_drlon').value=Number.isFinite(s.drlon)?lon(s.drlon):'';
+  for(const k of ['course','speed','set','drift'])$('s_'+k).value=s[k]||0;
+  horizonControls('s');
+}
+function horizonControls(prefix){
+  const value=$(prefix+'_horizon').value;
+  $(prefix+'_short').disabled=value!=='short';
+  $(prefix+'_he').disabled=$(prefix+'_heunit').disabled=value==='ah';
 }
 function saveSetup(){
-  const s={ie:parseFloat($('s_ie').value)||0,iearc:$('s_iearc').value,
-    horizon:$('s_horizon').value,he:parseFloat($('s_he').value)||0,
-    heunit:$('s_heunit').value,limb:'ll',
-    temp:parseFloat($('s_temp').value)||10,press:parseFloat($('s_press').value)||1010,
-    drlat:parsePos($('s_drlat').value),drlon:parsePos($('s_drlon').value)};
-  localStorage.setItem(LS_SETUP,JSON.stringify(s));
-  fillSetup(); renderActiveDR();
-  $('setupmsg').textContent='Saved in this browser.';
-  refresh(); refreshAlmanac();
+  try{
+    const number=(id,lo,hi)=>{const text=$(id).value.trim(),v=Number(text);
+      if(!text || !Number.isFinite(v) || v<lo || v>hi)throw new Error('Check '+id.slice(2)+' ('+lo+' to '+hi+').');return v;};
+    const horizon=$('s_horizon').value;
+    const s={ie:number('s_ie',0,120),iearc:$('s_iearc').value,horizon:horizon==='ah'?'ah':'sea',
+      he:number('s_he',0,10000),heunit:$('s_heunit').value,limb:$('s_limb').value,
+      short_horizon:horizon==='short'?number('s_short',.000001,1000):0,
+      temp:number('s_temp',-100,100),press:number('s_press',0,1200),
+      drlat:skyPosition($('s_drlat').value,false),drlon:skyPosition($('s_drlon').value,true),at_dr:$('s_at_dr').checked?1:0,
+      course:number('s_course',0,360),speed:number('s_speed',0,100),set:number('s_set',0,360),drift:number('s_drift',0,100)};
+    if(s.short_horizon){
+      const feet=s.heunit==='m'?s.he/.3048:s.he;
+      if(feet<=0 || s.short_horizon>Math.sqrt(2*3440.1*(feet/6076.1)/.8321))
+        throw new Error('Short horizon needs positive eye height and a waterline inside the visible horizon.');
+    }
+    localStorage.setItem(LS_SETUP,JSON.stringify(s));fillSetup();
+    $('setupmsg').textContent='Saved. New sights use these settings; use DR buttons to update other pages.';
+  }catch(e){$('setupmsg').textContent=e.message;}
 }
 
 /* ---------- planetarium ---------- */
@@ -1329,6 +1390,7 @@ for(const id of ['sky_chart','sky_plan','sky_list','sky_bodies']){
 $('sky_update').onclick=()=>refreshSky();
 $('sky_now').onclick=()=>{skyNow();refreshSky();};
 $('sky_dr').onclick=()=>{skyUseDR();refreshSky();};
+$('sky_sight_dr').onclick=()=>{if(copySightDR('sky_lat','sky_lon'))refreshSky();};
 $('sky_morning').onclick=()=>refreshSky('morning');
 $('sky_evening').onclick=()=>refreshSky('evening');
 for(const id of ['sky_names','sky_below','sky_lines','sky_constellation_names','sky_supporting'])$(id).onchange=drawSky;
@@ -1363,8 +1425,8 @@ $('sky_sight').onclick=()=>{
   const d=skyResult.date.split('-').map(Number), t=skyResult.time.split(':').map(Number);
   endEdit('Planning a new '+object.name+' sight. Enter your measured Hs.');
   fillSight({...st,body:object.is_body?object.body.toLowerCase():'star',star:object.is_body?'':object.name,
-    limb:object.is_body&&['Sun','Moon'].includes(object.body)?'ll':'center',y:d[0],mo:d[1],d:d[2],h:t[0],mi:t[1],s:t[2],hs:0,
-    drlat:skyResult.lat,drlon:skyResult.lon,course:0,speed:0,set:0,drift:0,label:'Planned '+object.name});
+    limb:object.is_body&&['Sun','Moon'].includes(object.body)?st.limb:'center',y:d[0],mo:d[1],d:d[2],h:t[0],mi:t[1],s:t[2],hs:0,
+    drlat:skyResult.lat,drlon:skyResult.lon,at_dr:$('f_at_dr').checked,label:'Planned '+object.name});
   $('f_drlat').value=lat(skyResult.lat); $('f_drlon').value=lon(skyResult.lon);
   $('hsd').value=''; $('hsm').value=''; show('sight'); renderActiveDR(); refresh();
 };
@@ -1455,7 +1517,7 @@ function show(id){
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.tab));
 
-['a_body','a_star','a_date','a_time'].forEach(id=>{
+['a_body','a_star','a_date','a_time','a_lat','a_lon'].forEach(id=>{
   $(id).addEventListener('input',refreshAlmanac);
   $(id).addEventListener('change',refreshAlmanac);
 });
@@ -1463,6 +1525,9 @@ $('a_body').addEventListener('change',()=>{
   $('a_starwrap').style.display=$('a_body').value==='star'?'':'none';
 });
 $('a_now').onclick=()=>{ setAlmanacNow(); refreshAlmanac(); };
+$('a_dr').onclick=()=>{almanacUseDR();refreshAlmanac();};
+$('a_sight_dr').onclick=()=>{if(copySightDR('a_lat','a_lon'))refreshAlmanac();};
+$('a_sight').onclick=almanacToSight;
 $('a_naval').onclick=()=>dailyAlmanac('naval');
 $('a_air').onclick=()=>dailyAlmanac('air');
 
@@ -1474,7 +1539,7 @@ function setNow(){
 
 ['body','limb','date','time','hsd','hsm','label',
  'f_ie','f_iearc','f_horizon','f_he','f_heunit','f_temp','f_press',
- 'f_at_dr','f_drlat','f_drlon','f_course','f_speed','f_set','f_drift'].forEach(id=>{
+ 'f_short','f_at_dr','f_drlat','f_drlon','f_course','f_speed','f_set','f_drift'].forEach(id=>{
   $(id).addEventListener('input',()=>{ refresh(); renderActiveDR(); });
   $(id).addEventListener('change',()=>{ refresh(); renderActiveDR(); });
 });
@@ -1486,14 +1551,9 @@ $('body').addEventListener('change',()=>{
 $('star').addEventListener('input',()=>{ starMatch(); refresh(); });
 $('now').onclick=()=>{ setNow(); refresh(); };
 $('loaddef').onclick=()=>{
-  const st=loadSetup();
-  $('f_at_dr').checked=false;
-  $('f_ie').value=st.ie; $('f_iearc').value=st.iearc; $('f_horizon').value=st.horizon;
-  $('f_he').value=st.he; $('f_heunit').value=st.heunit;
-  $('f_temp').value=st.temp; $('f_press').value=st.press;
-  $('f_drlat').value=st.drlat?lat(st.drlat):''; $('f_drlon').value=st.drlon?lon(st.drlon):'';
-  refresh();
-  $('savemsg').textContent='This sight now uses the current setup defaults.';
+  const observation=formSight();fillSight({...observation,...loadSetup()});
+  renderActiveDR();horizonControls('f');refresh();
+  $('savemsg').textContent='This sight now uses the saved defaults.';
 };
 $('save').onclick=()=>{
   const s=formSight();
@@ -1525,10 +1585,17 @@ $('importbtn').onclick=()=>{
   catch(e){ alert('that is not the exported JSON'); }
 };
 $('s_save').onclick=saveSetup;
+$('s_from_sight').onclick=()=>{fillSetup(formSight());$('setupmsg').textContent='Copied current sight settings. Save defaults to keep them.';};
+$('s_load_dr').onclick=()=>{
+  const st=loadSetup();$('f_drlat').value=lat(st.drlat);$('f_drlon').value=lon(st.drlon);
+  almanacUseDR();skyUseDR();renderActiveDR();refresh();
+  $('setupmsg').textContent='Saved DR loaded into Sight, Almanac and Planetarium. UTC and other entries kept.';
+};
+for(const prefix of ['f','s'])$(prefix+'_horizon').addEventListener('change',()=>horizonControls(prefix));
 
 (async function init(){
   try{ const v=await (await fetch('/api/version')).json(); $('ver').textContent='v'+v.version; }catch(e){}
-  setNow(); setAlmanacNow(); fillSetup(); fillSight(null); renderActiveDR();
+  setNow(); setAlmanacNow(); fillSetup(); fillSight(null); almanacUseDR(); skyUseDR(); horizonControls('f'); renderActiveDR();
   $('limbwrap').style.display='';
   refresh(); refreshAlmanac(); renderList();
 })();

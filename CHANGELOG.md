@@ -1,3 +1,21 @@
+# Changes in NAVALM 5.5.0
+
+- Restored a dedicated native Defaults tab and expanded browser Defaults with DR,
+  eye height/dip, index error/arc, horizon/waterline, limb, atmosphere, reduction
+  method and vessel/current motion. New users start with Sea horizon.
+- Load saved DR into Sight, Almanac and Planetarium at startup. Add explicit
+  saved/current sight DR controls, with per-page edits and UTC preserved.
+- Add Almanac-to-Sight handoff for bodies/stars, retaining fractional UTC, DR,
+  correction defaults and reduction method, with blank Hs and no automatic save.
+- Add native sky zoom (buttons, wheel and +/−), drag panning, Centre selected and
+  All sky/0. Views reach 4.5×, roughly 5% of the original sky area, and survive
+  detach, full-screen and reattachment.
+- Add Bowditch short-horizon dip using eye height and distance to the waterline,
+  with standard terrestrial refraction. It replaces ordinary dip. Persist the
+  distance through native/browser/CLI defaults, saved sights and HTTP reductions.
+- Retain FLTK 1.3.8/X11 compatibility and use three-part versions from 5.5.0.
+  See DEFAULTS.md for behavior, units and the short-horizon formula source.
+
 # Changes in NAVALM 5.4.1
 
 - Fixed native desktop builds with Slackware 15.0 FLTK 1.3.8 by isolating X11's

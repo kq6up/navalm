@@ -12,9 +12,11 @@ for building, state paths, validation, and the offline coastline underlay.
 See [MAPS.md](MAPS.md) for downloads/OpenCPN coastlines and [WINDOWS.md](WINDOWS.md)
 for the portable Windows x64 desktop build. See [LINUX.md](LINUX.md) for Ubuntu
 build commands and the Linux CI checks.
+See [DEFAULTS.md](DEFAULTS.md) for saved positions, the almanac-to-sight handoff
+and short-horizon dip. Native Planetarium now has zoom/pan controls.
 The existing CLI, `--gui`, and `-d` browser interface remain available.
 
-Current source version: **5.4.1**. The Windows binary release remains **5.4**.
+Current source and Windows package version: **5.5.0**.
 
 Version 5.2 includes a custom annual practice-book
 preview with selectable sections, compact Ageton tables and optional LaTeX source
@@ -26,7 +28,7 @@ conventions and the official-book sections that are still missing.
 
 **Informational and educational use only. Do not rely on NAVALM where an error could cause death, injury, or property damage. By using it, you accept the [safety and assumption-of-risk terms](SAFETY.md), to the extent permitted by law.**
 
-NAVALM 5.0 adds the FLTK workbench, a detachable plotting sheet with zoom and transparent vector exports, offline coastlines, and a portable Windows build. [Download the Windows x64 ZIP](https://github.com/kq6up/navalm/releases/download/v5.4/NAVALM-Windows-x64.zip) or see the [release notes](CHANGELOG.md). It includes the ICE F7-style almanac for working a fix on paper. It retains the two astronomy engines introduced in 4.0p: XEphem libastro and NOVAS C3.1 with the JPL DE440s ephemeris; either can be selected at run time. The older v2.8g release still contains the legacy engine and is not covered by this license transition.
+NAVALM 5.0 adds the FLTK workbench, a detachable plotting sheet with zoom and transparent vector exports, offline coastlines, and a portable Windows build. [Download the Windows x64 ZIP](https://github.com/kq6up/navalm/releases/download/v5.5.0/NAVALM-Windows-x64.zip) or see the [release notes](CHANGELOG.md). It includes the ICE F7-style almanac for working a fix on paper. It retains the two astronomy engines introduced in 4.0p: XEphem libastro and NOVAS C3.1 with the JPL DE440s ephemeris; either can be selected at run time. The older v2.8g release still contains the legacy engine and is not covered by this license transition.
 
 Version 5.2 also adds a **Planetarium** tab to both interfaces: a sky chart
 of 58 navigation stars, three/four-star sight planning, altitude/brightness
@@ -151,7 +153,7 @@ If you downloaded a source archive, extract it and enter its source directory, t
 
 **Run `make page` before `make`.** The first command runs `mkpage.sh` to convert `page.html` into `navweb_page.h`, embedding the browser interface in the program. The second compiles the C sources and creates the `navalm` executable. Plain `make` does not regenerate the page header automatically.
 
-The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 5.4.1`. The executable is built in the source directory and can be run there without an installation step.
+The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 5.5.0`. The executable is built in the source directory and can be run there without an installation step.
 
 ### Build without ncurses
 

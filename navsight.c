@@ -353,6 +353,19 @@ int navsight_validate(const Sight *si,char *err,size_t errn){
        !isfinite(si->press_mb) || si->press_mb<0 || si->press_mb>1200){
         snprintf(err,errn,"invalid index error, height of eye, temperature or pressure"); return 1;
     }
+    if(!isfinite(si->short_horizon_nm) || si->short_horizon_nm<0 || si->short_horizon_nm>1000){
+        snprintf(err,errn,"invalid short-horizon waterline distance in NM");return 1;
+    }
+    if(si->short_horizon_nm>0){
+        double feet=si->he_metres?si->he/0.3048:si->he;
+        double horizon=sqrt(2*3440.1*(feet/6076.1)/0.8321);
+        if(si->artificial || feet<=0){
+            snprintf(err,errn,"short-horizon sights require a positive eye height and a waterline, not an artificial horizon");return 1;
+        }
+        if(si->short_horizon_nm>horizon){
+            snprintf(err,errn,"waterline is beyond the visible horizon; select Sea horizon instead");return 1;
+        }
+    }
     if(si->has_motion && (!isfinite(si->course) || si->course<0 || si->course>360 ||
        !isfinite(si->speed) || si->speed<0 || si->speed>100 || !isfinite(si->set) ||
        si->set<0 || si->set>360 || !isfinite(si->drift) || si->drift<0 || si->drift>100)){
@@ -400,6 +413,12 @@ int navsight_reduce(const Sight *si,Reduction *r,char *err,size_t errn){
     } else {
         double he = si->he < 0 ? 0 : si->he;
         r->dip_min = (si->he_metres ? 1.76 : 0.97) * sqrt(he);
+        if(si->short_horizon_nm>0){
+            /* Bowditch (2019), Vol II, Table 14: standard terrestrial refraction.
+             * atan returns radians; convert to arcminutes. Distance is to the waterline. */
+            double feet=si->he_metres?he/0.3048:he, distance=si->short_horizon_nm;
+            r->dip_min=deg(atan(feet/(6076.1*distance)+0.8321*distance/(2*3440.1)))*60;
+        }
         h -= r->dip_min/60.0;
     }
     r->ha = h;
@@ -594,6 +613,9 @@ void navsight_print_correction(FILE *out,const Sight *si,const Reduction *r){
                fmt_alt(r->hs + r->ic_min/60.0,b,sizeof b));
         fprintf(out,"  %-12s %10s   no dip with an artificial horizon\n","/ 2",
                fmt_alt(r->halved,b,sizeof b));
+    } else if(si->short_horizon_nm>0){
+        fprintf(out,"  %-12s %10s   short of horizon; waterline %.4f NM, eye %.2f %s (Bowditch Table 14)\n","Dip",
+                fmt_min(-r->dip_min,b,sizeof b),si->short_horizon_nm,si->he,si->he_metres?"m":"ft");
     } else {
         fprintf(out,"  %-12s %10s   %.2f' x sqrt(%.1f %s)\n","Dip",
                fmt_min(-r->dip_min,b,sizeof b),si->he_metres?1.76:0.97,
@@ -828,6 +850,7 @@ int navsight_store_load(SightStore *st,char *err,size_t errn){
             else if(!strcmp(key,"limb"))     si.limb = !strcmp(val,"ll") ? 1 : (!strcmp(val,"ul") ? -1 : 0);
             else if(!strcmp(key,"temp"))     si.temp_c = atof(val);
             else if(!strcmp(key,"press"))    si.press_mb = atof(val);
+            else if(!strcmp(key,"short_horizon")) si.short_horizon_nm = atof(val);
             else if(!strcmp(key,"at_dr"))    si.reduce_at_dr = atoi(val);
             else if(!strcmp(key,"drlat"))    si.dr_lat = atof(val);
             else if(!strcmp(key,"drlon"))    si.dr_lon = atof(val);
@@ -868,6 +891,7 @@ int navsight_store_save(const SightStore *st,char *err,size_t errn){
         fprintf(f," limb=%s",s->limb>0?"ll":(s->limb<0?"ul":"center"));
         fprintf(f," temp=%.1f press=%.1f",s->temp_c,s->press_mb);
         fprintf(f," drlat=%.6f drlon=%.6f",s->dr_lat,s->dr_lon);
+        if(s->short_horizon_nm>0) fprintf(f," short_horizon=%.9g",s->short_horizon_nm);
         if(s->reduce_at_dr) fprintf(f," at_dr=%d",s->reduce_at_dr);
         if(s->has_motion)
             fprintf(f," course=%.1f speed=%.2f set=%.1f drift=%.2f",

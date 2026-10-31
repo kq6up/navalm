@@ -47,6 +47,7 @@ typedef struct {
     int    has_motion;            /* running fix: vessel motion for advancing */
     double course, speed;         /* degrees true, knots */
     double set, drift;            /* degrees true, knots */
+    double short_horizon_nm;     /* 0 = sea horizon; >0 = nearer waterline distance NM */
     int reduce_at_dr;             /* 1 = use entered DR; 0 = whole-degree HO 229 AP */
 } Sight;
 

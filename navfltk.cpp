@@ -346,7 +346,11 @@ class Workbench {
         *al_star, *al_lat_hemi, *al_lon_hemi;
     Fl_Input *date, *time, *hs, *label, *lat, *lon, *ie, *height, *temp, *press, *course, *speed,
         *set, *drift;
-    Fl_Input *al_date, *al_time, *al_lat, *al_lon, *fix_date, *fix_time;
+    Fl_Input *al_date, *al_time, *al_lat, *al_lon, *fix_date, *fix_time, *short_distance;
+    Fl_Group *defaults_tab;
+    Fl_Input *def_lat,*def_lon,*def_ie,*def_height,*def_temp,*def_press,*def_short,*def_course,*def_speed,*def_set,*def_drift;
+    Fl_Choice *def_lat_hemi,*def_lon_hemi,*def_arc,*def_units,*def_horizon,*def_limb;
+    Fl_Check_Button *def_at_dr,*def_motion;
     Fl_Check_Button *at_dr, *motion, *fix_at, *layers[4], *map_toggle;
     Fl_Value_Slider *opacity;
     Fl_Multi_Browser *saved;
@@ -364,6 +368,7 @@ class Workbench {
     Fl_Hold_Browser *sky_list;
     Fl_Box *sky_status,*sky_summary,*sky_detail;
     Fl_Button *sky_sight;
+    Fl_Box *sky_zoom_readout=nullptr, *sky_detached_zoom_readout=nullptr;
     SkyCanvas *sky_canvas;
     std::unique_ptr<SkyWindow> sky_window;
     Fl_Check_Button *sky_layers[3], *sky_detached_layers[3]{};
@@ -458,8 +463,11 @@ class Workbench {
         button(616, 232, 160, "Calculate almanac", [this] { almanac(false); }, true);
         button(792, 232, 160, "Hourly table", [this] { almanac(true); });
         button(968, 232, 173, "Export text…", [this] { export_text(al_buffer, "almanac.txt"); });
-        al_display = display(36, 300, 1105, 475, al_buffer);
-        auto *al_angle_hint = new Fl_Box(36, 270, 1105, 24,
+        button(36, 270, 160, "Use saved DR", [this] { load_saved_position(al_lat, al_lat_hemi, al_lon, al_lon_hemi); });
+        button(210, 270, 180, "Use current sight DR", [this] { copy_sight_position(al_lat, al_lat_hemi, al_lon, al_lon_hemi); });
+        button(405, 270, 225, "Use object for a sight", [this] { almanac_to_sight(); });
+        al_display = display(36, 338, 1105, 437, al_buffer);
+        auto *al_angle_hint = new Fl_Box(36, 306, 1105, 24,
                                          "Angles: degrees, a SPACE, then minutes (34 02.5 / 117 "
                                          "21.9). Decimal degrees also accepted.");
         al_angle_hint->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
@@ -480,8 +488,10 @@ class Workbench {
         lat_hemi = choice(178, 354, 68, "", "N|S");
         lon = input(266, 354, 132, "DR longitude · DDD MM.m");
         lon_hemi = choice(408, 354, 68, "", "E|W");
-        horizon = choice(36, 416, 210, "Horizon", "Sea horizon|Artificial horizon (halve Hs)");
-        limb = choice(266, 416, 210, "Limb", "Lower limb|Center|Upper limb");
+        horizon = choice(36, 416, 150, "Horizon", "Sea horizon|Artificial horizon|Short of horizon");
+        short_distance = input(196,416,110,"Waterline · NM");
+        short_distance->tooltip("Distance in nautical miles to the nearer waterline used as a reference.\nOnly for Short of horizon; use height of eye as well.");
+        limb = choice(326, 416, 150, "Limb", "Lower limb|Center|Upper limb");
         ie = input(36, 478, 100, "Index error · min");
         arc = choice(146, 478, 100, "Index error arc", "Off arc|On arc");
         height = input(266, 478, 110, "Height of eye");
@@ -650,8 +660,7 @@ class Workbench {
         sky_lon_hemi=choice(751,166,50,"","E|W");
         button(817,166,100,"Now UTC",[this]{now(sky_date,sky_time);update_sky();});
         button(931,166,210,"Use current sight DR",[this]{
-            sky_lat->value(lat->value());sky_lon->value(lon->value());
-            sky_lat_hemi->value(lat_hemi->value());sky_lon_hemi->value(lon_hemi->value());
+            copy_sight_position(sky_lat,sky_lat_hemi,sky_lon,sky_lon_hemi);
         });
         sky_min=input(36,232,100,"Min altitude deg");sky_min->value("15");
         sky_max=input(150,232,100,"Max altitude deg");sky_max->value("75");
@@ -672,16 +681,19 @@ class Workbench {
             sky_layers[i]=new Fl_Check_Button(36+i*190,340,190,25,layer_labels[i]);
             sky_layers[i]->value(i!=1);bind(sky_layers[i],[this]{update_sky_layers();});
         }
-        sky_placeholder=new Fl_Box(36,372,565,382,"Sky is open in its own window.\nUse Reattach sky to return it here.");
+        button(615,340,175,"Use saved DR",[this]{load_saved_position(sky_lat,sky_lat_hemi,sky_lon,sky_lon_hemi);});
+        sky_placeholder=new Fl_Box(36,406,565,348,"Sky is open in its own window.\nUse Reattach sky to return it here.");
         sky_placeholder->hide();
-        sky_canvas=new SkyCanvas(36,372,565,382);
+        sky_canvas=new SkyCanvas(36,406,565,348);
+        sky_canvas->view_changed=[this]{update_sky_zoom();};
+        sky_zoom_controls(36,372,false);
         sky_canvas->choose=[this](int index){select_sky_star(index);};
         sky_below=new Fl_Check_Button(625,308,320,25,"Include below-horizon objects in list");
         bind(sky_below,[this]{render_sky_list();});
-        auto *sky_columns=new Fl_Box(625,339,515,23,"   Object               Hc        Zn T     Mag");
+        auto *sky_columns=new Fl_Box(625,376,515,23,"   Object               Hc        Zn T     Mag");
         sky_columns->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);sky_columns->labelfont(FL_COURIER);
         sky_columns->labelsize(12);
-        sky_list=new Fl_Hold_Browser(625,365,515,269);
+        sky_list=new Fl_Hold_Browser(625,402,515,232);
         sky_list->textfont(FL_COURIER);sky_list->textsize(12);sky_list->format_char(0);
         bind(sky_list,[this]{int row=sky_list->value();if(row>0 && row<=int(sky_rows.size()))select_sky_star(sky_rows[row-1]);});
         sky_summary=new Fl_Box(625,642,515,56,"");
@@ -690,9 +702,43 @@ class Workbench {
         sky_detail->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);sky_detail->labelsize(13);
         sky_sight=button(625,748,515,"Use selected object for a sight",[this]{sky_to_sight();});
         sky_sight->deactivate();
-        auto *sky_hint=new Fl_Box(36,758,565,38,"Looking up: N top / E left. Rim = horizon; centre = zenith.\nGeocentric Hc; no refraction/parallax. Body discs are symbolic.");
+        auto *sky_hint=new Fl_Box(36,758,565,38,"Wheel / + / −: zoom · drag: pan · 0: all sky (zenith at centre).\nN up / E left. Geocentric Hc; no refraction/parallax. Symbolic discs.");
         sky_hint->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);sky_hint->labelsize(11);
         sky_tab->end();
+
+        defaults_tab=new Fl_Group(16,130,1148,672,"Defaults");
+        auto *def_title=new Fl_Box(36,146,1080,32,"Starting settings for new sights and saved DR for the planning pages");
+        def_title->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);def_title->labelfont(FL_HELVETICA_BOLD);def_title->labelsize(17);
+        def_lat=input(36,210,180,"DR latitude · DD MM.m");def_lat_hemi=choice(226,210,60,"","N|S");
+        def_lon=input(310,210,180,"DR longitude · DDD MM.m");def_lon_hemi=choice(500,210,60,"","E|W");
+        def_horizon=choice(36,280,250,"Horizon","Sea horizon|Artificial horizon (halve Hs)|Short of horizon (waterline)");
+        def_short=input(310,280,250,"Distance to waterline · NM");
+        def_height=input(36,350,180,"Eye height for dip");def_units=choice(226,350,60,"","ft|m");
+        def_limb=choice(310,350,250,"Preferred limb","Lower limb|Center|Upper limb");
+        def_ie=input(36,420,180,"Index error · arcminutes");def_arc=choice(226,420,150,"","Off arc (+IC)|On arc (−IC)");
+        def_temp=input(36,490,250,"Temperature · Celsius");def_press=input(310,490,250,"Pressure · millibars");
+        def_at_dr=new Fl_Check_Button(36,546,520,26,"Reduce at DR (no whole-degree LHA)");
+        def_motion=new Fl_Check_Button(36,590,530,26,"Use vessel motion and current for running fixes");
+        def_course=input(36,658,120,"Course · true");def_speed=input(170,658,120,"Speed · kn");
+        def_set=input(304,658,120,"Set · true");def_drift=input(438,658,120,"Drift · kn");
+        button(36,732,160,"Save defaults",[this]{save_setup_defaults();},true);
+        button(210,732,160,"Reload saved",[this]{fill_defaults();});
+        button(384,732,176,"Use sight settings",[this]{fill_defaults_from_sight(read_sight(false),true);});
+        auto *def_help=new Fl_Box(610,205,515,320,
+            "Saved DR loads into Sight reduction, Almanac and Planetarium at startup.\n\n"
+            "The planning pages can reload saved DR or copy the current sight DR. Changing one page does not overwrite another page.\n\n"
+            "Eye height gives dip; for a nearer waterline choose Short of horizon and enter its distance in nautical miles. Artificial horizon halves Hs and applies no dip.\n\n"
+            "On-arc index error subtracts; off-arc adds. Set is the direction the current flows toward; drift is its speed.\n\n"
+            "UTC starts at the current time. Hs is entered for each observation. AP is calculated for each sight; direct reduction uses DR as AP.");
+        def_help->align(FL_ALIGN_TOP|FL_ALIGN_LEFT|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);def_help->labelsize(14);
+        button(610,560,370,"Load saved DR into all three pages",[this]{
+            load_saved_position(lat,lat_hemi,lon,lon_hemi);
+            load_saved_position(al_lat,al_lat_hemi,al_lon,al_lon_hemi);
+            load_saved_position(sky_lat,sky_lat_hemi,sky_lon,sky_lon_hemi);
+        });
+        for(auto *widget:{static_cast<Fl_Widget*>(def_horizon),static_cast<Fl_Widget*>(def_motion)})
+            bind(widget,[this]{defaults_state();});
+        defaults_tab->end();
 
         book_tab = new Fl_Group(16, 130, 1148, 672, "Annual book");
         auto *book_title = new Fl_Box(36, 148, 1080, 35, "Build a custom annual practice almanac");
@@ -752,14 +798,15 @@ class Workbench {
             },
             this);
         new_sight();
+        fill_defaults();
         now(al_date, al_time);
         now(sky_date,sky_time);
-        al_lat->value("00 00.0");
-        al_lon->value("000 00.0");
-        for (auto *field : {lat, al_lat})
+        load_saved_position(al_lat,al_lat_hemi,al_lon,al_lon_hemi,true);
+        load_saved_position(sky_lat,sky_lat_hemi,sky_lon,sky_lon_hemi,true);
+        for (auto *field : {lat, al_lat, sky_lat})
             field->tooltip("Degrees SPACE minutes: 34 02.5 = 34 degrees 2.5 minutes.\nDecimal "
                            "degrees are also accepted. Select N or S separately.");
-        for (auto *field : {lon, al_lon})
+        for (auto *field : {lon, al_lon, sky_lon})
             field->tooltip("Degrees SPACE minutes: 117 21.9 = 117 degrees 21.9 minutes.\nDecimal "
                            "degrees are also accepted. Select E or W separately.");
         hs->tooltip("Degrees SPACE minutes: 94 37.2 = 94 degrees 37.2 minutes.\nDecimal degrees "
@@ -803,6 +850,20 @@ class Workbench {
         for(int i=0;i<3;i++)if(sky_detached_layers[i])sky_detached_layers[i]->value(sky_layers[i]->value());
         sky_canvas->redraw();
     }
+    void update_sky_zoom() {
+        std::string text=fmt(sky_canvas->zoom(),2)+"×";
+        if(sky_zoom_readout)sky_zoom_readout->copy_label(text.c_str());
+        if(sky_detached_zoom_readout)sky_detached_zoom_readout->copy_label(text.c_str());
+    }
+    void sky_zoom_controls(int x,int y,bool detached) {
+        button(x,y,86,"Zoom +",[this]{sky_canvas->zoom_by(1.3);});
+        button(x+94,y,86,"Zoom −",[this]{sky_canvas->zoom_by(1/1.3);});
+        button(x+188,y,90,"All sky",[this]{sky_canvas->reset_view();});
+        button(x+286,y,160,"Centre selected",[this]{sky_canvas->centre_selected();});
+        auto *readout=new Fl_Box(x+454,y,100,32,"");readout->labelsize(12);
+        if(detached)sky_detached_zoom_readout=readout;else sky_zoom_readout=readout;
+        update_sky_zoom();
+    }
     void toggle_sky_fullscreen() {
         if(sky_window->fullscreen_active())sky_window->fullscreen_off();else sky_window->fullscreen();
         sky_fullscreen->copy_label(sky_window->fullscreen_active()?"Windowed (F11)":"Full screen (F11)");
@@ -831,12 +892,13 @@ class Workbench {
             button(376,42,220,"Use selected for a sight",[this]{sky_to_sight();if(tabs->value()==sight_tab)reattach_sky();});
             sky_detached_detail=new Fl_Box(608,42,420,34,"Click a navigation star or body for details.");
             sky_detached_detail->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);sky_detached_detail->labelsize(12);
+            sky_zoom_controls(12,76,true);
             sky_window->end();sky_window->size_range(1040,600);
             sky_window->toggle_fullscreen=[this]{toggle_sky_fullscreen();};
             sky_window->callback([](Fl_Widget*,void *p){static_cast<Workbench*>(p)->reattach_sky();},this);
         }
         sky_tab->remove(sky_canvas);sky_window->add(sky_canvas);
-        sky_canvas->resize(0,84,sky_window->w(),sky_window->h()-84);
+        sky_canvas->resize(0,112,sky_window->w(),sky_window->h()-112);
         sky_window->resizable(sky_canvas);sky_placeholder->show();
         sky_detach->copy_label("Reattach sky");update_sky_layers();
         sky_detached_detail->copy_label(sky_detail->label());
@@ -930,9 +992,10 @@ class Workbench {
            sky_canvas->object(index).altitude<=0) return;
         const auto object=sky_canvas->object(index);
         Sight at=sky_at;
-        new_sight();body->value(object.is_body?int(object.body):7);
+        bool direct=at_dr->value();
+        new_sight();at_dr->value(direct);body->value(object.is_body?int(object.body):7);
         if(!object.is_body) star->value(index);
-        else limb->value(object.body==NAV_SUN || object.body==NAV_MOON?0:1);
+        else if(object.body!=NAV_SUN && object.body!=NAV_MOON)limb->value(1);
         char planned_date[32],planned_time[32];
         navsky_utc(navsight_jd(&at),planned_date,sizeof planned_date,planned_time,sizeof planned_time);
         date->value(planned_date);time->value(planned_time);
@@ -1084,7 +1147,8 @@ class Workbench {
             al_star->activate();
         else
             al_star->deactivate();
-        if (horizon->value() == 0) {
+        if(horizon->value()==2)short_distance->activate();else short_distance->deactivate();
+        if (horizon->value() != 1) {
             height->activate();
             units->activate();
         } else {
@@ -1104,6 +1168,25 @@ class Workbench {
             fix_time->deactivate();
         }
     }
+    void put_position(const Sight &s, Fl_Input *la, Fl_Choice *lah, Fl_Input *lo, Fl_Choice *loh) {
+        la->value(angle_entry(s.dr_lat,2).c_str());lah->value(s.dr_lat<0);
+        lo->value(angle_entry(s.dr_lon,3).c_str());loh->value(s.dr_lon<0);
+    }
+    void load_saved_position(Fl_Input *la, Fl_Choice *lah, Fl_Input *lo, Fl_Choice *loh, bool startup=false) {
+        NavDefaults d;navrc_load(&d);
+        if(!d.have_dr){
+            if(startup){la->value("");lo->value("");return;}
+            throw std::runtime_error("No saved DR. Enter it on Sight reduction and choose Save defaults.");
+        }
+        if(!std::isfinite(d.dr_lat) || !std::isfinite(d.dr_lon) || std::abs(d.dr_lat)>90 || std::abs(d.dr_lon)>180)
+            throw std::runtime_error("Saved DR is invalid. Correct it on Sight reduction and save defaults again.");
+        Sight s{};s.dr_lat=d.dr_lat;s.dr_lon=d.dr_lon;put_position(s,la,lah,lo,loh);
+        if(!startup)message("Saved DR loaded. UTC and other page entries are unchanged; recalculate when ready.");
+    }
+    void copy_sight_position(Fl_Input *la, Fl_Choice *lah, Fl_Input *lo, Fl_Choice *loh) {
+        Sight s{};coordinates(lat,lat_hemi,lon,lon_hemi,s);put_position(s,la,lah,lo,loh);
+        message("Current sight DR copied. UTC and other page entries are unchanged; recalculate when ready.");
+    }
     void coordinates(Fl_Input *la, Fl_Choice *lah, Fl_Input *lo, Fl_Choice *loh, Sight &s) {
         if (std::string(la->value()).find_first_not_of(" \t\r\n") == std::string::npos)
             throw std::runtime_error(
@@ -1114,7 +1197,7 @@ class Workbench {
         s.dr_lat = angle(la->value(), "DR latitude", 90) * (lah->value() ? -1 : 1);
         s.dr_lon = angle(lo->value(), "DR longitude", 180) * (loh->value() ? -1 : 1);
     }
-    Sight read_sight() {
+    Sight read_sight(bool require_hs=true) {
         if (body->value() < 0 || body->value() > 7)
             throw std::runtime_error("Choose an observed body.");
         Sight s{};
@@ -1123,8 +1206,9 @@ class Workbench {
         std::snprintf(s.body, sizeof s.body, "%s", b[body->value()]);
         if (body->value() == 7)
             std::snprintf(s.star, sizeof s.star, "%s", nav_star_name(star->value()));
-        s.artificial = horizon->value();
-        s.hs_deg = angle(hs->value(), "Sextant altitude", s.artificial ? 180 : 90);
+        s.artificial = horizon->value()==1;
+        s.short_horizon_nm = horizon->value()==2 ? number(short_distance->value(),"Waterline distance in NM",.000001,1000) : 0;
+        s.hs_deg = require_hs ? angle(hs->value(), "Sextant altitude", s.artificial ? 180 : 90) : 0;
         s.ie_min = number(ie->value(), "Index error", 0, 120);
         s.ie_on_arc = arc->value();
         s.he_metres = units->value();
@@ -1168,7 +1252,8 @@ class Workbench {
         lon->value(std::isfinite(s.dr_lon) ? angle_entry(s.dr_lon, 3).c_str() : "");
         lat_hemi->value(s.dr_lat < 0);
         lon_hemi->value(s.dr_lon < 0);
-        horizon->value(s.artificial);
+        horizon->value(s.artificial?1:s.short_horizon_nm>0?2:0);
+        short_distance->value(s.short_horizon_nm>0?fmt(s.short_horizon_nm,6).c_str():"");
         limb->value(1 - s.limb);
         ie->value(fmt(s.ie_min).c_str());
         arc->value(s.ie_on_arc);
@@ -1205,7 +1290,7 @@ class Workbench {
         s.h = g.tm_hour;
         s.mi = g.tm_min;
         s.s = g.tm_sec;
-        fill_sight(s);
+        fill_sight(s);hs->value("");
         if (!d.have_dr) {
             lat->value("");
             lon->value("");
@@ -1359,27 +1444,91 @@ class Workbench {
         clear_fix();
         message("Deleted selected sights.");
     }
+    void defaults_state() {
+        if(def_horizon->value()==2)def_short->activate();else def_short->deactivate();
+        if(def_horizon->value()!=1){def_height->activate();def_units->activate();}
+        else {def_height->deactivate();def_units->deactivate();}
+        for(auto *field:{def_course,def_speed,def_set,def_drift})
+            if(def_motion->value())field->activate();else field->deactivate();
+    }
+    void fill_defaults_from_sight(const Sight &s,bool have_dr) {
+        if(have_dr)put_position(s,def_lat,def_lat_hemi,def_lon,def_lon_hemi);
+        else {def_lat->value("");def_lon->value("");}
+        def_horizon->value(s.artificial?1:s.short_horizon_nm>0?2:0);
+        def_short->value(s.short_horizon_nm>0?fmt(s.short_horizon_nm,6).c_str():"");
+        def_height->value(fmt(s.he).c_str());def_units->value(s.he_metres);
+        def_limb->value(1-s.limb);def_ie->value(fmt(s.ie_min).c_str());def_arc->value(s.ie_on_arc);
+        def_temp->value(fmt(s.temp_c).c_str());def_press->value(fmt(s.press_mb).c_str());
+        def_at_dr->value(s.reduce_at_dr);def_motion->value(s.has_motion);
+        def_course->value(fmt(s.course).c_str());def_speed->value(fmt(s.speed).c_str());
+        def_set->value(fmt(s.set).c_str());def_drift->value(fmt(s.drift).c_str());defaults_state();
+    }
+    void fill_defaults() {
+        NavDefaults d;navrc_load(&d);Sight s{};navrc_apply(&d,&s);
+        fill_defaults_from_sight(s,d.have_dr);
+    }
+    void save_setup_defaults() {
+        Sight s{};std::strcpy(s.body,"sun");s.y=2026;s.mo=s.d=1;s.hs_deg=45;
+        bool have_dr=std::string(def_lat->value()).find_first_not_of(" \t")!=std::string::npos ||
+                     std::string(def_lon->value()).find_first_not_of(" \t")!=std::string::npos;
+        if(have_dr)coordinates(def_lat,def_lat_hemi,def_lon,def_lon_hemi,s);
+        s.ie_min=number(def_ie->value(),"Index error",0,120);s.ie_on_arc=def_arc->value();
+        s.artificial=def_horizon->value()==1;
+        s.he=number(def_height->value(),"Height of eye",0,10000);s.he_metres=def_units->value();
+        s.short_horizon_nm=def_horizon->value()==2?number(def_short->value(),"Waterline distance in NM",.000001,1000):0;
+        s.limb=1-def_limb->value();s.temp_c=number(def_temp->value(),"Temperature",-100,100);
+        s.press_mb=number(def_press->value(),"Pressure",0,1200);s.reduce_at_dr=def_at_dr->value();
+        s.has_motion=def_motion->value();
+        if(s.has_motion){
+            s.course=number(def_course->value(),"Course",0,360);s.speed=number(def_speed->value(),"Speed",0,100);
+            s.set=number(def_set->value(),"Set",0,360);s.drift=number(def_drift->value(),"Drift",0,100);
+        }
+        char err[512]{};if(navsight_validate(&s,err,sizeof err))throw std::runtime_error(err);
+        NavDefaults d;navrc_init(&d);navrc_from_sight(&d,&s);d.have_dr=have_dr;
+        if(navrc_save(&d,err,sizeof err))throw std::runtime_error(err);
+        fill_defaults();message("Defaults saved. New sights use them; use the DR load buttons to update existing pages.");
+    }
     void save_defaults() {
-        auto s = read_sight();
+        auto s = read_sight(false);
         NavDefaults d;
         navrc_init(&d);
         navrc_from_sight(&d, &s);
         char err[512]{};
+        if(navsight_validate(&s,err,sizeof err))throw std::runtime_error(err);
         if (navrc_save(&d, err, sizeof err))
             throw std::runtime_error(err);
+        // Hs is not needed to save instrument/DR settings.
+        fill_defaults();
         message("Saved input defaults to " + std::string(navrc_path()));
     }
-    void almanac(bool hourly) {
+    Sight almanac_input() {
         Sight s{};
-        date_time(al_date->value(), al_time->value(), s);
-        coordinates(al_lat, al_lat_hemi, al_lon, al_lon_hemi, s);
+        date_time(al_date->value(),al_time->value(),s);
+        coordinates(al_lat,al_lat_hemi,al_lon,al_lon_hemi,s);
         check_engine(s);
-        int b = al_body->value();
-        const char *names[] = {"sun",     "moon",   "mercury", "venus", "mars",
-                               "jupiter", "saturn", "aries",   "star"};
-        std::strcpy(s.body, names[b]);
-        if (b == 8)
-            std::snprintf(s.star, sizeof s.star, "%s", nav_star_name(al_star->value()));
+        int b=al_body->value();
+        if(b<0 || b>8)throw std::runtime_error("Choose an almanac object.");
+        const char *names[]={"sun","moon","mercury","venus","mars","jupiter","saturn","aries","star"};
+        std::snprintf(s.body,sizeof s.body,"%s",names[b]);
+        if(b==8)std::snprintf(s.star,sizeof s.star,"%s",nav_star_name(al_star->value()));
+        return s;
+    }
+    void almanac_to_sight() {
+        auto at=almanac_input();
+        if(!std::strcmp(at.body,"aries"))
+            throw std::runtime_error("Aries is a reference point. Choose a star, Sun, Moon or planet for a sight.");
+        bool direct=at_dr->value();
+        new_sight();body->value(al_body->value()==8?7:al_body->value());
+        if(al_body->value()==8)star->value(al_star->value());
+        else if(body->value()>=2)limb->value(1);
+        date->value(al_date->value());time->value(al_time->value());
+        put_position(at,lat,lat_hemi,lon,lon_hemi);at_dr->value(direct);
+        hs->value("");body_state();tabs->value(sight_tab);hs->take_focus();
+        message("Almanac object, UTC and DR copied to a new sight. Enter measured Hs; check your instrument settings.");
+    }
+    void almanac(bool hourly) {
+        auto s=almanac_input();
+        int b=al_body->value();
         std::string text = capture([&](FILE *p) {
             std::fprintf(p, "NAVALM %s / %s\n%s\n\n", NAVALM_VERSION, nav_engine_name(),
                          nav_engine_detail());
@@ -2050,11 +2199,23 @@ static int self_test() {
     }
     app.tabs->value(app.sky_tab);
     auto *original_sky=app.sky_canvas;
+    app.select_sky_star(int(app.sky_canvas->sky.count+NAV_SUN));
+    app.sky_canvas->zoom_by(100);
+    require(app.sky_canvas->zoom()==4.5,"sky zoom caps at about five percent of plotted sky area");
+    app.sky_canvas->centre_selected();
+    double px,py;app.sky_canvas->point(app.sky_canvas->object(app.sky_canvas->selected),px,py);
+    require(std::abs(px-app.sky_canvas->x()-app.sky_canvas->w()/2.)<1e-7 &&
+            std::abs(py-app.sky_canvas->y()-app.sky_canvas->h()/2.)<1e-7 &&
+            app.sky_canvas->object_at(px,py)==app.sky_canvas->selected,"zoomed object centres and remains selectable");
+    app.sky_canvas->pan_by(30,-20);
+    double moved_x,moved_y;app.sky_canvas->point(app.sky_canvas->object(app.sky_canvas->selected),moved_x,moved_y);
+    require(std::abs(moved_x-px-30)<1e-6 && std::abs(moved_y-py+20)<1e-6,"sky panning follows drag pixels");
     app.detach_sky();Fl::check();
+    require(app.sky_canvas->zoom()==4.5,"detaching preserves zoom");
     require(app.sky_window->shown() && app.sky_canvas->parent()==app.sky_window.get() &&
             app.sky_placeholder->visible(),"detached sky uses original live canvas");
     app.sky_window->size(1200,900);Fl::check();
-    require(app.sky_canvas->w()==1200 && app.sky_canvas->h()==816,"detached sky resizes");
+    require(app.sky_canvas->w()==1200 && app.sky_canvas->h()==788,"detached sky resizes");
     app.sky_detached_layers[1]->value(1);app.sky_detached_layers[1]->do_callback();
     require(app.sky_canvas->constellation_names && app.sky_layers[1]->value(),"detached names synchronize");
     app.sky_layers[0]->value(0);app.sky_layers[0]->do_callback();
@@ -2066,6 +2227,8 @@ static int self_test() {
     app.sky_window->do_callback();Fl::check();
     require(!app.sky_window->shown() && app.sky_canvas==original_sky && app.sky_canvas->parent()==app.sky_tab &&
             app.sky_canvas->w()==app.sky_placeholder->w(),"reattach restores live chart and dock size");
+    require(app.sky_canvas->zoom()==4.5,"reattaching preserves zoom");
+    app.sky_canvas->reset_view();require(app.sky_canvas->zoom()==1,"All sky resets view");
     app.detach_sky();app.sky_min->value("90");rejects([&]{app.update_sky();});
     require(!app.sky_canvas->ready && std::string(app.sky_detached_detail->label()).find("unavailable")!=std::string::npos,
             "detached error clears original live chart");
@@ -2160,6 +2323,42 @@ static int self_test() {
     NavDefaults defaults;
     navrc_load(&defaults);
     require(!defaults.have_motion, "defaults without motion");
+    require(defaults.short_horizon_nm==0,"existing defaults keep normal dip");
+    app.fill_defaults();app.def_horizon->value(0);app.def_lat->value("0");app.def_lon->value("0");
+    app.def_at_dr->value(1);app.def_temp->value("0");app.def_press->value("1015");
+    app.def_height->value("10");app.def_ie->value("1.2");app.def_arc->value(1);
+    app.def_motion->value(1);app.def_course->value("270");app.def_speed->value("5");
+    app.def_set->value("90");app.def_drift->value("1.5");app.save_setup_defaults();
+    {
+        Workbench restored;
+        require(std::string(restored.lat->value())=="00 00.0" &&
+                std::string(restored.al_lat->value())=="00 00.0" &&
+                std::string(restored.sky_lat->value())=="00 00.0","zero DR restores into all three pages at startup");
+        require(restored.at_dr->value() && restored.arc->value() && restored.motion->value() &&
+                number(restored.temp->value(),"temperature",-100,100)==0 &&
+                number(restored.drift->value(),"drift",0,100)==1.5 &&
+                std::string(restored.hs->value()).empty(),"settings restore without a stale measured Hs");
+    }
+    // Copy/load do not need Hs and do not change page UTC or another page's edits.
+    app.lat->value("12 30");app.lon->value("45 15");app.lat_hemi->value(1);app.lon_hemi->value(1);
+    app.hs->value("");app.at_dr->value(1);app.save_defaults();
+    std::string old_sky_time=app.sky_time->value();
+    app.copy_sight_position(app.al_lat,app.al_lat_hemi,app.al_lon,app.al_lon_hemi);
+    app.load_saved_position(app.sky_lat,app.sky_lat_hemi,app.sky_lon,app.sky_lon_hemi);
+    require(app.al_lat_hemi->value()==1 && app.al_lon_hemi->value()==1 &&
+            app.sky_lat_hemi->value()==1 && app.sky_lon_hemi->value()==1 &&
+            std::string(app.sky_time->value())==old_sky_time,"saved and current DR copy hemisphere and retain UTC without Hs");
+    app.al_date->value("2026-09-19");app.al_time->value("21:38:05.125");
+    for(int b:{0,1,4,8}){
+        app.al_body->value(b);app.al_star->value(nav_star_find("Vega"));app.almanac_to_sight();
+        require(app.body->value()==(b==8?7:b) && std::string(app.time->value())=="21:38:05.125" &&
+                app.lat_hemi->value()==1 && app.lon_hemi->value()==1 && app.at_dr->value() &&
+                std::string(app.hs->value()).empty() && app.edit_id==0,"almanac handoff preserves exact UTC/DR/method and leaves Hs blank");
+    }
+    app.al_body->value(7);rejects([&]{app.almanac_to_sight();});
+    app.al_body->value(0);app.al_lat->value("");rejects([&]{app.almanac_to_sight();});
+    app.example();app.at_dr->value(0);app.motion->value(0);app.save_defaults();
+    std::puts("PASS defaults page: save/reload, explicit zero DR, exact method, current, blank Hs, hemispheres and almanac handoff");
     app.al_date->value("2026-09-19");
     app.al_time->value("21:38:05");
     app.al_lat->value("34 2.5");

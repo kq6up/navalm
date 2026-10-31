@@ -367,6 +367,7 @@ static void edit_field(Sight *si,int key,Pane *msg){
             }
             break;
         case '7':
+            si->short_horizon_nm=0;
             if(si->artificial){
                 si->artificial = 0;
                 if(prompt_num("Height of eye (feet, or metres if set in Setup):",&v)) si->he = v;

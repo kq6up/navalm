@@ -59,6 +59,8 @@ int navrc_load(NavDefaults *d){
         else if(!strcmp(key,"limb"))     d->limb = !strcmp(val,"ll") ? 1 : (!strcmp(val,"ul") ? -1 : 0);
         else if(!strcmp(key,"temp"))     d->temp_c = atof(val);
         else if(!strcmp(key,"press"))    d->press_mb = atof(val);
+        else if(!strcmp(key,"short_horizon")) d->short_horizon_nm = atof(val);
+        else if(!strcmp(key,"at_dr"))    d->reduce_at_dr = !strcmp(val,"1");
         else if(!strcmp(key,"drlat")){   d->dr_lat = atof(val); d->have_dr = 1; }
         else if(!strcmp(key,"drlon")){   d->dr_lon = atof(val); d->have_dr = 1; }
         else if(!strcmp(key,"course")){  d->course = atof(val); d->have_motion = 1; }
@@ -86,6 +88,8 @@ int navrc_save(const NavDefaults *d,char *err,size_t errn){
     fprintf(f,"limb=%s\n",d->limb>0?"ll":(d->limb<0?"ul":"center"));
     fprintf(f,"temp=%.1f\n",d->temp_c);
     fprintf(f,"press=%.1f\n",d->press_mb);
+    if(d->short_horizon_nm>0)fprintf(f,"short_horizon=%.9g\n",d->short_horizon_nm);
+    fprintf(f,"at_dr=%d\n",d->reduce_at_dr ? 1 : 0);
     if(d->have_dr){
         fprintf(f,"drlat=%.6f\n",d->dr_lat);
         fprintf(f,"drlon=%.6f\n",d->dr_lon);
@@ -110,6 +114,8 @@ void navrc_apply(const NavDefaults *d,Sight *si){
     si->limb      = d->limb;
     si->temp_c    = d->temp_c;
     si->press_mb  = d->press_mb;
+    si->reduce_at_dr = d->reduce_at_dr;
+    si->short_horizon_nm = d->short_horizon_nm;
     if(d->have_dr){ si->dr_lat = d->dr_lat; si->dr_lon = d->dr_lon; }
     if(d->have_motion){
         si->course = d->course; si->speed = d->speed;
@@ -127,6 +133,8 @@ void navrc_from_sight(NavDefaults *d,const Sight *si){
     d->limb = si->limb;
     d->temp_c = si->temp_c;
     d->press_mb = si->press_mb;
+    d->reduce_at_dr = si->reduce_at_dr;
+    d->short_horizon_nm = si->short_horizon_nm;
     d->dr_lat = si->dr_lat;
     d->dr_lon = si->dr_lon;
     d->have_dr = 1;
@@ -146,6 +154,8 @@ void navrc_print(const NavDefaults *d,FILE *out){
     fprintf(out,"  limb          %s\n",d->limb>0?"lower":(d->limb<0?"upper":"center"));
     fprintf(out,"  temperature   %.1f C\n",d->temp_c);
     fprintf(out,"  pressure      %.1f mb\n",d->press_mb);
+    if(d->short_horizon_nm>0)fprintf(out,"  waterline     %.4f NM (short of horizon)\n",d->short_horizon_nm);
+    fprintf(out,"  reduction     %s\n",d->reduce_at_dr?"exact DR":"whole-degree LHA");
     if(d->have_dr){
         double la=fabs(d->dr_lat), lo=fabs(d->dr_lon);
         int lad=(int)floor(la), lod=(int)floor(lo);

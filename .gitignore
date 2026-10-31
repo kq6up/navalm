@@ -32,3 +32,6 @@
 /.local/
 /NAVALM.app/
 /NAVALM Checks.app/
+
+# Python regression caches
+__pycache__/

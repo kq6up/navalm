@@ -52,7 +52,13 @@ with tempfile.TemporaryDirectory(prefix='navalm-direct-dr-') as temporary:
         assert 'Direct reduction at DR' in cli('lop','show','1')
         cli('lop','edit','1','--ho229')
         assert 'HO 229' in cli('lop','show','1')
-        assert '5.4' in cli('-v')
-        print('direct-dr: HTTP calculation, errors, CLI save/reopen/method edit and 5.4 version passed')
+        assert '5.5.0' in cli('-v')
+        short=reduce(horizon='sea',hs=47.31,he=10,heunit='ft',short_horizon=.5)
+        assert short['ok']==1 and abs(short['dip_min']-11.5)<.05,short
+        assert 'beyond the visible horizon' in reduce(horizon='sea',hs=47.31,he=10,short_horizon=5)['error']
+        report=cli('sight','sun','2026','9','19','21','38','5','--hs','47','18.6','--he','10','ft',
+                   '--short-horizon','.5','--dr','34','2.5','N','117','21.9','W','--save')
+        assert 'waterline 0.5000 NM' in report and 'Bowditch Table 14' in cli('lop','show','2')
+        print('direct-dr: HTTP calculation, errors, CLI save/reopen/method edit and 5.5.0 version passed')
     finally:
         proc.terminate();proc.wait(timeout=10)
