@@ -72,17 +72,29 @@ struct Log {
         if(clocks.size()>=100)throw std::runtime_error("The clock log is limited to 100 clocks.");
         clocks.push_back({id,1,name});selected=id;return id;
     }
-    void add(Reading r) {
-        const auto &c=clock(r.clock);r.series=c.series;
+    void validate_reading(const Reading &r,size_t skip=std::numeric_limits<size_t>::max()) const {
+        const auto &c=clock(r.clock);
+        if(r.series<1 || r.series>c.series)throw std::runtime_error("Invalid clock series.");
         text_ok(r.source,40,true);text_ok(r.note,160);
-        if(!std::isfinite(r.utc)||!std::isfinite(r.watch)||r.utc < -11676096000. || r.utc > 13569465600. ||
-           r.watch < -11676096000. || r.watch > 13569465600. || std::abs(r.watch-r.utc)>604800.)
+        if(!std::isfinite(r.utc)||!std::isfinite(r.watch)||r.utc < -11676096000. || r.utc >= 13569465600. ||
+           r.watch < -11676096000. || r.watch >= 13569465600. || std::abs(r.watch-r.utc)>604800.)
             throw std::runtime_error("Check the reference and watch dates; their difference must be within seven days.");
-        for(const auto &old:readings)if(old.enabled && old.clock==r.clock && old.series==r.series && std::abs(old.utc-r.utc)<.0005)
-            throw std::runtime_error("This reference instant is already logged. Exclude the old reading before entering its replacement.");
+        for(size_t i=0;i<readings.size();++i){const auto &old=readings[i];
+            if(i!=skip && r.enabled && old.enabled && old.clock==r.clock && old.series==r.series && std::abs(old.utc-r.utc)<.0005)
+                throw std::runtime_error("This reference instant is already logged. Exclude the old reading before entering its replacement.");
+        }
+    }
+    void add(Reading r) {
+        r.series=clock(r.clock).series;validate_reading(r);
         if(readings.size()>=20000)throw std::runtime_error("The clock log is full (20,000 comparisons).");
         readings.push_back(r);
     }
+    void update(size_t index,Reading r) {
+        const auto &old=readings.at(index);
+        r.clock=old.clock;r.series=old.series;r.enabled=old.enabled;
+        validate_reading(r,index);readings[index]=r;
+    }
+    void erase(size_t index) {(void)readings.at(index);readings.erase(readings.begin()+index);}
     Model model(int id) const {const auto &c=clock(id);return fit(readings,id,c.series);}
     void set_enabled(size_t index,bool enabled) {
         auto &r=readings.at(index);
@@ -94,7 +106,7 @@ struct Log {
         r.enabled=enabled;
     }
     void save(const std::filesystem::path &path) const {
-        std::filesystem::create_directories(path.parent_path());
+        if(!path.parent_path().empty())std::filesystem::create_directories(path.parent_path());
         auto tmp=path;tmp+=".tmp";std::ofstream out(tmp,std::ios::binary);
         out<<"NAVALM_CHRONO 1\nsettings "<<selected<<' '<<apply_new<<'\n'<<std::setprecision(17);
         for(const auto &c:clocks)out<<"clock "<<c.id<<' '<<c.series<<' '<<std::quoted(c.name)<<'\n';
@@ -117,7 +129,7 @@ struct Log {
                 Reading r;if(!(row>>r.clock>>r.series>>r.utc>>r.watch>>r.enabled>>std::quoted(r.source)>>std::quoted(r.note)))throw std::runtime_error("Invalid clock comparison.");
                 const auto &c=log.clock(r.clock);if(r.series<1||r.series>c.series)throw std::runtime_error("Invalid clock series.");
                 text_ok(r.source,40,true);text_ok(r.note,160);
-                if(!std::isfinite(r.utc)||!std::isfinite(r.watch)||std::abs(r.watch-r.utc)>604800. || r.utc < -11676096000. || r.utc > 13569465600. || r.watch < -11676096000. || r.watch > 13569465600. || log.readings.size()>=20000)throw std::runtime_error("Invalid comparison date/time.");
+                if(!std::isfinite(r.utc)||!std::isfinite(r.watch)||std::abs(r.watch-r.utc)>604800. || r.utc < -11676096000. || r.utc >= 13569465600. || r.watch < -11676096000. || r.watch >= 13569465600. || log.readings.size()>=20000)throw std::runtime_error("Invalid comparison date/time.");
                 log.readings.push_back(r);
             } else throw std::runtime_error("Unrecognized Chrono record.");
             row>>std::ws;if(!row.eof())throw std::runtime_error("Extra data in Chrono record.");

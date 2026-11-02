@@ -61,6 +61,15 @@ int main() {
             require(std::abs(watch.clock_correction_sec-12.5)<.001 && std::string(watch.clock_watch)=="2024-02-28T23:59:55.250","saved correction retains watch reading and sign");
             require(stamp(parse("2026-12-31","23:59:59.999"))=="2026-12-31T23:59:59.999","fractional UTC roundtrip near year rollover");
             restored.save(path);require(Log::load(path).clock(id).series==2,"series and inactive history persist");
+            auto edited=restored.readings[1];edited.watch+=.5;edited.note="Corrected pencil transcription";
+            restored.update(1,edited);
+            require(!restored.readings[1].enabled && restored.readings[1].series==1 && restored.model(id).count==1,"editing old excluded entry preserves series and exclusion");
+            auto duplicate=log.readings[2];duplicate.utc=t;duplicate.watch=t+10;
+            rejects([&]{log.update(2,duplicate);});require(log.readings[2].utc==t+2*86400.,"invalid edit leaves original row unchanged");
+            edited.watch=std::numeric_limits<double>::infinity();rejects([&]{restored.update(1,edited);});
+            restored.erase(1);restored.save(path);auto deleted=Log::load(path);
+            require(deleted.readings.size()==3 && deleted.readings[1].utc==t+2*86400. && deleted.readings[2].series==2,"edits and deletion persist without changing other entries");
+            deleted.erase(2);require(deleted.model(id).count==0,"deleting final current comparison removes its model");
             std::ofstream(path)<<"damaged clock log\n";rejects([&]{Log::load(path);});
             std::puts("PASS Chrono: signed offset/drift, exact inverse, exclusions, history/series, persistence, leap-day rollover and bad-log rejection");
         }

@@ -1,3 +1,16 @@
+# Changes in NavAlm 5.6.1
+
+- Add a native Chrono scatter plot of watch-minus-UTC error over reference time,
+  with a fitted drift line, excluded points and a selected-point highlight.
+- Click a plot point to select its comparison row. Selecting an older row shows
+  its series separately, without mixing clock resets into the current fit.
+- Edit a comparison's reference/watch timestamps, source and note in the entry
+  fields; Save changes retains its clock, series and exclusion state. Invalid
+  edits leave the original comparison intact. Cancel edit discards field changes.
+- Delete a selected comparison after confirmation, or retain it with Exclude.
+  Plot/model updates and edits/deletions persist in the existing log format.
+- Add focused native scatter/editing/deletion checks with synthetic comparisons.
+
 # Changes in NavAlm 5.6.0
 
 - Use NavAlm capitalization in the native workbench and detached window titles.

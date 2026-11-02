@@ -191,3 +191,11 @@ To reuse bootstrapped FLTK source, add
 is for debugging and requires its compiler runtime; release packages remain
 optimized builds without sanitizer dependencies. On macOS launch a packaged
 bundle through Launch Services for GUI checks.
+
+Focused Chrono plot/edit/delete callback checks (synthetic data only):
+
+```sh
+./navalm-fltk --chrono-self-test
+```
+
+On Linux run this under `xvfb-run -a` when no display is available.

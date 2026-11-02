@@ -2,7 +2,7 @@ name: Linux build and runtime checks
 
 on:
   push:
-    branches: [main, feature/annual-almanac-5.1, feature/chrono-5.6.0]
+    branches: [main, feature/annual-almanac-5.1, feature/chrono-5.6.0, feature/chrono-5.6.1]
   pull_request:
   workflow_dispatch:
 
@@ -58,3 +58,5 @@ jobs:
           make check-paper check-plot check-list check-desktop check-sky check-direct-dr check-book check-web-book
       - name: Run native GUI callbacks on a virtual X11 display
         run: xvfb-run -a -s '-screen 0 1920x1080x24' ./navalm-fltk --self-test
+      - name: Run Chrono scatter and editing callbacks
+        run: xvfb-run -a -s '-screen 0 1920x1080x24' ./navalm-fltk --chrono-self-test

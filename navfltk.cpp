@@ -7,6 +7,7 @@
 #include "navdownload.h"
 #include "navbook.h"
 #include "navchrono_sight.h"
+#include "navfltk_chrono.h"
 #include "navfile.h"
 #include "navfltk_map.h"
 #include "navfltk_plot.h"
@@ -357,7 +358,9 @@ class Workbench {
     Fl_Input *chrono_name,*chrono_ref_date,*chrono_ref_time,*chrono_watch_date,*chrono_watch_time,*chrono_note;
     Fl_Input *sight_watch_date,*sight_watch_time;
     Fl_Check_Button *chrono_apply_new,*sight_clock_apply;
-    Fl_Button *chrono_add_button;
+    Fl_Button *chrono_add_button,*chrono_cancel_button,*chrono_edit_button,*chrono_delete_button,*chrono_exclude_button;
+    ChronoPlot *chrono_plot;
+    long chrono_edit_index=-1;
     Fl_Hold_Browser *chrono_rows;
     Fl_Box *chrono_summary,*sight_clock_status;
     chrono_nav::Log clock_log;
@@ -778,19 +781,26 @@ class Workbench {
         chrono_ref_date=input(36,260,190,"Reference date · UTC");chrono_ref_time=input(242,260,190,"Reference time · HH:MM:SS.sss");
         chrono_watch_date=input(448,260,190,"Watch date · UTC");chrono_watch_time=input(654,260,190,"Watch reading · HH:MM:SS.sss");
         chrono_source=choice(860,260,272,"Reference source","Manual WWV|Other UTC reference|Computer clock");
-        chrono_note=input(36,326,596,"Note (optional)");chrono_note->maximum_size(160);
-        button(648,326,230,"Computer UTC now",[this]{chrono_computer_now();});
+        chrono_note=input(36,326,460,"Note (optional)");chrono_note->maximum_size(160);
+        button(512,326,200,"Computer UTC now",[this]{chrono_computer_now();});
+        chrono_cancel_button=button(728,326,150,"Cancel edit",[this]{chrono_cancel_edit(true);});chrono_cancel_button->deactivate();
         chrono_add_button=button(894,326,238,"Add comparison",[this]{chrono_add();},true);
-        chrono_summary=new Fl_Box(36,378,1096,90,"");
+        chrono_summary=new Fl_Box(36,378,1096,64,"");
         chrono_summary->align(FL_ALIGN_LEFT|FL_ALIGN_TOP|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);chrono_summary->labelsize(14);
-        auto *columns=new Fl_Box(36,470,1096,22,"   Series  Reference UTC             Watch − UTC (s)   Source / note");
+        chrono_plot=new ChronoPlot(36,452,540,242);
+        chrono_plot->select=[this](size_t index){chrono_select(index);};
+        auto *columns=new Fl_Box(596,452,536,22,"   Series  Reference UTC             Error (s)   Source / note");
         columns->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);columns->labelfont(FL_COURIER);columns->labelsize(12);
-        chrono_rows=new Fl_Hold_Browser(36,496,1096,154);chrono_rows->textfont(FL_COURIER);chrono_rows->textsize(12);chrono_rows->format_char(0);
-        button(36,666,248,"Exclude / restore selected",[this]{
-            chrono_guard();int row=chrono_rows->value();if(row<1 || row>int(chrono_row_ids.size()))throw std::runtime_error("Select a comparison first.");
-            auto next=clock_log;auto index=chrono_row_ids[row-1];next.set_enabled(index,!next.readings[index].enabled);chrono_commit(next);
+        chrono_rows=new Fl_Hold_Browser(596,476,536,170);chrono_rows->textfont(FL_COURIER);chrono_rows->textsize(12);chrono_rows->format_char(0);
+        bind(chrono_rows,[this]{chrono_select(chrono_selected_index());});
+        chrono_edit_button=button(596,660,100,"Edit selected",[this]{chrono_begin_edit();});
+        chrono_delete_button=button(708,660,100,"Delete selected",[this]{chrono_delete();});
+        chrono_edit_button->labelsize(12);chrono_delete_button->labelsize(12);
+        chrono_exclude_button=button(820,660,170,"Exclude / restore",[this]{
+            chrono_guard();auto index=chrono_selected_index();
+            auto next=clock_log;next.set_enabled(index,!next.readings[index].enabled);chrono_commit(next);chrono_select(index);
         });
-        button(300,666,175,"Export log…",[this]{
+        button(1002,660,130,"Export log…",[this]{
             chrono_guard();auto path=choose_file("Export clock comparisons","CSV\t*.csv",true,"NavAlm-clock-log.csv");
             if(path.empty())return;
             auto csv=[](const std::string &s){std::string out="\"";for(char c:s){out+=c;if(c=='\"')out+='\"';}return out+'\"';};
@@ -798,12 +808,12 @@ class Workbench {
             for(const auto &r:clock_log.readings)out<<csv(clock_log.clock(r.clock).name)<<','<<r.series<<','<<chrono_nav::stamp(r.utc)<<','<<chrono_nav::stamp(r.watch)<<','<<(r.watch-r.utc)<<','<<csv(r.source)<<','<<csv(r.note)<<','<<r.enabled<<'\n';
             write_file(path,out.str());message("Clock comparison CSV saved: "+path);
         });
-        chrono_apply_new=new Fl_Check_Button(500,666,632,34,"Use selected clock for new manual sights (time starts blank)");chrono_apply_new->labelsize(13);
+        chrono_apply_new=new Fl_Check_Button(36,704,1096,30,"Use selected clock for new manual sights (time starts blank)");chrono_apply_new->labelsize(13);
         bind(chrono_apply_new,[this]{chrono_guard();auto next=clock_log;next.apply_new=chrono_apply_new->value();if(next.apply_new)next.model(next.selected).utc_from_watch(std::time(nullptr));chrono_commit(next);});
-        auto *help=new Fl_Box(36,714,1096,74,
+        auto *help=new Fl_Box(36,744,1096,44,
             "Log the watch reading and reference UTC at the same instant. Positive error = fast; positive drift = gaining seconds/day.\n"
-            "Manual WWV: enter the UTC announced at the signal. Computer UTC now freezes your Mac/PC time; its accuracy is not independently checked.\n"
-            "Two distinct times establish drift; longer observations help separate drift from reading error. Start a new series after setting the clock or changing its battery.");
+            "Select a point or row, then Edit, Delete or Exclude. Exclusion keeps its history; deleting removes it after confirmation.\n"
+            "The plot follows the selected row's series. Only the current series supplies sight corrections. See CHRONO.md for WWV and computer UTC notes.");
         help->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);help->labelsize(12);
         bind(chrono_clock,[this]{chrono_guard();auto next=clock_log;int i=chrono_clock->value();if(i<0||i>=int(next.clocks.size()))return;next.selected=next.clocks[i].id;chrono_commit(next);});
         bind(sight_clock_apply,[this]{sight_clock_status->copy_label(sight_clock_apply->value()?"Watch date/time will determine UTC using the selected Chrono clock.":"Chrono is off; the UTC fields are used directly.");});
@@ -1171,6 +1181,39 @@ class Workbench {
             }catch(const std::exception &e){summary=e.what();}
         }
         chrono_summary->copy_label(summary.c_str());
+        chrono_plot->set_data(clock_log,clock_log.selected,clock_log.selected?clock_log.clock(clock_log.selected).series:1);
+    }
+    size_t chrono_selected_index() const {
+        int row=chrono_rows->value();if(row<1 || row>int(chrono_row_ids.size()))throw std::runtime_error("Select a comparison first.");
+        return chrono_row_ids[row-1];
+    }
+    void chrono_select(size_t index) {
+        auto row=std::find(chrono_row_ids.begin(),chrono_row_ids.end(),index);if(row==chrono_row_ids.end())return;
+        int line=int(row-chrono_row_ids.begin())+1;chrono_rows->select(line);chrono_rows->middleline(line);
+        const auto &r=clock_log.readings.at(index);chrono_plot->set_data(clock_log,r.clock,r.series,long(index));
+        auto msg="Series "+std::to_string(r.series)+" · UTC "+chrono_nav::stamp(r.utc)+" · watch "+chrono_nav::stamp(r.watch)+" · error "+fmt(r.watch-r.utc,3)+" s";
+        if(chrono_plot->model.count)msg+=" · residual "+fmt((r.watch-r.utc)-chrono_plot->model.error_at(r.utc),3)+" s";
+        message(msg);
+    }
+    void chrono_cancel_edit(bool clear=false) {
+        chrono_edit_index=-1;chrono_add_button->copy_label("Add comparison");chrono_cancel_button->deactivate();
+        if(clear){chrono_ref_time->value("");chrono_watch_time->value("");chrono_note->value("");message("Edit cancelled. No comparison changed.");}
+    }
+    void chrono_begin_edit() {
+        chrono_guard();auto index=chrono_selected_index();const auto &r=clock_log.readings.at(index);
+        auto ref=chrono_nav::stamp(r.utc),watch=chrono_nav::stamp(r.watch);
+        chrono_ref_date->value(ref.substr(0,10).c_str());chrono_ref_time->value(ref.substr(11).c_str());
+        chrono_watch_date->value(watch.substr(0,10).c_str());chrono_watch_time->value(watch.substr(11).c_str());
+        int source=0;for(;source<chrono_source->size()-1;++source)if(r.source==chrono_source->text(source))break;
+        if(source==chrono_source->size()-1){chrono_source->add("Recorded source");chrono_source->replace(source,r.source.c_str());}
+        chrono_source->value(source);chrono_note->value(r.note.c_str());
+        chrono_edit_index=long(index);chrono_add_button->copy_label("Save changes");chrono_cancel_button->activate();
+        message("Editing series "+std::to_string(r.series)+" comparison. Change fields above, then Save changes; clock, series and exclusion state are retained.");
+    }
+    void chrono_delete() {
+        chrono_guard();auto index=chrono_selected_index();
+        if(!testing && fl_choice("Delete this comparison from the log? Use Exclude instead to retain its history.","Cancel","Delete",nullptr)!=1)return;
+        auto next=clock_log;next.erase(index);chrono_commit(next);message("Comparison deleted; the fit and plot have been updated.");
     }
     void chrono_load() {
         if(const char *path=std::getenv("NAVALM_CHRONO"))chrono_path=fs::u8path(path);
@@ -1178,10 +1221,10 @@ class Workbench {
         else chrono_path=application_root/".local/chrono.log";
         try{auto loaded=chrono_nav::Log::load(chrono_path);clock_log=std::move(loaded);chrono_error.clear();}
         catch(const std::exception &e){chrono_error=e.what();sight_clock_apply->value(0);}
-        chrono_refresh();
+        chrono_cancel_edit();chrono_refresh();
     }
     void chrono_commit(const chrono_nav::Log &next) {
-        next.save(chrono_path);clock_log=next;chrono_refresh();message("Chrono log saved: "+chrono_path.u8string());
+        next.save(chrono_path);clock_log=next;chrono_cancel_edit();chrono_refresh();message("Chrono log saved: "+chrono_path.u8string());
     }
     void chrono_computer_now() {
         double utc=std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -1193,7 +1236,10 @@ class Workbench {
         r.utc=chrono_nav::parse(chrono_ref_date->value(),chrono_ref_time->value());
         r.watch=chrono_nav::parse(chrono_watch_date->value(),chrono_watch_time->value());
         if(!chrono_source->text())throw std::runtime_error("Choose the reference source.");
-        r.source=chrono_source->text();r.note=chrono_note->value();auto next=clock_log;next.add(r);chrono_commit(next);
+        r.source=chrono_source->text();r.note=chrono_note->value();auto next=clock_log;
+        size_t index=chrono_edit_index<0?next.readings.size():size_t(chrono_edit_index);
+        if(chrono_edit_index<0)next.add(r);else next.update(index,r);
+        chrono_commit(next);chrono_select(index);
     }
     void bind(Fl_Widget *w, std::function<void()> fn) {
         auto f = std::make_unique<std::function<void()>>([this, w, fn] {
@@ -2136,8 +2182,11 @@ static fs::path runtime_root(const char *arg) {
 static Overlay checked_scene;
 static std::shared_ptr<LandMap> checked_map;
 static int self_test();
+static int chrono_self_test(bool preview=false);
 int main(int argc, char **argv) {
     bool checks = std::string(argv[0]).find("navalm-checks") != std::string::npos;
+    bool chrono_checks=std::getenv("NAVALM_CHRONO_CHECK")!=nullptr;
+    checks=checks || chrono_checks;
     try {
         auto root = runtime_root(argv[0]);
         application_root = root;
@@ -2210,6 +2259,9 @@ int main(int argc, char **argv) {
             nav_engine_select("classic");
             nav_engine_init(nullptr, 0);
         }
+        if(chrono_checks || (argc>1 && !std::strcmp(argv[1],"--chrono-self-test"))){
+            int code=chrono_self_test(chrono_checks);nav_engine_shutdown();return code;
+        }
         if (checks || (argc > 1 && !std::strcmp(argv[1], "--self-test"))) {
             if (checks)
                 nav_setenv("NAVALM_TEST_DOWNLOAD", "1", 0);
@@ -2251,6 +2303,46 @@ int main(int argc, char **argv) {
 #endif
         return 1;
     }
+}
+
+static int chrono_self_test(bool preview) {
+    auto require=[](bool v,const char *s){if(!v)throw std::runtime_error(std::string("CHRONO TEST: ")+s);};
+    auto tmp=nav_temp_dir();
+    struct Cleanup {fs::path p;~Cleanup(){std::error_code e;fs::remove_all(p,e);}} cleanup{tmp};
+    nav_setenv("NAVALM_CHRONO",(tmp/"chrono.log").u8string().c_str(),1);
+    nav_setenv("NAVALMRC",(tmp/"defaults.rc").u8string().c_str(),1);
+    nav_setenv("NAVALM_SAVE",(tmp/"sights.save").u8string().c_str(),1);
+    Workbench app;app.testing=true;
+    chrono_nav::Log fixture;int id=fixture.add_clock("Example watch");double t=chrono_nav::parse("2026-10-28","12:00:00");
+    const double errors[]={10,11.9,35,16.1,18};
+    for(int i=0;i<5;++i)fixture.add({id,1,t+i*86400.,t+i*86400.+errors[i],true,"Manual WWV","Synthetic comparison"});
+    app.chrono_commit(fixture);app.tabs->value(app.chrono_tab);app.win.show();Fl::check();
+    require(app.chrono_plot->points.size()==5 && app.chrono_plot->model.count==5,"scatter and fitted line use active series");
+    const auto &point=app.chrono_plot->points[2];auto index=app.chrono_plot->hit(app.chrono_plot->px(point.utc),app.chrono_plot->py(point.error));
+    require(index==2 && app.chrono_plot->hit(-100,-100)<0,"plot hit-test finds outlier without selecting empty space");
+    app.chrono_plot->select(size_t(index));require(app.chrono_selected_index()==2 && app.chrono_plot->selected==2,"point selection highlights matching log row");
+    app.chrono_exclude_button->do_callback();
+    require(app.chrono_plot->points.size()==5 && !app.chrono_plot->points[2].enabled && app.chrono_plot->model.count==4,"excluded point remains visible and leaves the fit");
+    app.chrono_edit_button->do_callback();require(app.chrono_edit_index==2 && std::string(app.chrono_watch_time->value())=="12:00:35.000","edit loads original watch reading");
+    app.chrono_watch_time->value("not a time");app.chrono_add_button->do_callback();
+    require(app.chrono_edit_index==2 && app.clock_log.readings[2].watch==fixture.readings[2].watch,"invalid edit keeps original row and editor open");
+    app.chrono_watch_time->value("12:00:14.000");app.chrono_note->value("Transcription corrected");app.chrono_add_button->do_callback();
+    require(app.clock_log.readings.size()==5 && !app.clock_log.readings[2].enabled && app.clock_log.readings[2].note=="Transcription corrected" && app.chrono_edit_index<0,"save replaces row while preserving exclusion");
+    app.chrono_exclude_button->do_callback();require(app.chrono_plot->model.count==5 && std::abs(app.chrono_plot->model.rate-2.02)<1e-6,"restoring corrected point refits drift");
+    app.chrono_edit_button->do_callback();app.chrono_watch_time->value("12:00:59");app.chrono_cancel_button->do_callback();
+    require(app.clock_log.readings[2].watch==t+2*86400.+14,"cancel does not change comparison");
+    app.chrono_select(2);app.chrono_delete_button->do_callback();app.chrono_load();
+    require(app.clock_log.readings.size()==4 && app.chrono_plot->points.size()==4 && app.chrono_plot->model.count==4,"deletion persists and updates plot and model");
+    auto history=app.clock_log;history.clock(id).series++;app.chrono_commit(history);app.chrono_select(0);app.chrono_edit_button->do_callback();
+    app.chrono_note->value("Earlier series note");app.chrono_add_button->do_callback();
+    require(app.clock_log.readings[0].series==1 && app.clock_log.model(id).count==0 && app.chrono_plot->series==1,"historical edit and plot do not populate current model");
+    while(!app.clock_log.readings.empty()){app.chrono_select(0);app.chrono_delete_button->do_callback();}
+    require(app.chrono_plot->points.empty() && !app.chrono_plot->model.count,"empty plot after deleting final row");
+    fixture.set_enabled(2,false);app.chrono_commit(fixture);app.chrono_select(2);app.win.redraw();Fl::check();
+    std::puts("PASS native Chrono scatter: selection, excluded outlier, fit, validation, edit/cancel, deletion/reload, old series and empty plot; synthetic data only.");
+    if(preview){app.testing=false;app.message("Chrono checks passed · synthetic example data only");Fl::run();}
+    else app.win.hide();
+    return 0;
 }
 
 static int self_test() {

@@ -1,4 +1,4 @@
-# Chrono — watch and clock characterization (5.6.0)
+# Chrono — watch and clock characterization (5.6.1)
 
 The native **Chrono** tab sits just before Annual book. It keeps named clocks and
 dated comparisons, with an optional correction for manual sight times. The
@@ -33,6 +33,30 @@ entry and choose **Exclude / restore selected** to omit it from the fit while
 keeping its history. Log rows show the series, reference instant, signed error,
 reference source and note; `x` marks an excluded entry. **Export log** writes all
 clocks and series to CSV, including original watch readings and exclusions.
+
+## Inspect and correct comparisons (5.6.1)
+
+The scatter plot shows **watch minus UTC in seconds** against reference time.
+Filled teal dots are included comparisons, gray crosses are excluded, and the
+orange line is the fitted drift. A ring marks the selected comparison. No line
+is drawn if the series has no usable fit. The plot includes excluded values in
+its scale so a suspected bad reading stays visible.
+
+Click a point or a log row to select it; the status line shows its original
+watch/reference times, error and residual from the fit. The plot initially shows
+the current series. Selecting an older row shows that row's series separately.
+Only the current series supplies sight corrections, regardless of plot selection.
+
+**Edit selected** loads the comparison into the fields above. Change either date
+or time, source or note, then choose **Save changes**. Its clock, series and
+included/excluded state stay the same. An invalid or duplicate active timestamp
+is rejected without changing the saved row. **Cancel edit** abandons the edit.
+
+**Delete selected** removes the row after confirmation; this cannot be undone in
+the app. **Exclude / restore** is preferable when you want to retain the original
+comparison for review. Editing, deleting or excluding updates the plot and fit
+immediately and saves the log. Saved sights keep their previously applied UTC
+correction; these log changes do not rewrite earlier reductions.
 
 ## Apply a clock to a sight
 
