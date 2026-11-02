@@ -20,6 +20,8 @@ The native **Chrono** tab characterizes watches using manual WWV/UTC comparisons
 
 Current source and Windows package version: **5.6.1**.
 
+Planned Moon corrections, NAO Concise tables and lunars: [project TODO list](TODO.md).
+
 Version 5.2 includes a custom annual practice-book
 preview with selectable sections, compact Ageton tables and optional LaTeX source
 export alongside the self-contained PDF. Build `make navalm-book`
