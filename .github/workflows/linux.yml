@@ -2,7 +2,7 @@ name: Linux build and runtime checks
 
 on:
   push:
-    branches: [main, feature/annual-almanac-5.1]
+    branches: [main, feature/annual-almanac-5.1, feature/chrono-5.6.0]
   pull_request:
   workflow_dispatch:
 

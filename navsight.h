@@ -49,6 +49,9 @@ typedef struct {
     double set, drift;            /* degrees true, knots */
     double short_horizon_nm;     /* 0 = sea horizon; >0 = nearer waterline distance NM */
     int reduce_at_dr;             /* 1 = use entered DR; 0 = whole-degree HO 229 AP */
+    /* Audit only: y/mo/d/h/mi/s already hold corrected UTC. Never reapply this. */
+    char clock_name[NAVSIGHT_NAME], clock_watch[32];
+    double clock_correction_sec;
 } Sight;
 
 typedef struct {

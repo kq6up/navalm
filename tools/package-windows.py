@@ -99,7 +99,7 @@ stage = out / 'NAVALM-Windows-x64'
 stage.mkdir(exist_ok=True)
 shutil.copy2(exe, stage / 'NAVALM.exe')
 for name in ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'PROVENANCE.md', 'SAFETY.md', 'CHANGELOG.md',
-             'WINDOWS.md', 'DESKTOP.md', 'MAPS.md', 'ANNUAL.md', 'PLANETARIUM.md', 'LINUX.md', 'DEFAULTS.md']:
+             'WINDOWS.md', 'DESKTOP.md', 'MAPS.md', 'ANNUAL.md', 'PLANETARIUM.md', 'LINUX.md', 'DEFAULTS.md', 'CHRONO.md']:
     shutil.copy2(root / name, stage / name)
 sky_data = stage / 'data/sky'
 sky_data.mkdir(parents=True, exist_ok=True)
@@ -144,6 +144,9 @@ report = (f'NAVALM {version} Windows x64 build inspection\n\n'
     'Defaults: DR, horizon/eye height, index error, atmosphere, limb and motion.\n'
     'Saved DR starts all three pages; Almanac can send object/UTC/DR to Sight.\n'
     'For a nearer waterline use Short of horizon plus eye height and distance NM.\n\n'
+    'Chrono: log manual WWV/UTC comparisons or capture computer UTC.\n'
+    'Fit watch offset/drift, keep reset series, and optionally correct sight times.\n'
+    'See CHRONO.md; original watch readings and corrections stay with saved sights.\n\n'
     'Annual book (last tab): choose a year and sections, then export PDF\n'
     'or editable LaTeX source. PDF export needs no TeX installation.\n'
     'This Windows package is the native GUI; it does not include the Unix web server.\n\n'
@@ -152,7 +155,7 @@ report = (f'NAVALM {version} Windows x64 build inspection\n\n'
 archive = out / 'NAVALM-Windows-x64.zip'
 # Explicit file list avoids carrying state from any previous staging-directory run.
 files = [stage / n for n in ['NAVALM.exe', 'LICENSE', 'THIRD_PARTY_NOTICES.md',
-         'PROVENANCE.md', 'SAFETY.md', 'CHANGELOG.md', 'WINDOWS.md', 'DESKTOP.md', 'MAPS.md', 'ANNUAL.md', 'PLANETARIUM.md', 'LINUX.md', 'DEFAULTS.md',
+         'PROVENANCE.md', 'SAFETY.md', 'CHANGELOG.md', 'WINDOWS.md', 'DESKTOP.md', 'MAPS.md', 'ANNUAL.md', 'PLANETARIUM.md', 'LINUX.md', 'DEFAULTS.md', 'CHRONO.md',
          'START-HERE.txt', 'BUILD-VALIDATION.txt']]
 files += list(license_dir.iterdir()) + [sky_data / 'README.md']
 with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:

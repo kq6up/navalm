@@ -64,7 +64,7 @@ DESKTOP_OBJ = $(addprefix .build/desktop/,$(DESKTOP_SRC:.c=.o))
 	@mkdir -p .build/desktop
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-navalm-fltk: navfltk.cpp navfltk_sky.h navfltk_model.h navfltk_plot.h navfltk_sheet.h navfltk_map.h navplatform.h navdownload.cpp navdownload.h navbook.cpp navbook.h navbook_lm_metrics.h $(DESKTOP_OBJ) libastro.a novas.a
+navalm-fltk: navchrono.h navchrono_sight.h navfltk.cpp navfltk_sky.h navfltk_model.h navfltk_plot.h navfltk_sheet.h navfltk_map.h navplatform.h navdownload.cpp navdownload.h navbook.cpp navbook.h navbook_lm_metrics.h $(DESKTOP_OBJ) libastro.a novas.a
 	@command -v $(FLTK_CONFIG) >/dev/null || { echo 'FLTK missing: run make fltk-deps, or set FLTK_CONFIG.'; exit 1; }
 	$(CXX) $(CXXFLAGS) -I. `$(FLTK_CONFIG) --cxxflags` -o $@ navfltk.cpp navdownload.cpp navbook.cpp \
 	  $(DESKTOP_OBJ) libastro.a novas.a `$(FLTK_CONFIG) --ldflags`
@@ -86,7 +86,7 @@ fltk-deps:
 desktop-app: navalm-fltk
 	sh tools/package-desktop.sh
 
-.build/desktop-core: tests/desktop_core.cpp tests/desktop_map.h navfltk_model.h navfltk_plot.h navfltk_sheet.h navfltk_map.h navplatform.h navdownload.cpp navdownload.h $(DESKTOP_OBJ) libastro.a novas.a
+.build/desktop-core: navchrono.h navchrono_sight.h tests/desktop_core.cpp tests/desktop_map.h navfltk_model.h navfltk_plot.h navfltk_sheet.h navfltk_map.h navplatform.h navdownload.cpp navdownload.h $(DESKTOP_OBJ) libastro.a novas.a
 	$(CXX) $(CXXFLAGS) -I. -o $@ tests/desktop_core.cpp $(DESKTOP_OBJ) libastro.a novas.a $(LDLIBS)
 
 check-desktop: .build/desktop-core

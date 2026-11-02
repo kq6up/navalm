@@ -1,6 +1,6 @@
 # Portable Windows desktop
 
-The current release is **5.5.0**. Its final **Annual book** tab
+The current release is **5.6.0**. Its final **Annual book** tab
 exports selectable annual sections and compact Ageton tables directly to PDF,
 or to editable LaTeX source. Direct PDF export needs no TeX installation.
 The **Planetarium** tab adds a sky view of 58 navigation stars, Sun, Moon and five planets,
@@ -9,7 +9,7 @@ independent name/supporting-star toggles, readable planet labels and a
 resizable detached sky window with full screen (F11) and reattachment;
 see [PLANETARIUM.md](PLANETARIUM.md).
 The Sight tab includes **Reduce at DR (no whole-degree LHA)**; the method is
-saved with each sight. Download the [5.5.0 Windows ZIP](https://github.com/kq6up/navalm/releases/download/v5.5.0/NAVALM-Windows-x64.zip).
+saved with each sight. Download the [5.6.0 Windows ZIP](https://github.com/kq6up/navalm/releases/download/v5.6.0/NAVALM-Windows-x64.zip).
 
 `NAVALM.exe` targets **Windows 10/11 x64**. FLTK, the C++ library and compiler
 support are linked statically. It needs no FLTK DLLs, compiler installation or
@@ -23,6 +23,9 @@ unpacking the bundled data there. This step does not download anything. It works
 offline immediately. Keep `.local/` with the program when moving it to preserve
 your saved sights, defaults, selected map and extracted data. Copying the exe
 alone starts a fresh workspace. Do not run directly inside the ZIP.
+
+The **Chrono** tab keeps clock comparisons and optional sight-time corrections;
+see [CHRONO.md](CHRONO.md). Its log is `.local/chrono.log`.
 
 The portable ZIP includes the executable, instructions and third-party notices.
 This is an unsigned build. The existing Unix CLI and `-d` web server
@@ -81,7 +84,7 @@ embedded in the executable. Defaults match the script's prepared inputs.
 
 ## Validation status
 
-Version 5.5.0 is a new cross-build; it has not been run on a Windows host by
+Version 5.6.0 is a new cross-build; it has not been run on a Windows host by
 this release tooling. The user's earlier successful Windows report applied to
 5.4 and is not a runtime test of this executable. The PE version/manifest,
 system-only DLL imports, embedded ephemeris/map and ZIP integrity are inspected

@@ -6,6 +6,7 @@
 #include "nav_version.h"
 #include "navdownload.h"
 #include "navbook.h"
+#include "navchrono_sight.h"
 #include "navfile.h"
 #include "navfltk_map.h"
 #include "navfltk_plot.h"
@@ -338,7 +339,7 @@ class Plot : public Fl_Widget {
 };
 class Workbench {
   public:
-    Fl_Double_Window win{1180, 850, "NAVALM " NAVALM_VERSION " — Navigation Workbench"};
+    Fl_Double_Window win{1180, 850, "NavAlm " NAVALM_VERSION " — Navigation Workbench"};
     Fl_Tabs *tabs;
     Fl_Group *almanac_tab, *sight_tab, *fix_tab, *chart_tab;
     Fl_Box *status, *engine_status, *headline, *paths;
@@ -351,6 +352,19 @@ class Workbench {
     Fl_Input *def_lat,*def_lon,*def_ie,*def_height,*def_temp,*def_press,*def_short,*def_course,*def_speed,*def_set,*def_drift;
     Fl_Choice *def_lat_hemi,*def_lon_hemi,*def_arc,*def_units,*def_horizon,*def_limb;
     Fl_Check_Button *def_at_dr,*def_motion;
+    Fl_Group *chrono_tab;
+    Fl_Choice *chrono_clock,*chrono_source,*sight_clock;
+    Fl_Input *chrono_name,*chrono_ref_date,*chrono_ref_time,*chrono_watch_date,*chrono_watch_time,*chrono_note;
+    Fl_Input *sight_watch_date,*sight_watch_time;
+    Fl_Check_Button *chrono_apply_new,*sight_clock_apply;
+    Fl_Button *chrono_add_button;
+    Fl_Hold_Browser *chrono_rows;
+    Fl_Box *chrono_summary,*sight_clock_status;
+    chrono_nav::Log clock_log;
+    std::vector<size_t> chrono_row_ids;
+    fs::path chrono_path;
+    std::string chrono_error;
+    Sight clock_snapshot{};
     Fl_Check_Button *at_dr, *motion, *fix_at, *layers[4], *map_toggle;
     Fl_Value_Slider *opacity;
     Fl_Multi_Browser *saved;
@@ -430,7 +444,7 @@ class Workbench {
         auto *header = new Fl_Box(0, 0, 1180, 82);
         header->box(FL_FLAT_BOX);
         header->color(navy);
-        auto *name = new Fl_Box(26, 12, 500, 29, "NAVALM  /  Navigation Workbench");
+        auto *name = new Fl_Box(26, 12, 500, 29, "NavAlm  /  Navigation Workbench");
         name->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
         name->labelcolor(FL_WHITE);
         name->labelfont(FL_HELVETICA_BOLD);
@@ -518,7 +532,16 @@ class Workbench {
         headline->labelfont(FL_HELVETICA_BOLD);
         headline->labelsize(17);
         headline->labelcolor(teal);
-        report_display = display(505, 188, 632, 540, report_buffer);
+        report_display = display(505, 188, 632, 360, report_buffer);
+        sight_watch_date=input(505,588,230,"Watch date · UTC scale");
+        sight_watch_date->tooltip("Watch date as YYYY-MM-DD, on the UTC scale.");
+        sight_watch_time=input(750,588,387,"Watch time · HH:MM:SS.sss");
+        sight_watch_time->tooltip("Enter the original watch reading here. Check Use derived correction to calculate the UTC fields from this reading.");
+        sight_clock=choice(505,654,230,"Chrono clock · watch set to UTC","");
+        sight_clock_apply=new Fl_Check_Button(750,654,387,32,"Use derived correction from Chrono");
+        sight_clock_apply->labelsize(13);
+        sight_clock_status=new Fl_Box(505,696,632,34,"Chrono is off; the entered time is UTC.");
+        sight_clock_status->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);sight_clock_status->labelsize(12);
         button(505, 744, 180, "Export worked report…",
                [this] { export_text(report_buffer, "sight-reduction.txt"); });
         auto *input_hint = new Fl_Box(703, 738, 434, 45,
@@ -740,6 +763,52 @@ class Workbench {
             bind(widget,[this]{defaults_state();});
         defaults_tab->end();
 
+        chrono_tab=new Fl_Group(16,130,1148,672,"Chrono");
+        chrono_clock=choice(36,186,240,"Watch / clock","");
+        chrono_name=input(294,186,240,"New clock name");chrono_name->maximum_size(31);
+        button(550,186,130,"Add clock",[this]{
+            chrono_guard();auto next=clock_log;next.add_clock(chrono_name->value());chrono_commit(next);chrono_name->value("");
+        });
+        button(696,186,190,"Clock reset / new series",[this]{
+            chrono_guard();auto next=clock_log;auto &c=next.clock(next.selected);
+            if(!testing && fl_choice("Start a new drift series? Earlier comparisons stay in the log.","Cancel","New series",nullptr)!=1)return;
+            ++c.series;chrono_commit(next);
+        });
+        button(902,186,230,"Reload clock log",[this]{chrono_load();});
+        chrono_ref_date=input(36,260,190,"Reference date · UTC");chrono_ref_time=input(242,260,190,"Reference time · HH:MM:SS.sss");
+        chrono_watch_date=input(448,260,190,"Watch date · UTC");chrono_watch_time=input(654,260,190,"Watch reading · HH:MM:SS.sss");
+        chrono_source=choice(860,260,272,"Reference source","Manual WWV|Other UTC reference|Computer clock");
+        chrono_note=input(36,326,596,"Note (optional)");chrono_note->maximum_size(160);
+        button(648,326,230,"Computer UTC now",[this]{chrono_computer_now();});
+        chrono_add_button=button(894,326,238,"Add comparison",[this]{chrono_add();},true);
+        chrono_summary=new Fl_Box(36,378,1096,90,"");
+        chrono_summary->align(FL_ALIGN_LEFT|FL_ALIGN_TOP|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);chrono_summary->labelsize(14);
+        auto *columns=new Fl_Box(36,470,1096,22,"   Series  Reference UTC             Watch − UTC (s)   Source / note");
+        columns->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);columns->labelfont(FL_COURIER);columns->labelsize(12);
+        chrono_rows=new Fl_Hold_Browser(36,496,1096,154);chrono_rows->textfont(FL_COURIER);chrono_rows->textsize(12);chrono_rows->format_char(0);
+        button(36,666,248,"Exclude / restore selected",[this]{
+            chrono_guard();int row=chrono_rows->value();if(row<1 || row>int(chrono_row_ids.size()))throw std::runtime_error("Select a comparison first.");
+            auto next=clock_log;auto index=chrono_row_ids[row-1];next.set_enabled(index,!next.readings[index].enabled);chrono_commit(next);
+        });
+        button(300,666,175,"Export log…",[this]{
+            chrono_guard();auto path=choose_file("Export clock comparisons","CSV\t*.csv",true,"NavAlm-clock-log.csv");
+            if(path.empty())return;
+            auto csv=[](const std::string &s){std::string out="\"";for(char c:s){out+=c;if(c=='\"')out+='\"';}return out+'\"';};
+            std::ostringstream out;out<<"clock,series,reference_utc,watch_utc,error_seconds,source,note,included\n"<<std::setprecision(12);
+            for(const auto &r:clock_log.readings)out<<csv(clock_log.clock(r.clock).name)<<','<<r.series<<','<<chrono_nav::stamp(r.utc)<<','<<chrono_nav::stamp(r.watch)<<','<<(r.watch-r.utc)<<','<<csv(r.source)<<','<<csv(r.note)<<','<<r.enabled<<'\n';
+            write_file(path,out.str());message("Clock comparison CSV saved: "+path);
+        });
+        chrono_apply_new=new Fl_Check_Button(500,666,632,34,"Use selected clock for new manual sights (time starts blank)");chrono_apply_new->labelsize(13);
+        bind(chrono_apply_new,[this]{chrono_guard();auto next=clock_log;next.apply_new=chrono_apply_new->value();if(next.apply_new)next.model(next.selected).utc_from_watch(std::time(nullptr));chrono_commit(next);});
+        auto *help=new Fl_Box(36,714,1096,74,
+            "Log the watch reading and reference UTC at the same instant. Positive error = fast; positive drift = gaining seconds/day.\n"
+            "Manual WWV: enter the UTC announced at the signal. Computer UTC now freezes your Mac/PC time; its accuracy is not independently checked.\n"
+            "Two distinct times establish drift; longer observations help separate drift from reading error. Start a new series after setting the clock or changing its battery.");
+        help->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);help->labelsize(12);
+        bind(chrono_clock,[this]{chrono_guard();auto next=clock_log;int i=chrono_clock->value();if(i<0||i>=int(next.clocks.size()))return;next.selected=next.clocks[i].id;chrono_commit(next);});
+        bind(sight_clock_apply,[this]{sight_clock_status->copy_label(sight_clock_apply->value()?"Watch date/time will determine UTC using the selected Chrono clock.":"Chrono is off; the UTC fields are used directly.");});
+        chrono_tab->end();
+
         book_tab = new Fl_Group(16, 130, 1148, 672, "Annual book");
         auto *book_title = new Fl_Box(36, 148, 1080, 35, "Build a custom annual practice almanac");
         book_title->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
@@ -797,6 +866,9 @@ class Workbench {
                 w->hide();
             },
             this);
+        chrono_load();
+        now(chrono_ref_date,chrono_ref_time);now(chrono_watch_date,chrono_watch_time);
+        chrono_ref_time->value("");chrono_watch_time->value("");
         new_sight();
         fill_defaults();
         now(al_date, al_time);
@@ -878,7 +950,7 @@ class Workbench {
     }
     void detach_sky() {
         if(!sky_window){
-            sky_window=std::make_unique<SkyWindow>(1040,850,"NAVALM — Planetarium");
+            sky_window=std::make_unique<SkyWindow>(1040,850,"NavAlm — Planetarium");
             sky_window->begin();
             sky_detached_names=new Fl_Check_Button(12,10,120,26,"Star names");
             bind(sky_detached_names,[this]{sky_names->value(sky_detached_names->value());update_sky_layers();});
@@ -993,7 +1065,8 @@ class Workbench {
         const auto object=sky_canvas->object(index);
         Sight at=sky_at;
         bool direct=at_dr->value();
-        new_sight();at_dr->value(direct);body->value(object.is_body?int(object.body):7);
+        new_sight();sight_clock_apply->value(0);at_dr->value(direct);body->value(object.is_body?int(object.body):7);
+        sight_clock_status->copy_label("Planetarium time is already UTC; Chrono is off.");
         if(!object.is_body) star->value(index);
         else if(object.body!=NAV_SUN && object.body!=NAV_MOON)limb->value(1);
         char planned_date[32],planned_time[32];
@@ -1008,7 +1081,7 @@ class Workbench {
     void begin_book(const navbook::Options &options, const std::string &path) {
         if(book_running) throw std::runtime_error("An annual book is already being generated.");
         book_path=path; book_error.clear(); book_cancel=false; book_done=false; book_percent=0;
-        book_window=std::make_unique<Fl_Double_Window>(540, 185, "NAVALM annual book");
+        book_window=std::make_unique<Fl_Double_Window>(540, 185, "NavAlm annual book");
         book_window->begin();
         book_progress=new Fl_Progress(25,30,490,35,"Preparing annual pages…");
         book_progress->minimum(0); book_progress->maximum(100); book_progress->selection_color(teal);
@@ -1064,6 +1137,63 @@ class Workbench {
             tex?"LaTeX\t*.tex":"PDF\t*.pdf",true,
             ("NAVALM-"+std::to_string(o.year)+(tex?"-practice.tex":"-practice.pdf")).c_str());
         if(!path.empty()) begin_book(o,path);
+    }
+    void chrono_guard() {
+        if(!chrono_error.empty())throw std::runtime_error(chrono_error+" Reload the original log after correcting the file; it has not been overwritten.");
+    }
+    void chrono_refresh() {
+        chrono_clock->clear();sight_clock->clear();int selected_index=-1;
+        for(size_t i=0;i<clock_log.clocks.size();++i){
+            const auto &c=clock_log.clocks[i];
+            for(auto *p:{chrono_clock,sight_clock}){p->add("Clock");p->replace(int(i),c.name.c_str());}
+            if(c.id==clock_log.selected)selected_index=int(i);
+        }
+        chrono_clock->value(selected_index);sight_clock->value(selected_index);
+        chrono_apply_new->value(clock_log.apply_new);chrono_rows->clear();chrono_row_ids.clear();
+        std::string summary=chrono_error;
+        if(summary.empty() && !clock_log.selected)summary="Add a named watch or clock, then record its first UTC comparison. One reading gives offset; two distinct reference times also give drift.";
+        if(summary.empty()){
+            const auto &c=clock_log.clock(clock_log.selected);
+            for(size_t i=0;i<clock_log.readings.size();++i){
+                const auto &r=clock_log.readings[i];if(r.clock!=c.id)continue;
+                std::ostringstream line;line<<(r.enabled?"  ":"x ")<<std::setw(5)<<r.series<<"  "<<chrono_nav::stamp(r.utc)<<"  "<<std::showpos<<std::fixed<<std::setprecision(3)<<std::setw(11)<<(r.watch-r.utc)<<std::noshowpos<<"   "<<r.source<<"  "<<r.note;
+                chrono_rows->add(line.str().c_str());chrono_row_ids.push_back(i);
+            }
+            try{
+                auto m=clock_log.model(c.id);summary=c.name+" · series "+std::to_string(c.series)+" · "+std::to_string(m.count)+" active comparisons\n";
+                if(!m.count)summary+="No active comparisons in this series. Clock correction is unavailable.";
+                else {
+                    double current=double(std::time(nullptr)),error=m.error_at(current);
+                    summary+="Estimated error now (watch − UTC): "+fmt(error,3)+" s · "+(m.count>1?"drift "+fmt(m.rate,4)+" s/day":"offset only; drift not established")+"\n";
+                    summary+="Span "+fmt((m.last-m.first)/86400.,2)+" days · RMS residual "+fmt(m.rms,3)+" s (scatter, not guaranteed accuracy).";
+                    if(current<m.first || current>m.last)summary+=" Prediction is outside the measured span.";
+                }
+            }catch(const std::exception &e){summary=e.what();}
+        }
+        chrono_summary->copy_label(summary.c_str());
+    }
+    void chrono_load() {
+        if(const char *path=std::getenv("NAVALM_CHRONO"))chrono_path=fs::u8path(path);
+        else if(const char *path=std::getenv("NAVALMRC"))chrono_path=fs::u8path(path).parent_path()/"chrono.log";
+        else chrono_path=application_root/".local/chrono.log";
+        try{auto loaded=chrono_nav::Log::load(chrono_path);clock_log=std::move(loaded);chrono_error.clear();}
+        catch(const std::exception &e){chrono_error=e.what();sight_clock_apply->value(0);}
+        chrono_refresh();
+    }
+    void chrono_commit(const chrono_nav::Log &next) {
+        next.save(chrono_path);clock_log=next;chrono_refresh();message("Chrono log saved: "+chrono_path.u8string());
+    }
+    void chrono_computer_now() {
+        double utc=std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+        auto stamp=chrono_nav::stamp(utc);chrono_ref_date->value(stamp.substr(0,10).c_str());chrono_ref_time->value(stamp.substr(11).c_str());
+        chrono_source->value(2);message("Computer UTC frozen. Pair it with the watch reading at that instant; computer accuracy and your reaction time affect this comparison.");
+    }
+    void chrono_add() {
+        chrono_guard();chrono_nav::Reading r;r.clock=clock_log.selected;
+        r.utc=chrono_nav::parse(chrono_ref_date->value(),chrono_ref_time->value());
+        r.watch=chrono_nav::parse(chrono_watch_date->value(),chrono_watch_time->value());
+        if(!chrono_source->text())throw std::runtime_error("Choose the reference source.");
+        r.source=chrono_source->text();r.note=chrono_note->value();auto next=clock_log;next.add(r);chrono_commit(next);
     }
     void bind(Fl_Widget *w, std::function<void()> fn) {
         auto f = std::make_unique<std::function<void()>>([this, w, fn] {
@@ -1201,7 +1331,9 @@ class Workbench {
         if (body->value() < 0 || body->value() > 7)
             throw std::runtime_error("Choose an observed body.");
         Sight s{};
-        date_time(date->value(), time->value(), s);
+        if(require_hs && sight_clock_apply->value())
+            date_time(sight_watch_date->value(),sight_watch_time->value(),s);
+        else date_time(date->value(), !require_hs && !*time->value()?"00:00:00":time->value(), s);
         const char *b[] = {"sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "star"};
         std::snprintf(s.body, sizeof s.body, "%s", b[body->value()]);
         if (body->value() == 7)
@@ -1230,6 +1362,15 @@ class Workbench {
             throw std::runtime_error("Sight labels cannot contain quotes or line breaks.");
         std::snprintf(s.label, sizeof s.label, "%s", name.c_str());
         s.id = edit_id;
+        if(require_hs && sight_clock_apply->value()){
+            chrono_guard();int i=sight_clock->value();
+            if(i<0 || i>=int(clock_log.clocks.size()))throw std::runtime_error("Select a calibrated Chrono clock first.");
+            const auto &c=clock_log.clocks[i];chrono_nav::correct(s,c,clock_log.model(c.id));
+        } else if(clock_snapshot.clock_name[0] && std::abs(navsight_jd(&s)-navsight_jd(&clock_snapshot))*86400.<.0005){
+            std::snprintf(s.clock_name,sizeof s.clock_name,"%s",clock_snapshot.clock_name);
+            std::snprintf(s.clock_watch,sizeof s.clock_watch,"%s",clock_snapshot.clock_watch);
+            s.clock_correction_sec=clock_snapshot.clock_correction_sec;
+        }
         return s;
     }
     void fill_sight(const Sight &s) {
@@ -1237,6 +1378,8 @@ class Workbench {
         if (std::strcmp(s.body, "star") && (index < 0 || index > 6))
             throw std::runtime_error("Saved sight has an unknown body.");
         edit_id = s.id;
+        clock_snapshot=s;sight_clock_apply->value(0);
+        sight_clock_status->copy_label(s.clock_name[0]?("Saved UTC already includes "+std::string(s.clock_name)+" correction "+fmt(s.clock_correction_sec,3)+" s; Chrono is off to prevent applying it twice.").c_str():"Chrono is off; the entered time is UTC.");
         body->value(!std::strcmp(s.body, "star") ? 7 : navsight_body_index(s.body));
         int idx = nav_star_find(s.star);
         if (idx >= 0)
@@ -1244,8 +1387,10 @@ class Workbench {
         char b[64];
         std::snprintf(b, sizeof b, "%04d-%02d-%02d", s.y, s.mo, s.d);
         date->value(b);
+        sight_watch_date->value(s.clock_watch[0]?std::string(s.clock_watch,10).c_str():b);
         std::snprintf(b, sizeof b, "%02d:%02d:%06.3f", s.h, s.mi, s.s);
         time->value(b);
+        sight_watch_time->value(std::strlen(s.clock_watch)>11?s.clock_watch+11:"");
         hs->value(std::isfinite(s.hs_deg) ? angle_entry(s.hs_deg, 2).c_str() : "");
         label->value(s.label);
         lat->value(std::isfinite(s.dr_lat) ? angle_entry(s.dr_lat, 2).c_str() : "");
@@ -1291,6 +1436,10 @@ class Workbench {
         s.mi = g.tm_min;
         s.s = g.tm_sec;
         fill_sight(s);hs->value("");
+        if(clock_log.apply_new && chrono_error.empty()){
+            sight_clock_apply->value(1);time->value("");
+            sight_clock_status->copy_label("Enter the separate watch date/time; Chrono will fill UTC when reducing.");
+        }
         if (!d.have_dr) {
             lat->value("");
             lon->value("");
@@ -1317,6 +1466,11 @@ class Workbench {
         reduce_sight();
     }
     void show_reduction(const Sight &s, const Reduction &r) {
+        if(s.clock_name[0]){
+            auto utc=chrono_nav::stamp(chrono_nav::epoch(s));
+            date->value(utc.substr(0,10).c_str());time->value(utc.substr(11).c_str());
+        }
+        sight_clock_status->copy_label(s.clock_name[0]?("UTC "+chrono_nav::stamp(chrono_nav::epoch(s))+" · "+s.clock_name+" correction "+fmt(s.clock_correction_sec,3)+" s (added once).").c_str():"Chrono is off; the entered time is UTC.");
         report_buffer.text(
             capture([&](FILE *p) {
                 std::fprintf(p, "NAVALM %s / %s\nUTC %04d-%02d-%02d %02d:%02d:%06.3f\n\n",
@@ -1331,6 +1485,7 @@ class Workbench {
     }
     void reduce_sight() {
         report_buffer.text("");
+        sight_clock_status->copy_label(sight_clock_apply->value()?"Chrono correction pending valid inputs.":"Entered time is UTC; checking sight inputs.");
         headline->copy_label("Check the sight inputs");
         auto s = read_sight();
         auto r = reduce(s);
@@ -1518,7 +1673,8 @@ class Workbench {
         if(!std::strcmp(at.body,"aries"))
             throw std::runtime_error("Aries is a reference point. Choose a star, Sun, Moon or planet for a sight.");
         bool direct=at_dr->value();
-        new_sight();body->value(al_body->value()==8?7:al_body->value());
+        new_sight();sight_clock_apply->value(0);body->value(al_body->value()==8?7:al_body->value());
+        sight_clock_status->copy_label("Almanac time is already UTC; Chrono is off.");
         if(al_body->value()==8)star->value(al_star->value());
         else if(body->value()>=2)limb->value(1);
         date->value(al_date->value());time->value(al_time->value());
@@ -1835,7 +1991,7 @@ class Workbench {
             throw std::runtime_error("Calculate a fix before detaching the sheet.");
         if (!expanded_window) {
             expanded_window =
-                std::make_unique<Fl_Double_Window>(800, 830, "NAVALM — Universal Plotting Sheet");
+                std::make_unique<Fl_Double_Window>(800, 830, "NavAlm — Universal Plotting Sheet");
             expanded_window->begin();
             button(12, 8, 44, "−", [this] { expanded_plot->zoom_by(.8); });
             button(64, 8, 64, "Fit", [this] { expanded_plot->fit_view(); });
@@ -1992,7 +2148,7 @@ int main(int argc, char **argv) {
         auto ephemeris_target = root / ".local/ephem/de440s.nav";
         auto map_target = root / ".local/maps/ne_10m_land.shp";
         if (!fs::exists(ephemeris_target) || !fs::exists(map_target)) {
-            Fl_Double_Window preparing(520, 170, "Preparing NAVALM — first launch");
+            Fl_Double_Window preparing(520, 170, "Preparing NavAlm — first launch");
             Fl_Box note(20, 18, 480, 56,
                         "Preparing bundled offline data.\nNo download is required.");
             note.labelsize(14);
@@ -2079,6 +2235,9 @@ int main(int argc, char **argv) {
             return code;
         }
         Workbench app;
+        const char *start_tab=std::getenv("NAVALM_START_TAB");
+        if((argc>1 && !std::strcmp(argv[1],"--chrono")) || (start_tab && !std::strcmp(start_tab,"chrono")))
+            app.tabs->value(app.chrono_tab);
         if (!startup.empty())
             app.message(startup);
         app.win.show();
@@ -2137,6 +2296,33 @@ static int self_test() {
     app.testing = true;
     app.win.show();
     Fl::check();
+    // Exercise the reported workflow through the real reduction callback and redraw.
+    Sight altair{};
+    std::strcpy(altair.body,"star");std::strcpy(altair.star,"Altair");
+    altair.y=2026;altair.mo=11;altair.d=1;altair.h=22;altair.mi=6;altair.s=15;
+    altair.dr_lat=34+2.5/60;altair.dr_lon=-(117+21.9/60);
+    altair.hs_deg=43+38./60;altair.temp_c=10;altair.press_mb=1010;
+    altair.reduce_at_dr=1;
+    app.tabs->value(app.sight_tab);
+    for(const char *star_name:{"Altair","Arcturus"}){
+    std::snprintf(altair.star,sizeof altair.star,"%s",star_name);app.fill_sight(altair);
+    for(int horizon_mode=0;horizon_mode<3;++horizon_mode){
+        app.horizon->value(horizon_mode);app.height->value("10");app.short_distance->value("0.5");
+        app.hs->value(horizon_mode==1?"87 16":"43 38");
+        for(int i=0;i<240;++i){
+            app.ie->value(fmt((i%121)*.1,1).c_str());app.arc->value(i%2);
+            app.reduce_button->do_callback();Fl::check();
+            require(std::strstr(app.headline->label(),"NM")!=nullptr,"Altair IE changes reduce without losing the result");
+        }
+    }
+    for(const char *bad:{"","-1","nan","inf","1x","121"}){
+        app.ie->value(bad);app.reduce_button->do_callback();Fl::check();
+        require(app.report_buffer.length()==0,"invalid IE clears stale Altair reduction");
+    }
+    }
+    std::puts("PASS Altair/Arcturus 22:06:15: repeated IE on/off changes, sea/artificial/short horizon and invalid-input recovery");
+    app.new_sight();
+    app.tabs->value(app.almanac_tab);
     for(auto format:{navbook::Format::Pdf,navbook::Format::Latex}) {
         navbook::Options options;
         options.format=format;
@@ -2551,6 +2737,37 @@ static int self_test() {
     require(!map_contours(*installed, checked_scene, make_sheet(checked_scene)).empty(),
             "coastal underlay contains visible land contours");
     std::puts("PASS offline map: linked visibility and synthetic coastal fix");
+    {
+        auto next=app.clock_log;int id=next.add_clock("Test watch");app.chrono_commit(next);
+        app.chrono_ref_date->value("2026-10-30");app.chrono_ref_time->value("12:00:00");
+        app.chrono_watch_date->value("2026-10-30");app.chrono_watch_time->value("12:00:10");
+        app.chrono_source->value(0);app.chrono_add_button->do_callback();
+        app.chrono_ref_date->value("2026-11-01");app.chrono_watch_date->value("2026-11-01");
+        app.chrono_watch_time->value("12:00:14");app.chrono_add_button->do_callback();
+        require(app.clock_log.readings.size()==2 && std::abs(app.clock_log.model(id).rate-2)<1e-9,"Chrono comparison callbacks fit signed drift");
+        app.chrono_add_button->do_callback();
+        require(app.clock_log.readings.size()==2 && std::string(app.status->label()).find("already logged")!=std::string::npos,"duplicate clock comparison is rejected politely");
+        app.chrono_load();require(app.clock_log.readings.size()==2,"native Chrono survives reload");
+        app.example();app.sight_watch_date->value("2026-11-01");app.sight_watch_time->value("22:06:15");
+        auto direct_utc=app.read_sight();require(direct_utc.y==2026 && direct_utc.mo==9 && !direct_utc.clock_name[0],"unchecked watch fields do not replace entered UTC");
+        app.sight_clock_apply->value(1);auto corrected=app.read_sight();
+        require(corrected.clock_correction_sec< -14 && corrected.clock_correction_sec> -16,"fast watch receives a negative sight-time correction");
+        auto original=chrono_nav::parse("2026-11-01","22:06:15");
+        require(std::abs(chrono_nav::epoch(corrected)-app.clock_log.model(id).utc_from_watch(original))<.001,"native sight uses model inversion before reduction");
+        app.show_reduction(corrected,reduce(corrected));
+        std::unique_ptr<char,decltype(&std::free)> chrono_report(app.report_buffer.text(),std::free);
+        require(std::string(app.time->value())==chrono_nav::stamp(chrono_nav::epoch(corrected)).substr(11) &&
+                std::string(chrono_report.get()).find("Watch time  2026-11-01T22:06:15.000")!=std::string::npos,"reduction fills UTC and reports the separate original watch time");
+        app.fill_sight(corrected);auto reopened=app.read_sight();
+        require(!app.sight_clock_apply->value() && std::abs(navsight_jd(&reopened)-navsight_jd(&corrected))<1e-10 && reopened.clock_name[0],"reopening corrected sight preserves UTC and audit without double correction");
+        auto changed=app.clock_log;changed.readings.back().watch+=2;app.chrono_commit(changed);
+        reopened=app.read_sight();require(std::abs(navsight_jd(&reopened)-navsight_jd(&corrected))<1e-10,"later clock-model changes do not rewrite a saved correction");
+        app.clock_log.apply_new=true;app.new_sight();require(app.sight_clock_apply->value() && !*app.sight_watch_time->value(),"new manual watch sight requires an explicit watch reading");
+        app.al_body->value(0);app.al_date->value("2026-11-01");app.al_time->value("22:06:15");app.al_lat->value("34 02.5");app.al_lon->value("117 21.9");app.al_lon_hemi->value(1);app.almanac_to_sight();
+        require(!app.sight_clock_apply->value() && std::string(app.time->value())=="22:06:15","almanac UTC handoff bypasses watch correction");
+        app.chrono_computer_now();require(app.chrono_source->value()==2 && std::string(app.chrono_ref_time->value()).find('.')!=std::string::npos,"computer reference captures fractional UTC and source");
+        std::puts("PASS native Chrono: comparison callbacks, duplicate guard, reload, drift correction, frozen saved UTC, handoff bypass and computer UTC capture");
+    }
     app.engine->value(1);
     app.change_engine();
     require(!app.plot->ready && app.fix_buffer.length() == 0 && !app.sky_canvas->ready &&

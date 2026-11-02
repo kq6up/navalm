@@ -8,7 +8,7 @@ for(const id of ['sky_min','sky_max','sky_mag','sky_count'])$(id).value=({sky_mi
 const document={getElementById:$,querySelector:()=>({classList:{toggle(){}}}),querySelectorAll:()=>[],addEventListener(){}};
 const ctx=vm.createContext({document,localStorage:{getItem:k=>saved[k]??null,setItem:(k,v)=>{saved[k]=v;writes++;}},
  console,URLSearchParams,Date,Math,Number,String,Error,setTimeout:()=>0,clearTimeout(){},alert(){},confirm:()=>true,
- fetch:async url=>{requests.push(url);if(url==='/api/version')return {json:async()=>({version:'5.5.0'})};
+ fetch:async url=>{requests.push(url);if(url==='/api/version')return {json:async()=>({version:'5.6.0'})};
  if(url.startsWith('/api/almanac')){const q=new URLSearchParams(url.split('?')[1]);return{json:async()=>({name:'Sun',body:q.get('body'),y:+q.get('y'),mo:+q.get('mo'),d:+q.get('d'),h:+q.get('h'),mi:+q.get('mi'),s:+q.get('s'),gha:12,dec:1,ra:2})};}
  if(url.startsWith('/api/paper'))return {json:async()=>({drlat:0,drlon:0,rows:[],delta_t:70})};
  return {json:async()=>({})};}});

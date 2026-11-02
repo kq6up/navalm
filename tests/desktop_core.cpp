@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 #include "navfltk_plot.h"
+#include "navchrono_sight.h"
 #include <functional>
 
 #include "navplatform.h"
@@ -34,6 +35,35 @@ int main() {
         auto logfile = tmp / "sights.save";
         nav_setenv("NAVALM_SAVE", logfile.u8string().c_str(), 1);
         nav_setenv("NAVALMRC", (tmp / "defaults.rc").u8string().c_str(), 1);
+        {
+            using namespace chrono_nav;
+            Log log;int id=log.add_clock("Test chronometer");
+            double t=parse("2026-10-30","12:00:00");
+            rejects([&]{log.model(id).utc_from_watch(t);});
+            for(int i=0;i<3;++i)log.add({id,1,t+i*86400.,t+i*86400.+10+2*i,true,"Manual WWV","Comparison"});
+            auto m=log.model(id);
+            require(m.count==3 && std::abs(m.rate-2)<1e-9 && std::abs(m.error_at(t)-10)<1e-9,"known clock offset and drift");
+            require(std::abs(m.utc_from_watch(t+3*86400.+16)-(t+3*86400.))<1e-6,"invert error at reference UTC, rather than watch time");
+            rejects([&]{log.add({id,1,t,t+10,true,"Manual WWV","duplicate"});});
+            log.set_enabled(1,false);require(std::abs(log.model(id).rate-2)<1e-9,"excluded comparisons do not affect fit");
+            auto replacement=log;replacement.add({id,1,t+86400.,t+86400.+12,true,"Manual WWV","replacement"});
+            rejects([&]{replacement.set_enabled(1,true);});
+            replacement.set_enabled(3,false);replacement.set_enabled(1,true);
+            require(replacement.readings[1].enabled,"original can be restored after excluding replacement");
+            auto path=tmp/"chrono.log";log.save(path);auto restored=Log::load(path);
+            require(restored.readings.size()==3 && !restored.readings[1].enabled && restored.readings[0].source=="Manual WWV","clock history and exclusions survive reload");
+            restored.clock(id).series++;require(restored.model(id).count==0 && restored.readings.size()==3,"clock reset preserves history and resets fit");
+            restored.add({id,2,t,t-12.5,true,"Computer clock","New battery"});
+            auto slow=restored.model(id);require(slow.rate==0 && slow.count==1,"one comparison gives offset only");
+            Sight watch{};desktop::date_time("2024-02-28","23:59:55.250",watch);
+            correct(watch,restored.clock(id),slow);
+            require(watch.y==2024 && watch.mo==2 && watch.d==29 && watch.h==0 && watch.mi==0 && std::abs(watch.s-7.75)<.001,"slow-clock correction crosses leap-day midnight and preserves fractions");
+            require(std::abs(watch.clock_correction_sec-12.5)<.001 && std::string(watch.clock_watch)=="2024-02-28T23:59:55.250","saved correction retains watch reading and sign");
+            require(stamp(parse("2026-12-31","23:59:59.999"))=="2026-12-31T23:59:59.999","fractional UTC roundtrip near year rollover");
+            restored.save(path);require(Log::load(path).clock(id).series==2,"series and inactive history persist");
+            std::ofstream(path)<<"damaged clock log\n";rejects([&]{Log::load(path);});
+            std::puts("PASS Chrono: signed offset/drift, exact inverse, exclusions, history/series, persistence, leap-day rollover and bad-log rejection");
+        }
         require(std::fabs(angle("94 37.2", "Hs", 180) - (94 + 37.2 / 60)) < 1e-10,
                 "degrees and minutes");
         for (const char *s : {"", "nan", "inf", "1x", "-1", "91", "34 60", "34.5 12", "34 1 junk"})
@@ -188,6 +218,15 @@ int main() {
         if(navsight_store_load(&store,err,sizeof err))throw std::runtime_error(err);
         require(store.v[0].short_horizon_nm==.5 && std::abs(reduce(store.v[0]).dip_min-11.5)<.05,
                 "short-horizon distance survives save/reopen and re-reduction");
+        chrono_nav::Clock watch_clock{1,1,"Test watch"};chrono_nav::Model clock_model;
+        clock_model.count=1;clock_model.error=10;clock_model.epoch=chrono_nav::epoch(store.v[0]);
+        chrono_nav::correct(store.v[0],watch_clock,clock_model);
+        double corrected_jd=navsight_jd(&store.v[0]);
+        if(navsight_store_save(&store,err,sizeof err))throw std::runtime_error(err);
+        navsight_store_free(&store);
+        if(navsight_store_load(&store,err,sizeof err))throw std::runtime_error(err);
+        require(std::string(store.v[0].clock_name)=="Test watch" && std::abs(store.v[0].clock_correction_sec+10)<.001 && std::abs(navsight_jd(&store.v[0])-corrected_jd)<1e-10,"saved UTC and fixed clock-correction audit survive reopening");
+        reduce(store.v[0]);
         navsight_store_free(&store);
         std::puts("PASS shared precise reduction and store persistence");
         fs::create_directories(".build/desktop-test");

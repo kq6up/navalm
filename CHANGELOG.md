@@ -1,3 +1,23 @@
+# Changes in NavAlm 5.6.0
+
+- Use NavAlm capitalization in the native workbench and detached window titles.
+- Add a native Chrono tab before Annual book, with named watches/clocks and a
+  persistent comparison log, manual WWV/other UTC references and computer UTC capture.
+- Fit watch-minus-UTC offset and linear drift in seconds/day. Show measurement
+  span and residual scatter; one comparison supports offset only.
+- Preserve old comparisons across clock resets/new series, exclude/restore entries,
+  and export the full comparison history to CSV.
+- Optionally convert entered watch time to UTC before sight reduction. Saved sights
+  retain their corrected UTC, original watch reading and applied correction;
+  reopening them or changing the clock model does not apply a second correction.
+- Provide separate watch date/time fields and a Use derived correction checkbox
+  on Sight reduction; show watch time, correction and UTC on the worked sheet.
+- Almanac and Planetarium handoffs retain UTC without watch correction. Chrono
+  defaults off; enabling it for new manual sights leaves watch time blank.
+- Add a CMake sanitizer option and native Altair/Arcturus IE stress regression. The reported
+  5.5.0 crash was not reproduced in the instrumented build; no crash fix is claimed.
+  See CHRONO.md for operation and model limits.
+
 # Changes in NAVALM 5.5.0
 
 - Restored a dedicated native Defaults tab and expanded browser Defaults with DR,

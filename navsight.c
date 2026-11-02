@@ -325,6 +325,11 @@ void navsight_print_paper(FILE *out,const NavPaper *p,int width){
 int navsight_validate(const Sight *si,char *err,size_t errn){
     int days[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
     if(!si){ snprintf(err,errn,"no sight supplied"); return 1; }
+    if(!memchr(si->clock_name,0,sizeof si->clock_name) || !memchr(si->clock_watch,0,sizeof si->clock_watch) ||
+       !isfinite(si->clock_correction_sec) || fabs(si->clock_correction_sec)>604800. ||
+       strpbrk(si->clock_name,"\"\\\r\n") || strpbrk(si->clock_watch,"\"\\\r\n")){
+        snprintf(err,errn,"invalid saved clock correction");return 1;
+    }
     if(si->reduce_at_dr != 0 && si->reduce_at_dr != 1){
         snprintf(err,errn,"invalid reduction method"); return 1;
     }
@@ -601,6 +606,7 @@ static const char *body_label(const Sight *si){
 }
 
 void navsight_print_correction(FILE *out,const Sight *si,const Reduction *r){
+    if(si->clock_name[0])fprintf(out,"Watch time  %s  (%s; UTC scale)\nChrono      %+.3f s added to watch time\n",si->clock_watch,si->clock_name,si->clock_correction_sec);
     char b[40];
     fprintf(out,"Sight     %s  %04d-%02d-%02d %02d:%02d:%05.2f UTC\n",
            body_label(si),si->y,si->mo,si->d,si->h,si->mi,si->s);
@@ -852,6 +858,9 @@ int navsight_store_load(SightStore *st,char *err,size_t errn){
             else if(!strcmp(key,"press"))    si.press_mb = atof(val);
             else if(!strcmp(key,"short_horizon")) si.short_horizon_nm = atof(val);
             else if(!strcmp(key,"at_dr"))    si.reduce_at_dr = atoi(val);
+            else if(!strcmp(key,"clock"))    {strncpy(si.clock_name,val,sizeof si.clock_name-1);si.clock_name[sizeof si.clock_name-1]=0;}
+            else if(!strcmp(key,"watch"))    {strncpy(si.clock_watch,val,sizeof si.clock_watch-1);si.clock_watch[sizeof si.clock_watch-1]=0;}
+            else if(!strcmp(key,"clock_corr")) si.clock_correction_sec=atof(val);
             else if(!strcmp(key,"drlat"))    si.dr_lat = atof(val);
             else if(!strcmp(key,"drlon"))    si.dr_lon = atof(val);
             else if(!strcmp(key,"label"))    { strncpy(si.label,val,sizeof si.label-1); si.label[sizeof si.label-1]=0; }
@@ -893,6 +902,7 @@ int navsight_store_save(const SightStore *st,char *err,size_t errn){
         fprintf(f," drlat=%.6f drlon=%.6f",s->dr_lat,s->dr_lon);
         if(s->short_horizon_nm>0) fprintf(f," short_horizon=%.9g",s->short_horizon_nm);
         if(s->reduce_at_dr) fprintf(f," at_dr=%d",s->reduce_at_dr);
+        if(s->clock_name[0])fprintf(f," clock=\"%s\" watch=%s clock_corr=%.9f",s->clock_name,s->clock_watch,s->clock_correction_sec);
         if(s->has_motion)
             fprintf(f," course=%.1f speed=%.2f set=%.1f drift=%.2f",
                     s->course,s->speed,s->set,s->drift);

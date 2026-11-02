@@ -7,7 +7,7 @@ test "$(uname -s)" = Darwin || { echo 'desktop-app creates a macOS bundle. Use m
 app=NAVALM.app/Contents
 mkdir -p "$app/MacOS" "$app/Resources"
 cp navalm-fltk "$app/MacOS/navalm-fltk"
-cp LICENSE THIRD_PARTY_NOTICES.md SAFETY.md DESKTOP.md ANNUAL.md PLANETARIUM.md LINUX.md DEFAULTS.md PROVENANCE.md "$app/Resources/"
+cp LICENSE THIRD_PARTY_NOTICES.md SAFETY.md DESKTOP.md ANNUAL.md PLANETARIUM.md LINUX.md DEFAULTS.md CHRONO.md PROVENANCE.md "$app/Resources/"
 mkdir -p "$app/Resources/data/sky"
 cp data/sky/README.md "$app/Resources/data/sky/"
 cp libastro/LICENSE.XEphem "$app/Resources/"
@@ -22,8 +22,8 @@ cat > "$app/Info.plist" <<PLIST
 <plist version="1.0"><dict>
 <key>CFBundleExecutable</key><string>navalm-fltk</string>
 <key>CFBundleIdentifier</key><string>org.navalm.desktop.sandbox</string>
-<key>CFBundleName</key><string>NAVALM</string>
-<key>CFBundleDisplayName</key><string>NAVALM</string>
+<key>CFBundleName</key><string>NavAlm</string>
+<key>CFBundleDisplayName</key><string>NavAlm</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>$version</string>
 <key>CFBundleVersion</key><string>$version</string>

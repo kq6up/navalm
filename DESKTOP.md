@@ -169,3 +169,25 @@ choice, and fixes and plots can combine both methods.
 See [DEFAULTS.md](DEFAULTS.md) for the dedicated Defaults tab, startup DR reuse,
 almanac handoff and nearer-waterline corrections. Saved sights keep their own
 settings. The Annual book tab remains last.
+
+## Chrono (5.6.0)
+
+The native **Chrono** tab is immediately before Annual book. It keeps named clock
+comparisons and can correct manually entered sight times. See [CHRONO.md](CHRONO.md)
+for signs, drift, reference sources, history and saved-sight behavior.
+
+### Debugging with sanitizers
+
+Clang/GCC on macOS or Linux can instrument the application, core and bundled FLTK:
+
+```sh
+cmake -S . -B .build/asan -DCMAKE_BUILD_TYPE=Debug -DNAVALM_SANITIZERS=ON
+cmake --build .build/asan --target navalm-desktop desktop-core-check --parallel 4
+./.build/asan/desktop-core-check
+```
+
+To reuse bootstrapped FLTK source, add
+`-DNAVALM_FLTK_SOURCE="$PWD/.deps/fltk-1.4.5"` when configuring. The sanitizer build
+is for debugging and requires its compiler runtime; release packages remain
+optimized builds without sanitizer dependencies. On macOS launch a packaged
+bundle through Launch Services for GUI checks.
