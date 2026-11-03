@@ -5,6 +5,7 @@
 #include "nav_engine.h"
 #include "nav_notice.h"
 #include "navsight.h"
+#include "navlunar.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -627,6 +628,7 @@ static void usage(const char *p){
   "Informational use only; no safety-critical reliance. Use implies acceptance\n"
   "of the risk and liability terms; see SAFETY.md or --notice. MIT: see LICENSE.\n"
   "usage:\n"
+  "  lunar OBSERVATION.lunar | lunar --example   lunar distance / clock correction\n"
   "  %s BODY YYYY MM DD HH MM SS [--ap LATdeg LATmin N|S LONdeg LONmin E|W]\n"
   "  %s star NAME YYYY MM DD HH MM SS [--ap LATdeg LATmin N|S LONdeg LONmin E|W]\n"
   "  %s list-stars\n"
@@ -754,6 +756,7 @@ int main(int argc,char**argv){
    fprintf(stderr,"navalm: %s\n",engine_err);
    return 2;
  }
+ if(argc>=2 && !strcmp(argv[1],"lunar")) return navlunar_command(argc,argv);
  if(argc>=2 && (!strcmp(argv[1],"-d") || !strcmp(argv[1],"--daemon"))){
    const char *addr="127.0.0.1"; int port=8080,i;
    for(i=2;i<argc;i++){

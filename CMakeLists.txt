@@ -40,7 +40,7 @@ add_library(navastro STATIC ${ASTRO})
 add_library(navnovas STATIC novas/novas.c novas/novascon.c novas/nutation.c novas/readeph0.c)
 target_include_directories(navnovas PRIVATE novas)
 target_compile_definitions(navnovas PRIVATE nutation=novas_nutation refract=novas_refract)
-add_library(navcore STATIC navsight.c navrc.c navsky.c navsky_data.inc nav_engine_sel.c nav_engine_x.c nav_engine_n.c
+add_library(navcore STATIC navlunar.c navsight.c navrc.c navsky.c navsky_data.inc nav_engine_sel.c nav_engine_x.c nav_engine_n.c
     nav_solsys440.c nav_eph440.c nav_stars_x.c)
 target_include_directories(navcore PUBLIC . PRIVATE novas)
 target_link_libraries(navcore PUBLIC navastro navnovas)
@@ -102,4 +102,12 @@ target_include_directories(mkde440 PRIVATE .)
 
 if(UNIX)
     target_link_libraries(mkde440 PRIVATE m)
+endif()
+
+add_executable(lunar-check tests/lunar.c)
+target_link_libraries(lunar-check PRIVATE navcore)
+add_test(NAME lunar COMMAND lunar-check "${CMAKE_CURRENT_BINARY_DIR}/lunar-test.lunar")
+set_tests_properties(lunar PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+if(MINGW)
+    target_link_options(lunar-check PRIVATE -static)
 endif()

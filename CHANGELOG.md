@@ -1,3 +1,22 @@
+# Changes in NavAlm 5.7.0
+
+- Add Lunars immediately before Chrono in the native workbench, with raw limb
+  distance, Near as the new-observation default, AP and original watch epoch.
+- Recalculate full topocentric parallax/refraction/limb geometry while solving
+  UTC minus watch. Synthetic altitudes never become position observations.
+- Give each real altitude its own watch date/time and correction settings.
+  Optionally fit position/time with two measured altitudes, retain alternative
+  branches, and apply constant DR/current motion between shot epochs.
+- Preserve raw inputs in `.lunar` profiles; export a detailed calculation audit,
+  angle residuals and formal time uncertainty. Share the solver with the console.
+- Prepare a reviewed lunar comparison in Chrono without automatically logging it.
+  Starting manual/Chrono correction is applied once; derived UTC stays separate.
+- Validate model limits and unsupported/underdetermined inputs; add independent
+  Horizons geometry, forward/inverse and native callback checks.
+- Correct stale engine-detail text after switching from Classic back to Precise.
+- See LUNARS.md for workflow and model limits. Web lunar controls and annual
+  lunar-distance pages are not included in this version.
+
 # Changes in NavAlm 5.6.1
 
 - Add a native Chrono scatter plot of watch-minus-UTC error over reference time,

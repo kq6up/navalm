@@ -199,3 +199,6 @@ Focused Chrono plot/edit/delete callback checks (synthetic data only):
 ```
 
 On Linux run this under `xvfb-run -a` when no display is available.
+
+The **Lunars** tab sits immediately before **Chrono**. See [LUNARS.md](LUNARS.md)
+for lunar-distance clock correction, real shot epochs and Chrono handoff.

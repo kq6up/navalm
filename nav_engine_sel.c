@@ -215,12 +215,14 @@ int nav_engine_select(const char *name)
         return 1;
 #else
         g_engine = NAV_ENGINE_PRECISE;
+        g_detail[0] = 0;
         return 0;
 #endif
     }
     if (!strcmp(k, "libastro") || !strcmp(k, "classic") || !strcmp(k, "xephem") ||
         !strcmp(k, "vsop87")) {
         g_engine = NAV_ENGINE_CLASSIC;
+        g_detail[0] = 0;
         nav_engine_set_error(NULL);
         return 0;
     }
@@ -265,9 +267,7 @@ int nav_engine_init(char *err, size_t errlen)
         snprintf(err, errlen, "this build has no precision engine");
     return 1;
 #else
-    if (g_precise_ready) return 0;
-
-    {
+    if (!g_precise_ready) {
         const char *env = getenv("NAVALM_EPHEMERIS");
         char home[NAV_PATH_MAX];
         const char *h;

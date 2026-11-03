@@ -8,6 +8,7 @@
 #include "navbook.h"
 #include "navchrono_sight.h"
 #include "navfltk_chrono.h"
+#include "navfltk_lunar.h"
 #include "navfile.h"
 #include "navfltk_map.h"
 #include "navfltk_plot.h"
@@ -353,6 +354,7 @@ class Workbench {
     Fl_Input *def_lat,*def_lon,*def_ie,*def_height,*def_temp,*def_press,*def_short,*def_course,*def_speed,*def_set,*def_drift;
     Fl_Choice *def_lat_hemi,*def_lon_hemi,*def_arc,*def_units,*def_horizon,*def_limb;
     Fl_Check_Button *def_at_dr,*def_motion;
+    LunarPanel *lunar;
     Fl_Group *chrono_tab;
     Fl_Choice *chrono_clock,*chrono_source,*sight_clock;
     Fl_Input *chrono_name,*chrono_ref_date,*chrono_ref_time,*chrono_watch_date,*chrono_watch_time,*chrono_note;
@@ -765,6 +767,22 @@ class Workbench {
         for(auto *widget:{static_cast<Fl_Widget*>(def_horizon),static_cast<Fl_Widget*>(def_motion)})
             bind(widget,[this]{defaults_state();});
         defaults_tab->end();
+
+        lunar=new LunarPanel;
+        lunar->notify=[this](const std::string &s,bool error){message(s,error);};
+        lunar->current_position=[this]{Sight s{};coordinates(lat,lat_hemi,lon,lon_hemi,s);s.has_motion=motion->value();
+            if(s.has_motion){s.course=number(course->value(),"Course",0,360);s.speed=number(speed->value(),"Speed",0,100);
+                s.set=number(set->value(),"Set",0,360);s.drift=number(drift->value(),"Drift",0,100);}return s;};
+        lunar->chrono_estimate=[this](double watch){chrono_guard();return clock_log.model(clock_log.selected).utc_from_watch(watch)-watch;};
+        lunar->chrono_transfer=[this](const NavLunarRequest &q,const NavLunarSolution &s){
+            chrono_guard();clock_log.clock(clock_log.selected);chrono_cancel_edit(true);
+            double watch=chrono_nav::epoch(q.distance);auto w=chrono_nav::stamp(watch),u=chrono_nav::stamp(watch+s.correction_sec);
+            chrono_watch_date->value(w.substr(0,10).c_str());chrono_watch_time->value(w.substr(11).c_str());
+            chrono_ref_date->value(u.substr(0,10).c_str());chrono_ref_time->value(u.substr(11).c_str());chrono_source->value(1);
+            std::string note=std::string("Lunar / ")+q.distance.body+"; formal sigma "+fmt(s.sigma_time_sec,1)+" s; "+(q.refine_position?"real-altitude fix":"fixed AP")+"; verify systematics";
+            chrono_note->value(note.c_str());tabs->value(chrono_tab);
+            message("Lunar comparison prepared. Review its uncertainty and clock, then Add comparison to log it.");
+        };
 
         chrono_tab=new Fl_Group(16,130,1148,672,"Chrono");
         chrono_clock=choice(36,186,240,"Watch / clock","");
@@ -2124,6 +2142,7 @@ class Workbench {
             engine->value(previous);
             throw std::runtime_error(err);
         }
+        lunar->invalidate();
         clear_fix();
         report_buffer.text("");
         headline->copy_label("Engine changed — reduce the sight again.");
@@ -2133,6 +2152,7 @@ class Workbench {
         message("Using " + std::string(nav_engine_name()));
     }
     void choose_ephemeris() {
+        lunar->invalidate();
         auto path = choose_file("Select repacked JPL ephemeris", "NAVALM ephemeris\t*.nav", false);
         if (path.empty())
             return;
@@ -2183,10 +2203,13 @@ static Overlay checked_scene;
 static std::shared_ptr<LandMap> checked_map;
 static int self_test();
 static int chrono_self_test(bool preview=false);
+static int lunar_self_test(bool preview=false);
 int main(int argc, char **argv) {
     bool checks = std::string(argv[0]).find("navalm-checks") != std::string::npos;
     bool chrono_checks=std::getenv("NAVALM_CHRONO_CHECK")!=nullptr;
-    checks=checks || chrono_checks;
+    bool lunar_checks=std::getenv("NAVALM_LUNAR_CHECK")!=nullptr;
+    bool all_checks=std::getenv("NAVALM_ALL_CHECKS")!=nullptr;
+    checks=checks || chrono_checks || lunar_checks || all_checks;
     try {
         auto root = runtime_root(argv[0]);
         application_root = root;
@@ -2259,6 +2282,14 @@ int main(int argc, char **argv) {
             nav_engine_select("classic");
             nav_engine_init(nullptr, 0);
         }
+        if(all_checks || (argc>1&&!std::strcmp(argv[1],"--all-self-tests"))){
+            nav_setenv("NAVALM_TEST_DOWNLOAD","1",1);self_test();
+            nav_engine_select("precise");nav_engine_init(nullptr,0);chrono_self_test(false);
+            int code=lunar_self_test(all_checks);nav_engine_shutdown();return code;
+        }
+        if(lunar_checks || (argc>1 && !std::strcmp(argv[1],"--lunar-self-test"))){
+            int code=lunar_self_test(lunar_checks);nav_engine_shutdown();return code;
+        }
         if(chrono_checks || (argc>1 && !std::strcmp(argv[1],"--chrono-self-test"))){
             int code=chrono_self_test(chrono_checks);nav_engine_shutdown();return code;
         }
@@ -2290,6 +2321,8 @@ int main(int argc, char **argv) {
         const char *start_tab=std::getenv("NAVALM_START_TAB");
         if((argc>1 && !std::strcmp(argv[1],"--chrono")) || (start_tab && !std::strcmp(start_tab,"chrono")))
             app.tabs->value(app.chrono_tab);
+        if((argc>1 && !std::strcmp(argv[1],"--lunars")) || (start_tab && !std::strcmp(start_tab,"lunars")))
+            app.tabs->value(app.lunar);
         if (!startup.empty())
             app.message(startup);
         app.win.show();
@@ -2303,6 +2336,54 @@ int main(int argc, char **argv) {
 #endif
         return 1;
     }
+}
+
+static int lunar_self_test(bool preview) {
+    auto require=[](bool v,const char *s){if(!v)throw std::runtime_error(std::string("LUNAR UI TEST: ")+s);};
+    auto tmp=nav_temp_dir();
+    struct Cleanup {fs::path p;~Cleanup(){std::error_code e;fs::remove_all(p,e);}} cleanup{tmp};
+    nav_setenv("NAVALM_CHRONO",(tmp/"chrono.log").u8string().c_str(),1);
+    nav_setenv("NAVALMRC",(tmp/"defaults.rc").u8string().c_str(),1);
+    nav_setenv("NAVALM_SAVE",(tmp/"sights.save").u8string().c_str(),1);
+    Workbench app;app.testing=true;auto &p=*app.lunar;
+    require(app.tabs->find(app.chrono_tab)==app.tabs->find(app.lunar)+1,"Lunars immediately before Chrono");
+    require(p.moon_contact->value()==0,"new Moon contact defaults to Near");
+    p.example();app.tabs->value(app.lunar);app.win.show();Fl::check();p.solve();
+    require(p.ready&&p.result.count==1,"example solves through native inputs");
+    require(std::abs(p.result.solutions[0].correction_sec-66.02)<.1,"example recovered UTC");
+    std::string raw_date=p.date->value(),raw_time=p.time->value(),raw_distance=p.distance->value();
+    p.initial->value("50");p.initial->do_callback();require(!p.ready&&!p.send->active()&&!p.export_button->active(),"edit invalidates cached result and exports");p.solve();
+    require(std::abs(p.result.solutions[0].correction_sec-66.02)<.1,"prior correction applied once");
+    p.altitude[0].hs->value("50 12.3");p.altitude[0].time->value("13:19:00.123");
+    p.altitude[0].measured->value(1);p.altitude[0].measured->do_callback();
+    require(!p.refine->active(),"one real altitude cannot refine position");
+    p.altitude[0].measured->value(0);p.altitude[0].measured->do_callback();
+    require(std::string(p.altitude[0].hs->value())=="50 12.3"&&std::string(p.altitude[0].time->value())=="13:19:00.123","switch preserves original Hs and epoch");
+    p.solve();require(p.saved.moon.measured==0&&p.result.solutions[0].lat==34,"synthetic stored reading ignored");
+    require(raw_date==p.date->value()&&raw_time==p.time->value()&&raw_distance==p.distance->value(),"solving never overwrites raw observation");
+    auto q=p.saved;q.moon.measured=q.other.measured=1;
+    chrono_nav::set_time(q.moon.sight,chrono_nav::epoch(q.distance)-90.125);
+    chrono_nav::set_time(q.other.sight,chrono_nav::epoch(q.distance)+60.5);
+    q.moon.sight.ie_min=1.2;q.moon.sight.temp_c=15;q.moon.sight.press_mb=1000;
+    NavLunarSolution truth;char e[512];require(!navlunar_predict(&q,75,34,-117,&truth,e,sizeof e),"real-shot fixture");
+    q.distance.hs_deg=truth.raw_distance_deg;q.moon.sight.hs_deg=truth.predicted_hs[0];q.other.sight.hs_deg=truth.predicted_hs[1];q.refine_position=1;
+    p.fill(q);auto read=p.read();require(read.moon.sight.ie_min==1.2&&read.moon.sight.temp_c==15&&read.moon.sight.press_mb==1000,"per-altitude settings survive load/read");
+    p.solve();require(p.ready&&std::abs(p.result.solutions[0].correction_sec-75)<.1,"real own-epoch position/time fit");
+    require(p.result.count>=2,"alternative real-altitude branch retained");
+    chrono_nav::Log clocks;int id=clocks.add_clock("Lunar test watch");double t=chrono_nav::epoch(q.distance);
+    clocks.add({id,1,t,t-20,true,"Manual WWV","Test only"});app.chrono_commit(clocks);
+    p.example();p.solve();p.send->do_callback();require(app.tabs->value()==app.chrono_tab,"Chrono transfer switches tabs");
+    require(app.clock_log.readings.size()==1,"prepare does not auto-save reference");
+    double watch=chrono_nav::parse(app.chrono_watch_date->value(),app.chrono_watch_time->value());
+    double utc=chrono_nav::parse(app.chrono_ref_date->value(),app.chrono_ref_time->value());
+    require(std::abs((utc-watch)-p.result.solutions[0].correction_sec)<.002,"Chrono retains raw watch and separate derived UTC");
+    p.initial->value("0");double estimate=p.chrono_estimate(watch);require(std::abs(estimate-20)<.001,"Chrono inverse sign");
+    app.engine->value(1);app.change_engine();require(!p.ready,"engine change invalidates lunar result");
+    bool rejected=false;try{p.solve();}catch(const std::exception&){rejected=true;}require(rejected,"Classic fails politely");
+    app.engine->value(0);app.change_engine();require(std::strstr(nav_engine_detail(),"NOVAS")!=nullptr,"engine audit updates after switching back");p.example();p.solve();app.tabs->value(app.lunar);app.win.redraw();Fl::check();
+    std::puts("PASS native Lunars: tab order, fixed AP, raw-data preservation, input invalidation, one-prior-only, own epochs/settings, two measured branches, Chrono preparation and engine guard.");
+    if(preview){app.testing=false;app.message("Lunar checks passed · fictional example · 5.7.0");Fl::run();}else app.win.hide();
+    return 0;
 }
 
 static int chrono_self_test(bool preview) {
