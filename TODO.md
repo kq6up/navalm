@@ -1,6 +1,7 @@
 # Navigation development backlog
 
-Requested 2 November 2026. These are planned features, not additions to 5.6.1.
+Requested 2 November 2026; lunar requirements clarified 3 November 2026.
+These are planned features, not additions to 5.6.1.
 
 ## Moon altitude corrections — priority
 
@@ -48,10 +49,45 @@ Compact Ageton is already implemented and should remain available independently.
   observing workflow, required inputs, outputs and reference examples before
   implementation; decide separately whether predicted distances belong in the
   generated annual book.
+- [ ] Give the Moon altitude and other-body altitude their own **Measured Hs**
+  checkbox. Checked means a real observation; unchecked means a synthetic
+  altitude calculated from the AP. Support a measured/synthetic mixture and
+  label calculated values clearly. Preserve entered readings when switching
+  modes, but exclude them from the observation constraints while synthetic.
+- [ ] Give each real altitude its own recorded watch date/time, separate from
+  the lunar-distance timestamp. Allow simultaneous readings as a convenience,
+  while supporting different epochs and midnight crossings. The observer need
+  not already know the corrected UTC of any shot.
+- [ ] Preserve the raw Hs, recorded watch timestamps, limb and correction
+  settings. Define the solved correction explicitly as **UTC minus watch
+  time**. Apply that common trial correction to every real observation at its
+  own epoch; display the derived UTC separately without overwriting the
+  recorded watch reading. Account for existing Chrono/manual corrections
+  exactly once and retain a readable calculation audit. Label this a clock or
+  UTC correction, not astronomical delta T (TT minus UT1).
+- [ ] In synthetic mode, hold the supplied AP/DR position model fixed and
+  regenerate the altitude/correction geometry at the corrected lunar-distance
+  epoch on every trial. Include parallax, refraction and the selected limb,
+  index and horizon conventions when displaying synthetic Hs. Synthetic
+  altitudes are auxiliary geometry, never independent measurements that move
+  the AP, create a second altitude-circle fix, or increase apparent certainty.
+- [ ] With enough real observations, optionally refine position and clock
+  correction together, or iterate lunar time and the real altitude fix until
+  both stabilize and angle residuals agree with observation uncertainties.
+  Model each shot at its own corrected epoch, including vessel motion between
+  readings when supplied. A lunar plus only one real altitude still needs a
+  positional constraint; do not report a fully determined position/time fix
+  from an underdetermined mixture.
+- [ ] When real altitude observations admit two position intersections, use DR
+  proximity to identify the plausible branch and show the alternative rather
+  than silently selecting it. Fixed-AP, synthetic-altitude mode must solve the
+  distance/time problem without introducing artificial position branches.
 - [ ] Assess how lunar-derived time comparisons could be recorded in Chrono,
   while retaining their source and observational uncertainty.
 - [ ] Establish independent numerical checks and clear operating limits before
-  presenting the feature as usable.
+  presenting the feature as usable. Cover synthetic versus measured modes,
+  separate epochs, midnight rollover, common clock-offset recovery, mixed
+  inputs, position ambiguity, and prevention of duplicate clock corrections.
 
 ## Design preference
 
