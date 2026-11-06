@@ -221,10 +221,122 @@ static void paper_position(NavPaperRow *r,double latitude,double longitude,
     r->sum_min=r->refr_min+r->sd_min+r->par_min;
 }
 
+/* Daily phenomena at the entered position, on its local mean solar date.
+ * USNO rise/set convention: sea level, level horizon, 34' refraction;
+ * Sun centre -50', Moon hp-sd-34', stars/planets centre hp-34'.
+ * Coordinates are evaluated at each trial epoch, including lunar motion.
+ * UT1=UTC here, as in the rest of the almanac. */
+typedef struct { double t,alt,ha; } PaperEventSample;
+
+static int paper_event_sample(int body,int star,double start,double t,
+                              double lat,double lon,PaperEventSample *v){
+    double gha,dec,target=-34.0/60.0,jd=start+t/24.0;
+    if(!nav_engine_covers(jd)) return 1;
+    if(star>=0){
+        NavStarAlmanac a;
+        if(nav_star_almanac((size_t)star,jd,&a)) return 1;
+        gha=a.gha_deg; dec=a.dec_deg;
+    } else {
+        NavAlmanac a;
+        if(nav_almanac((NavBody)body,jd,&a)) return 1;
+        gha=a.gha_deg; dec=a.dec_deg;
+        target+=a.hp_deg;
+        if(body==NAV_SUN) target=-50.0/60.0;
+        else if(body==NAV_MOON) target-=a.sd_deg;
+    }
+    v->t=t; v->ha=norm360(gha+lon+180.0)-180.0;
+    v->alt=deg(asin(clampd(sin(rad(lat))*sin(rad(dec))+
+             cos(rad(lat))*cos(rad(dec))*cos(rad(v->ha)),-1.0,1.0)))-target;
+    return !isfinite(v->alt) || !isfinite(v->ha);
+}
+
+static int paper_event_order(const void *a,const void *b){
+    double x=((const PaperEventSample *)a)->t, y=((const PaperEventSample *)b)->t;
+    return (x>y)-(x<y);
+}
+
+static void paper_events(int body,int star,double start,double lat,double lon,
+                         NavDailyEvents *out){
+    PaperEventSample v[300],mid;
+    NavDailyEvents e={0};
+    int i,k,n=147;
+    double low=1e9,high=-1e9;
+    for(i=0;i<147;i++){
+        /* Small interior probes also bracket extrema just after/before
+         * midnight, without requiring ephemeris outside the local day. */
+        double t=i==0?0:i==1?0.00001:i==145?23.99999:i==146?24:(i-1)/6.0;
+        if(paper_event_sample(body,star,start,t,lat,lon,&v[i])) return;
+    }
+    /* Insert refined extrema so a short polar rise/set pair between grid
+     * samples is retained, rather than incorrectly called circumpolar. */
+    for(i=1;i<146;i++){
+        int maximum=v[i].alt>v[i-1].alt && v[i].alt>v[i+1].alt;
+        int minimum=v[i].alt<v[i-1].alt && v[i].alt<v[i+1].alt;
+        if(maximum || minimum){
+            double lo=v[i-1].t,hi=v[i+1].t;
+            for(k=0;k<32;k++){
+                PaperEventSample a,b;
+                double x=(2*lo+hi)/3,y=(lo+2*hi)/3;
+                if(paper_event_sample(body,star,start,x,lat,lon,&a) ||
+                   paper_event_sample(body,star,start,y,lat,lon,&b)) return;
+                if(maximum ? a.alt<b.alt : a.alt>b.alt) lo=x; else hi=y;
+            }
+            if(n>=300 || paper_event_sample(body,star,start,(lo+hi)/2,lat,lon,&v[n])) return;
+            n++;
+        }
+    }
+    qsort(v,(size_t)n,sizeof v[0],paper_event_order);
+    for(i=0;i<n;i++){
+        if(v[i].alt<low) low=v[i].alt;
+        if(v[i].alt>high) high=v[i].alt;
+    }
+    for(i=1;i<n;i++) for(k=0;k<3;k++){
+        double a=k==1?v[i-1].ha:v[i-1].alt,b=k==1?v[i].ha:v[i].alt;
+        int rising=k!=2;
+        if((rising ? a<=0 && b>0 : a>=0 && b<0) && (k!=1 || b-a<180.0)){
+            double lo=v[i-1].t,hi=v[i].t;
+            int j;
+            for(j=0;j<25;j++){
+                double value;
+                if(paper_event_sample(body,star,start,(lo+hi)/2,lat,lon,&mid)) return;
+                value=k==1?mid.ha:mid.alt;
+                if(rising ? value<=0 : value>=0) lo=mid.t; else hi=mid.t;
+            }
+            if((lo+hi)/2<24.0-1e-7 && e.count[k]<2)
+                e.hours[k][e.count[k]++]=(lo+hi)/2;
+        }
+    }
+    e.available=1;
+    e.always_above=low>0 && !e.count[0] && !e.count[2];
+    e.always_below=high<0 && !e.count[0] && !e.count[2];
+    *out=e;
+}
+
+const char *navsight_fmt_event(const NavDailyEvents *e,int kind,char *out,size_t n){
+    int i;
+    size_t used=0;
+    if(!e->available){ snprintf(out,n,"Unavailable"); return out; }
+    if(kind<0 || kind>2){ snprintf(out,n,"--"); return out; }
+    if(!e->count[kind]){
+        snprintf(out,n,"%s",kind!=1 && e->always_above?"Above all day":
+                 kind!=1 && e->always_below?"Below all day":"--");
+        return out;
+    }
+    for(i=0;i<e->count[kind] && used<n;i++){
+        int minute=(int)floor(e->hours[kind][i]*60.0+0.5);
+        int written=snprintf(out+used,n-used,"%s%02d:%02d",i?" / ":"",minute/60,minute%60);
+        if(written<0 || (size_t)written>=n-used) break;
+        used+=(size_t)written;
+    }
+    return out;
+}
+
 int navsight_paper(const Sight *si,NavPaper *p,char *err,size_t errn){
     static const int month_days[]={31,28,31,30,31,30,31,31,30,31,30,31};
-    double jd;
-    int b,limit;
+    double jd,local_midnight,start;
+    int b,limit,star=-1,hh,mm;
+    double ss;
+    size_t i;
     memset(p,0,sizeof *p);
     if(!isfinite(si->dr_lat) || !isfinite(si->dr_lon) ||
        fabs(si->dr_lat)>90.0 || fabs(si->dr_lon)>180.0){
@@ -245,6 +357,9 @@ int navsight_paper(const Sight *si,NavPaper *p,char *err,size_t errn){
     p->y=si->y; p->mo=si->mo; p->d=si->d; p->h=si->h; p->mi=si->mi; p->s=si->s;
     p->dr_lat=si->dr_lat; p->dr_lon=si->dr_lon;
     p->delta_t=nav_delta_t_seconds(jd);
+    local_midnight=floor(jd+si->dr_lon/360.0+0.5)-0.5;
+    start=local_midnight-si->dr_lon/360.0;
+    jd_to_cal(local_midnight,&p->local_y,&p->local_mo,&p->local_d,&hh,&mm,&ss);
     b=navsight_body_index(si->body);
     if(!strcmp(si->body,"star")){
         int matches[2];
@@ -252,6 +367,7 @@ int navsight_paper(const Sight *si,NavPaper *p,char *err,size_t errn){
         NavStarAlmanac a;
         NavPaperRow *r=&p->rows[p->n];
         if(n!=1){ snprintf(err,errn,"enter an unambiguous navigation-star name"); return 1; }
+        star=matches[0];
         if(nav_star_almanac((size_t)matches[0],jd,&a)) goto engine_error;
         snprintf(r->name,sizeof r->name,"%s",a.name);
         r->gha=a.gha_deg; r->dec=a.dec_deg;
@@ -284,6 +400,9 @@ int navsight_paper(const Sight *si,NavPaper *p,char *err,size_t errn){
         if(nav_almanac(NAV_ARIES,jd,&a)) goto engine_error;
         snprintf(r->name,sizeof r->name,"Aries"); r->is_aries=1; r->gha=a.gha_deg; p->n++;
     }
+    for(i=0;i<p->n;i++) if(!p->rows[i].is_aries)
+        paper_events(i==0 && b!=NAV_ARIES?b:NAV_SUN,i==0?star:-1,
+                     start,si->dr_lat,si->dr_lon,&p->rows[i].events);
     return 0;
 engine_error:
     snprintf(err,errn,"%s",nav_engine_last_error()[0]?nav_engine_last_error():"almanac calculation failed");
@@ -318,6 +437,20 @@ void navsight_print_paper(FILE *out,const NavPaper *p,int width){
     }
     fprintf(out,"\nCorrections in arcminutes; Sun/Moon lower limb; standard atmosphere.\n");
     fprintf(out,"Sum = Refr + SD + PA; apply dip and index error separately.\n");
+    fprintf(out,"\nRise / Meridian passage / Set - Local Mean Time (LMT), %04d-%02d-%02d\n",
+            p->local_y,p->local_mo,p->local_d);
+    fprintf(out,"%-16s %19s %19s %19s\n","Object","Rise","Meridian passage","Set");
+    for(i=0;i<p->n;i++) if(!p->rows[i].is_aries){
+        char rise[40],pass[40],set[40];
+        fprintf(out,"%-16s %19s %19s %19s\n",p->rows[i].name,
+                navsight_fmt_event(&p->rows[i].events,0,rise,sizeof rise),
+                navsight_fmt_event(&p->rows[i].events,1,pass,sizeof pass),
+                navsight_fmt_event(&p->rows[i].events,2,set,sizeof set));
+    }
+    fprintf(out,"LMT = UT1 + east longitude / 15 (west subtracts); UT1=UTC assumed.\n");
+    fprintf(out,"At the DR, sea level, level horizon; Sun/Moon upper limb, stars/planets centre.\n");
+    fprintf(out,"Rounded to 1 minute; -- = no event on this LMT date; 24:00 = next midnight.\n");
+    fprintf(out,"Unavailable = ephemeris does not cover the full local day.\n");
 }
 
 /* --------------------------------------------------------- the reducer */

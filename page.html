@@ -788,6 +788,13 @@ function paperTable(p,r){
   }
   h+='</tbody></table></div><div class="hint">Corrections estimated at the DR: standard atmosphere, Sun/Moon lower limb. '
     +'Sum = Refr + SD + PA. Apply dip and index error separately. Corrections are omitted below −0.5°.</div>';
+  h+=`<h3>Rise / Meridian passage / Set — Local Mean Time (LMT)</h3><p>${p.local_y}-${pad(p.local_mo,2)}-${pad(p.local_d,2)} · at the Almanac DR</p>`;
+  h+='<div class="paperscroll"><table class="paper"><thead><tr><th>Object</th><th>Rise</th><th>Meridian passage</th><th>Set</th></tr></thead><tbody>';
+  for(const q of p.rows) if(!q.is_aries)
+    h+=`<tr><td>${q.name}</td><td>${q.rise}</td><td>${q.meridian}</td><td>${q.set}</td></tr>`;
+  h+='</tbody></table></div><div class="hint">LMT = UT1 + east longitude / 15 (west subtracts); UT1=UTC assumed. '
+    +'Sea level, level horizon; Sun/Moon upper limb, stars/planets centre. Rounded to 1 minute. '
+    +'— / -- means no event on this LMT date; 24:00 is next midnight. Unavailable means the ephemeris does not cover the full local day.</div>';
   return h;
 }
 async function refreshAlmanac(){

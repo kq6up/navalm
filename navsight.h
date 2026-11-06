@@ -94,21 +94,30 @@ int  navsight_reduce(const Sight *si, Reduction *r, char *err, size_t errn);
  * Corrections assume standard atmosphere and the Sun/Moon lower limb;
  * they exclude dip and index error and do not change the sight reducer. */
 typedef struct {
+    int available, always_above, always_below;
+    int count[3];              /* rise, upper meridian passage, set */
+    double hours[3][2];        /* hours since LMT midnight; retain two events */
+} NavDailyEvents;
+
+typedef struct {
     char name[NAVSIGHT_NAME];
     int is_aries, have_corrections, have_azimuth;
     double gha, dec, hc, zn;
     double refr_min, sd_min, par_min, sum_min;
+    NavDailyEvents events;
 } NavPaperRow;
 
 typedef struct {
     int y, mo, d, h, mi;
     double s, delta_t, dr_lat, dr_lon;
+    int local_y, local_mo, local_d; /* LMT date containing the lookup instant */
     NavPaperRow rows[3];       /* requested object, Sun if different, Aries */
     size_t n;
 } NavPaper;
 
 int navsight_paper(const Sight *si, NavPaper *p, char *err, size_t errn);
 void navsight_print_paper(FILE *out, const NavPaper *p, int width);
+const char *navsight_fmt_event(const NavDailyEvents *e, int kind, char *out, size_t n);
 
 /* Printing */
 void navsight_print_correction(FILE *out, const Sight *si, const Reduction *r);

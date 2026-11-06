@@ -1,3 +1,18 @@
+# Changes in NavAlm 5.7.1
+
+- Add daily rise, upper meridian passage and set times immediately below the
+  Almanac altitude-correction notes in FLTK, web and console output.
+- Use the entered DR/AP and the LMT date containing the lookup instant. LMT is
+  UT1 plus east longitude / 15 hours (west subtracts), assuming UT1=UTC;
+  it has no civil time-zone or daylight-saving adjustment.
+- Evaluate moving-body coordinates at each trial epoch. Use sea-level,
+  unobstructed-horizon rise/set conventions with standard refraction and the
+  Sun/Moon upper limb; star/planet events use their centres.
+- Retain two events when present in one LMT day, distinguish objects above or
+  below the horizon all day, and show missing events or unavailable ephemeris
+  coverage explicitly. Aries is a reference point and has no event row.
+- Round event times to one minute; leave annual-book event tables unchanged.
+
 # Changes in NavAlm 5.7.0
 
 - Add Lunars immediately before Chrono in the native workbench, with raw limb

@@ -17,6 +17,12 @@ const run=x=>vm.runInContext(x,ctx);
 const flush=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
 (async()=>{
  await flush();
+ const events=run(`paperTable({delta_t:70,drlat:51.4779,drlon:0,local_y:2026,local_mo:11,local_d:3,rows:[
+ {name:'Moon',gha:1,dec:1,hc:1,zn:1,have_azimuth:1,have_corrections:0,rise:'--',meridian:'07:15',set:'14:18'},
+ {name:'Aries',gha:2,is_aries:1}]},{y:2026,mo:11,d:3,h:12,mi:0,s:0})`);
+ assert(events.indexOf('Local Mean Time')>events.indexOf('Apply dip and index error separately'));
+ assert(events.includes('2026-11-03') && events.includes('07:15') && events.includes('14:18'));
+ assert(!events.includes('undefined'));
  assert.equal($('s_horizon').value,'sea');assert.equal($('f_horizon').value,'sea');
  // Persist explicit zero latitude/longitude plus non-default settings and motion.
  for(const [id,value] of Object.entries({s_drlat:'0 N',s_drlon:'0 E',s_he:'10',s_heunit:'ft',s_horizon:'short',s_short:'.5',s_limb:'ul',s_ie:'1.2',s_iearc:'on',s_temp:'0',s_press:'1015',s_course:'270',s_speed:'5',s_set:'90',s_drift:'1.5'}))$(id).value=value;

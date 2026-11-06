@@ -18,7 +18,7 @@ The existing CLI, `--gui`, and `-d` browser interface remain available.
 
 The native **Chrono** tab characterizes watches using manual WWV/UTC comparisons or computer UTC, and can correct sight times. See [CHRONO.md](CHRONO.md).
 
-Current source and locally built Windows package version: **5.7.0**.
+Current source and locally built Windows package version: **5.7.1**.
 The native **Lunars** tab (beside Chrono) and `navalm lunar FILE.lunar` solve
 lunar-distance clock corrections; see [Lunars](LUNARS.md).
 Check the release page for the latest published download.
@@ -160,7 +160,7 @@ If you downloaded a source archive, extract it and enter its source directory, t
 
 **Run `make page` before `make`.** The first command runs `mkpage.sh` to convert `page.html` into `navweb_page.h`, embedding the browser interface in the program. The second compiles the C sources and creates the `navalm` executable. Plain `make` does not regenerate the page header automatically.
 
-The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 5.7.0`. The executable is built in the source directory and can be run there without an installation step.
+The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 5.7.1`. The executable is built in the source directory and can be run there without an installation step.
 
 ### Build without ncurses
 
@@ -268,6 +268,26 @@ and the lower limb for the Sun and Moon. Sum means Refr + SD + PA, in
 arcminutes. Apply dip and index error separately; the observed-altitude
 corrections in the sight reducer remain separate. Corrections are blank
 when Hc is −0.5° or lower, and azimuth is blank at the zenith or nadir.
+
+Immediately below the correction notes, **Rise / Meridian passage / Set**
+lists daily events for the physical objects in the summary. Times are rounded
+to one minute in **Local Mean Time (LMT)** at the entered DR/AP: UT1 plus east
+longitude divided by 15 (west subtracts), with UT1=UTC assumed. This is mean
+solar time, without a civil time zone or daylight-saving adjustment. The shown
+LMT calendar date contains the lookup instant and can differ from its UTC date.
+The calculation evaluates the bodies at each trial epoch rather than simply
+shifting Greenwich events. Meridian passage is the upper transit (LHA zero),
+even if the object is below the horizon. Two times are retained when a local
+day contains two events of one kind; `24:00` denotes the next midnight.
+
+Rise/set assumes sea level and a level, unobstructed horizon: Sun centre at
+−50′, Moon centre at horizontal parallax minus semidiameter minus 34′, and
+star/planet centre at parallax minus 34′. These follow the
+[USNO rise/set definitions](https://aa.usno.navy.mil/faq/RST_defs), using the
+standard 34′ horizon refraction. Weather, terrain and eye height can change
+observed event times. `--` means no such event on the LMT date; an object above
+or below the horizon all day is identified explicitly. `Unavailable` means the
+ephemeris does not cover the full local day. Aries has no event row.
 
 The correction conventions follow the recovered ICE 0.51 F7 navigation
 display, including lunar semidiameter augmentation and the solar limb

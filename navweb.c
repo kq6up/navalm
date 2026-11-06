@@ -515,6 +515,7 @@ static size_t api_paper(const char *qs,char *out,size_t cap){
     }
     jint(&j,"ok",1); jnum(&j,"delta_t",p.delta_t);
     jnum(&j,"drlat",p.dr_lat); jnum(&j,"drlon",p.dr_lon);
+    jint(&j,"local_y",p.local_y); jint(&j,"local_mo",p.local_mo); jint(&j,"local_d",p.local_d);
     jput(&j,"\"rows\":[");
     for(i=0;i<p.n;i++){
         const NavPaperRow *r=&p.rows[i];
@@ -524,6 +525,13 @@ static size_t api_paper(const char *qs,char *out,size_t cap){
         jint(&j,"have_corrections",r->have_corrections);
         jnum(&j,"refr_min",r->refr_min); jnum(&j,"sd_min",r->sd_min);
         jnum(&j,"par_min",r->par_min); jnum(&j,"sum_min",r->sum_min);
+        if(!r->is_aries){
+            char time[40];
+            jint(&j,"events_available",r->events.available);
+            jstr(&j,"rise",navsight_fmt_event(&r->events,0,time,sizeof time));
+            jstr(&j,"meridian",navsight_fmt_event(&r->events,1,time,sizeof time));
+            jstr(&j,"set",navsight_fmt_event(&r->events,2,time,sizeof time));
+        }
         jtrim(&j); jput(&j,"},");
     }
     jtrim(&j); jput(&j,"]}"); return j.n;

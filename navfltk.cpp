@@ -2382,7 +2382,7 @@ static int lunar_self_test(bool preview) {
     bool rejected=false;try{p.solve();}catch(const std::exception&){rejected=true;}require(rejected,"Classic fails politely");
     app.engine->value(0);app.change_engine();require(std::strstr(nav_engine_detail(),"NOVAS")!=nullptr,"engine audit updates after switching back");p.example();p.solve();app.tabs->value(app.lunar);app.win.redraw();Fl::check();
     std::puts("PASS native Lunars: tab order, fixed AP, raw-data preservation, input invalidation, one-prior-only, own epochs/settings, two measured branches, Chrono preparation and engine guard.");
-    if(preview){app.testing=false;app.message("Lunar checks passed · fictional example · 5.7.0");Fl::run();}else app.win.hide();
+    if(preview){app.testing=false;app.message("Lunar checks passed · fictional example · " NAVALM_VERSION "");Fl::run();}else app.win.hide();
     return 0;
 }
 
@@ -2728,6 +2728,10 @@ static int self_test() {
     std::string report(text);
     std::free(text);
     require(report.find("23:00") != std::string::npos, "hourly almanac includes whole day");
+    require(report.find("Local Mean Time (LMT), 2026-09-19")!=std::string::npos &&
+            report.find("Meridian passage")!=std::string::npos &&
+            report.find("west subtracts")!=std::string::npos,
+            "native almanac includes daily rise, meridian and set in LMT below corrections");
     app.al_body->value(8);
     app.almanac(false);
     std::puts("PASS native callbacks: Sun reduction, add, edit/update, reload, defaults, "

@@ -87,6 +87,14 @@ def main():
             state = api(port)
             assert state["available"] == 1 and state["engine"] == "precise", state
             assert b"Annual book" in request(port, "/")[2]
+            paper = api(port, "/api/paper?body=moon&y=2026&mo=11&d=3&h=12&drlat=51.4779&drlon=0")
+            assert (paper["local_y"], paper["local_mo"], paper["local_d"]) == (2026, 11, 3)
+            moon = paper["rows"][0]
+            assert moon["events_available"] == 1 and moon["rise"] == "--", moon
+            assert moon["meridian"] == "07:15" and moon["set"] == "14:18", moon
+            assert "rise" not in paper["rows"][-1]  # Aries is not a physical body.
+            west = api(port, "/api/paper?body=sun&y=2026&mo=1&d=1&h=1&drlat=34&drlon=-117")
+            assert (west["local_y"], west["local_mo"], west["local_d"]) == (2025, 12, 31)
             api(port, "/api/book?year=2026", "POST", expected=403)
             assert api(port, "/api/book?year=2026")["state"] == "idle"
             for query in ("year=2026.5", "year=2026;touch+x", "year=1599", "year=2201",
