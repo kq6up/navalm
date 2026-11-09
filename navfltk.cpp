@@ -414,6 +414,8 @@ class Workbench {
     std::string map_download_error;
     std::shared_ptr<LandMap> downloaded_map;
     Fl_Text_Buffer al_buffer, report_buffer, fix_buffer, chart_buffer;
+    Fl_Text_Buffer index_buffer;
+    std::unique_ptr<Fl_Double_Window> index_window;
     Fl_Text_Display *al_display, *report_display, *fix_display, *chart_display;
     SightStore store{};
     int edit_id = 0;
@@ -422,7 +424,7 @@ class Workbench {
     std::vector<Reduction> fix_red;
     FixResult fix_result{};
     std::vector<std::unique_ptr<std::function<void()>>> callbacks;
-    Fl_Button *reduce_button, *save_button, *update_button, *fix_button;
+    Fl_Button *reduce_button, *save_button, *update_button, *fix_button, *index_button;
     Workbench() {
         Fl::scheme("gtk+");
         Fl::background(245, 247, 246);
@@ -585,7 +587,9 @@ class Workbench {
         fix_button =
             button(36, 579, 208, "Calculate selected fix", [this] { calculate_fix(); }, true);
         button(256, 579, 210, "Export fix report…", [this] { export_text(fix_buffer, "fix.txt"); });
-        fix_display = display(36, 629, 430, 146, fix_buffer);
+        index_button = button(36, 622, 430, "Estimate index error…", [this] { estimate_index(); });
+        index_button->tooltip("Compare at least three sights from one sextant using their saved DRs as known positions.");
+        fix_display = display(36, 666, 430, 109, fix_buffer);
         fix_display->textsize(12);
         map_toggle = new Fl_Check_Button(493, 143, 82, 28, "Map");
         map_toggle->labelsize(12);
@@ -1794,6 +1798,85 @@ class Workbench {
         message(hourly ? "Hourly table calculated in UTC."
                        : "Paper almanac calculated at the exact DR.");
     }
+    void estimate_index() {
+        auto rows = selected();
+        if (rows.size() < 3)
+            throw std::runtime_error("Select at least three saved sights from the same sextant.");
+        std::vector<NavIndexCheck> checks;
+        std::vector<double> required, additional;
+        double saved_mean = 0, zero_mean = 0, saved_sq = 0, zero_sq = 0;
+        for (int row : rows) {
+            const auto &s = store.v[row];
+            NavIndexCheck c{};
+            char err[512]{};
+            if (navsight_index_check(&s, &c, err, sizeof err))
+                throw std::runtime_error("Saved sight #" + std::to_string(s.id) + ": " + err);
+            checks.push_back(c);
+            required.push_back(c.required_ic_min);
+            additional.push_back(c.required_ic_min - c.saved_ic_min);
+            saved_mean += c.residual_saved_min;
+            zero_mean += c.residual_zero_min;
+        }
+        saved_mean /= checks.size();
+        zero_mean /= checks.size();
+        for (const auto &c : checks) {
+            saved_sq += std::pow(c.residual_saved_min - saved_mean, 2);
+            zero_sq += std::pow(c.residual_zero_min - zero_mean, 2);
+        }
+        auto median = [](std::vector<double> &v) {
+            std::sort(v.begin(), v.end());
+            return (v[v.size()/2] + v[(v.size()-1)/2]) / 2;
+        };
+        double ic = median(required);
+        double extra = median(additional);
+        auto report = capture([&](FILE *p) {
+            std::fprintf(p, "%zu selected sights · %s engine\n"
+                "Reference: each sight's saved DR and UTC, without AP or table rounding.\n"
+                "Use independently known positions and real sights from one sextant.\n\n",
+                checks.size(), nav_engine_name());
+            if (std::fabs(ic) < .005)
+                std::fprintf(p, "Estimated index error: 0.00'\n");
+            else
+                std::fprintf(p, "Estimated index error: %.2f' %s the arc\n", std::fabs(ic),
+                             ic < 0 ? "on" : "off");
+            std::fprintf(p, "Median total correction to raw Hs: %+.2f'\n"
+                "Median change from the saved corrections: %+.2f'\n\n"
+                "Altitude residual (Ho - Hc)       Mean       Scatter (SD)\n"
+                "With saved index correction    %+7.2f'       %7.2f'\n"
+                "With zero index correction     %+7.2f'       %7.2f'\n\n"
+                "Positive residual means the reduced altitude is too high.\n"
+                "A negative correction subtracts from raw Hs before any AH halving.\n"
+                "Position, clock, horizon and observer errors can mimic index error.\n"
+                "Compare with a direct index check; no sights or defaults were changed.\n\n"
+                "  Sight  Object         Saved IC  Needed IC    As saved     Zero IC\n",
+                ic, extra, saved_mean, std::sqrt(saved_sq/(checks.size()-1)),
+                zero_mean, std::sqrt(zero_sq/(checks.size()-1)));
+            for (size_t i = 0; i < rows.size(); ++i) {
+                const auto &s = store.v[rows[i]];
+                const auto &c = checks[i];
+                std::fprintf(p, " %6d  %-13.13s  %+7.2f'   %+7.2f'    %+7.2f'    %+7.2f'\n",
+                    s.id, !std::strcmp(s.body, "star") ? s.star : s.body, c.saved_ic_min,
+                    c.required_ic_min, c.residual_saved_min, c.residual_zero_min);
+            }
+        });
+        index_buffer.text(report.c_str());
+        if (!testing) {
+            if (!index_window) {
+                index_window = std::make_unique<Fl_Double_Window>(740, 525, "NavAlm — Index error estimate");
+                index_window->begin();
+                auto *output = display(16, 16, 708, 449, index_buffer);
+                button(16, 478, 170, "Export report…", [this] {
+                    export_text(index_buffer, "index-error.txt");
+                });
+                button(624, 478, 100, "Close", [this] { index_window->hide(); });
+                index_window->resizable(output);
+                index_window->size_range(640, 390);
+                index_window->end();
+            }
+            index_window->show();
+        }
+        message("Index error estimated from " + std::to_string(checks.size()) + " selected sights.");
+    }
     void calculate_fix() {
         clear_fix();
         auto rows = selected();
@@ -2845,6 +2928,86 @@ static int self_test() {
         std::printf("PASS %s fix: %.8f %.8f; vector residuals, geographic anchors, SVG/GeoJSON, "
                     "layers, detach/reattach, anchored zoom, Fit, explicit UTC\n",
                     name, f.lat, f.lon);
+    }
+    {
+        // Airless star altitudes at known positions, with an imposed raw Hs bias.
+        // Mix sea and doubled AH readings, and include a deliberately bad shot.
+        const std::string log_before = [&] {
+            std::ifstream f(log, std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(f), {});
+        }();
+        navsight_store_free(&app.store);
+        const double rad = std::acos(-1.)/180;
+        for (int i = 0; i < 11; ++i) {
+            Sight v{};
+            date_time("2026-09-20", "03:15:30", v);
+            v.mi += i;
+            std::strcpy(v.body, "star");
+            std::strcpy(v.star, "Alpheratz");
+            v.dr_lat = 34.04 + i*.003;
+            v.dr_lon = -117.36 + i*.002;
+            v.artificial = i%2;
+            v.ie_on_arc = 1;
+            v.ie_min = 1.2;
+            NavStarAlmanac star{};
+            require(!nav_star_almanac(nav_star_find(v.star), navsight_jd(&v), &star),
+                    "reference star position");
+            const double lat = v.dr_lat*rad, dec = star.dec_deg*rad;
+            const double hc = std::asin(std::sin(lat)*std::sin(dec) +
+                std::cos(lat)*std::cos(dec)*std::cos((star.gha_deg+v.dr_lon)*rad))/rad;
+            v.hs_deg = hc*(v.artificial ? 2 : 1) + (i==10 ? 10. : 2.4)/60;
+            NavIndexCheck c{};
+            char err[512]{};
+            require(!navsight_index_check(&v, &c, err, sizeof err), err);
+            require(std::fabs(c.required_ic_min + (i==10 ? 10. : 2.4)) < .001,
+                    "recovers the raw index error without table rounding");
+            if (i < 10) {
+                require(std::fabs(c.residual_saved_min - (v.artificial ? .6 : 1.2)) < .001 &&
+                        std::fabs(c.residual_zero_min - (v.artificial ? 1.2 : 2.4)) < .001,
+                        "applied versus zero correction, with IC before AH halving");
+            }
+            navsight_store_add(&app.store, &v);
+            require(app.store.n == size_t(i+1), "add index check fixture");
+        }
+        app.refresh();
+        app.saved->select(1);
+        app.index_button->do_callback();
+        require(std::string(app.status->label()).find("at least three") != std::string::npos,
+                "too few selected sights rejected politely");
+        for (int i = 1; i <= 10; ++i) app.saved->select(i);
+        app.index_button->do_callback();
+        auto index_report = [&] {
+            char *p = app.index_buffer.text();
+            std::string report(p);
+            std::free(p);
+            return report;
+        };
+        std::string report = index_report();
+        require(report.find("10 selected sights") != std::string::npos &&
+                report.find("2.40' on the arc") != std::string::npos &&
+                report.find("+0.90'") != std::string::npos &&
+                report.find("+1.80'") != std::string::npos,
+                "selected ten sights, expected sign and both mean residuals");
+        app.saved->select(11);
+        app.index_button->do_callback();
+        require(index_report().find("11 selected sights") != std::string::npos &&
+                index_report().find("2.40' on the arc") != std::string::npos &&
+                index_report().find("-10.00'") != std::string::npos,
+                "outlier is visible and does not shift the median");
+        for (size_t i = 0; i < 10; ++i) {
+            app.store.v[i].hs_deg -= 4.1/60;
+            app.store.v[i].ie_min = i%2 ? 1.2 : 0;
+            app.store.v[i].ie_on_arc = 0;
+        }
+        app.saved->select(11,0);
+        app.index_button->do_callback();
+        require(index_report().find("1.70' off the arc") != std::string::npos,
+                "off-arc estimate with mixed saved index corrections");
+        std::ifstream f(log, std::ios::binary);
+        require(std::string(std::istreambuf_iterator<char>(f), {}) == log_before &&
+                app.plot->ready && app.expanded_plot->ready,
+                "index check leaves the saved log and current plots alone");
+        std::puts("PASS index check: selected sights, on/off arc, saved vs zero IC, artificial horizon, outlier and unchanged log/plots");
     }
     // Exercise the actual background downloader through the FLTK event loop.
     // Its output and all test navigation state stay in the private test directory.

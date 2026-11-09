@@ -637,10 +637,9 @@ int navsight_reduce(const Sight *si,Reduction *r,char *err,size_t errn){
         r->d_min = (a0.dec_deg >= 0.0) ? draw : -draw;   /* + when |Dec| increasing */
         r->dcorr_min = r->d_min*frac;
 
-        if(!body_at(b,jd_exact,&ax)){
-            r->gha_exact = ax.gha_deg;
-            r->dec_exact = ax.dec_deg;
-        }
+        /* The exact body position was already obtained for the altitude corrections. */
+        r->gha_exact = ax.gha_deg;
+        r->dec_exact = ax.dec_deg;
     }
 
     if(si->reduce_at_dr){
@@ -730,6 +729,59 @@ int navsight_reduce(const Sight *si,Reduction *r,char *err,size_t errn){
 
     r->intercept_nm = (floor(r->ho*60.0*10.0+0.5)/10.0) - r->hc_min;
     return 0;
+}
+
+static int reduce_with_ic(Sight *s, double ic, Reduction *r, char *err, size_t errn){
+    s->ie_min=fabs(ic);
+    s->ie_on_arc=ic<0;
+    return navsight_reduce(s,r,err,errn);
+}
+
+int navsight_index_check(const Sight *si,NavIndexCheck *out,char *err,size_t errn){
+    Sight s=*si;
+    Reduction saved,zero,trial;
+    double hc,lat,dec,lha,lo,hi,scale;
+    memset(out,0,sizeof *out);
+    s.reduce_at_dr=1;
+    if(navsight_reduce(&s,&saved,err,errn) ||
+       reduce_with_ic(&s,0,&zero,err,errn)) return 1;
+    lat=rad(s.dr_lat);
+    dec=rad(zero.dec_exact);
+    lha=rad(zero.gha_exact+s.dr_lon);
+    hc=deg(asin(clampd(sin(lat)*sin(dec)+cos(lat)*cos(dec)*cos(lha),-1,1)));
+    if(!isfinite(hc) || !isfinite(saved.ho) || !isfinite(zero.ho)){
+        snprintf(err,errn,"could not compute a finite altitude");return 1;
+    }
+    if(hc<5 || saved.ha<5 || zero.ha<5){
+        snprintf(err,errn,"index checks require altitudes of at least 5 degrees");return 1;
+    }
+    out->residual_saved_min=(saved.ho-hc)*60;
+    out->residual_zero_min=(zero.ho-hc)*60;
+    out->saved_ic_min=saved.ic_min;
+
+    /* Solve in raw sextant minutes. Re-reduce every trial: in an artificial
+       horizon the IC is applied before halving, and changing Ha changes refraction. */
+    scale=s.artificial?2.0:1.0;
+    lo=-120;
+    hi=fmin(120,(90.0-zero.ha)*60*scale);
+    if(reduce_with_ic(&s,lo,&trial,err,errn)) return 1;
+    if(trial.ho<=hc){
+        /* Stay a fraction of an arcsecond below the Ha limit for roundoff. */
+        if(hi>0 && hi<120) hi=fmax(0,hi-1e-7);
+        if(reduce_with_ic(&s,hi,&trial,err,errn)) return 1;
+        if(trial.ho>=hc){
+            for(int i=0;i<20;i++){
+                double mid=(lo+hi)/2;
+                if(reduce_with_ic(&s,mid,&trial,err,errn)) return 1;
+                if(trial.ho<hc) lo=mid;
+                else hi=mid;
+            }
+            out->required_ic_min=(lo+hi)/2;
+            return 0;
+        }
+    }
+    snprintf(err,errn,"no matching index correction in range; check the saved position and sight");
+    return 1;
 }
 
 /* ------------------------------------------------------------ printing */

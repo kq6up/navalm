@@ -1,3 +1,12 @@
+# Changes in NavAlm 5.7.2
+
+- Estimate index error from selected saved sights in the FLTK plotting tab.
+- Compare altitude residuals with each saved correction and with zero index
+  correction. Use each sight's saved DR and UTC, and report the median
+  estimated correction to raw Hs, including artificial-horizon readings.
+- Show per-sight results and scatter, with an exportable report. Saved sights,
+  defaults, and existing fix plots are left intact.
+
 # Changes in NavAlm 5.7.1
 
 - Add daily rise, upper meridian passage and set times immediately below the

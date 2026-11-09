@@ -71,6 +71,15 @@ Charts + setup page show the selected engine and ephemeris details.
   Edit preserves a sight ID. Save as new deliberately adds a new ID.
   Invalid saved inputs, below-horizon reductions and parallel LOPs return an
   explanation and let you edit the sights and try again.
+  **Estimate index error…** compares three or more selected real sights from
+  one sextant. Use sights whose saved DRs are independently known observation
+  positions. The report shows altitude residuals with the saved corrections
+  and with zero correction, plus a median estimated index error and per-sight
+  results. It uses each sight's own UTC and exact DR, even for sights saved
+  with the whole-degree AP method. Index correction applies to raw Hs before
+  artificial-horizon halving. Position, clock, horizon, and observer errors can
+  also produce a bias; compare against a direct index check before changing
+  your settings. The report can be exported and does not edit any sights.
 - **Charts + setup:** ephemeris selection, state paths, an offline coastline
   underlay, cancellable world-map download, OpenCPN coastline import, and a
   WGS84 land shapefile picker. **Map** independently toggles the underlay in both

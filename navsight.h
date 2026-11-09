@@ -156,6 +156,15 @@ int navsight_fix(const Sight *sel, const Reduction *red, size_t n,
                  int have_at, int ay, int amo, int ad, int ah, int ami, double as,
                  FixResult *out, char *err, size_t errn);
 
+/* Known-position index check at this sight's saved DR and UTC.
+   Residuals are Ho - Hc; signed corrections are applied to raw Hs. */
+typedef struct {
+    double residual_saved_min, residual_zero_min;
+    double saved_ic_min, required_ic_min;
+} NavIndexCheck;
+
+int navsight_index_check(const Sight *si, NavIndexCheck *out, char *err, size_t errn);
+
 /* Fuzzy star lookup.
  * Tries, in order: the engine's exact match, then a case-insensitive prefix
  * match, then a substring match, ignoring spaces, hyphens and apostrophes.
