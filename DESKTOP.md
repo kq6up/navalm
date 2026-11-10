@@ -71,6 +71,25 @@ Charts + setup page show the selected engine and ephemeris details.
   Edit preserves a sight ID. Save as new deliberately adds a new ID.
   Invalid saved inputs, below-horizon reductions and parallel LOPs return an
   explanation and let you edit the sights and try again.
+  **Plot altitude cluster** switches this same panel to corrected altitude
+  (Ho) versus UTC. Select 2–128 readings of one body from the same stationary
+  position, spanning at most 15 minutes. Every reading keeps its own UTC and
+  saved corrections. The fit follows the computed altitude (Hc) at the saved
+  DR, shifted by the mean of the retained Ho − Hc residuals. From five
+  readings onward, optional outlier screening uses the median and median
+  absolute deviation. It flags rather than hides excluded points.
+  The representative LOP uses the observed epoch nearest the median time of
+  the retained readings. Scatter is the sample standard deviation of their
+  residuals; shared timing, index, horizon, or refraction errors can still bias
+  the result. Save the representative while keeping the originals, or confirm
+  replacing the entire selection, including excluded rows. For a fix use the
+  representative or its source sights; using both overweights that series.
+  **Show fix chart** returns to the position chart. Three well-spaced bearings
+  are preferred for a fix; two suitable LOPs still give an intersection.
+  **Back up sight log…** exports all rows and original IDs into one `.save`
+  file. Use **Restore sight log…** on this or another installation of NavAlm
+  5.8.0 or later. Restoring replaces the existing sight log after confirmation;
+  it does not change defaults, Chrono data, or charts.
   **Estimate index error…** compares three or more selected real sights from
   one sextant. Use sights whose saved DRs are independently known observation
   positions. The report shows altitude residuals with the saved corrections

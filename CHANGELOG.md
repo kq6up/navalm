@@ -1,3 +1,13 @@
+# Changes in NavAlm 5.8.0
+
+- Saved Sights uses the same panel for the position fix chart or an altitude
+  versus UTC plot for a short series of observations of one body.
+- Fit a representative LOP from separately corrected sights at a common DR.
+  Use the exact ephemeris to account for the changing altitude, show rejected
+  points and fit scatter, and save the result with or without its source rows.
+- Back up or restore the entire saved sight log, including representative LOPs.
+  A restore validates the file before replacing an existing log.
+
 # Changes in NavAlm 5.7.2
 
 - Estimate index error from selected saved sights in the FLTK plotting tab.

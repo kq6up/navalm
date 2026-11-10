@@ -8,6 +8,7 @@
 #include "navbook.h"
 #include "navchrono_sight.h"
 #include "navfltk_chrono.h"
+#include "navfltk_cluster.h"
 #include "navfltk_lunar.h"
 #include "navfile.h"
 #include "navfltk_map.h"
@@ -415,6 +416,14 @@ class Workbench {
     std::shared_ptr<LandMap> downloaded_map;
     Fl_Text_Buffer al_buffer, report_buffer, fix_buffer, chart_buffer;
     Fl_Text_Buffer index_buffer;
+    SightClusterPlot *cluster_plot;
+    Fl_Check_Button *cluster_reject;
+    Fl_Box *cluster_summary;
+    Fl_Button *cluster_save_button, *cluster_replace_button, *cluster_preview_button;
+    std::vector<Fl_Widget *> chart_controls, cluster_controls;
+    std::vector<int> cluster_ids;
+    NavSightCluster cluster{};
+    bool showing_cluster=false;
     std::unique_ptr<Fl_Double_Window> index_window;
     Fl_Text_Display *al_display, *report_display, *fix_display, *chart_display;
     SightStore store{};
@@ -560,18 +569,14 @@ class Workbench {
         sight_tab->end();
         fix_tab = new Fl_Group(16, 130, 1148, 672, "Saved sights + plotting");
         auto *hint = new Fl_Box(36, 140, 430, 40,
-                                "Select 2–16 sights for a stationary or running fix.\nUse Command "
-                                "/ Shift to select multiple rows.");
-#ifdef _WIN32
-        hint->copy_label("Select 2–16 sights for a stationary or running fix.\nUse Control / Shift "
-                         "to select multiple rows.");
-#endif
+                                "Fix: choose sights on different bearings (3 preferred).\nCluster: choose a series of the same body.");
         hint->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
         hint->labelsize(13);
         saved = new Fl_Multi_Browser(36, 190, 430, 215);
         saved->textsize(13);
         saved->textfont(FL_COURIER);
         saved->format_char('\0');
+        saved->tooltip("Use the platform's multi-select key or Shift to select several rows.");
         button(36, 420, 94, "Edit sight", [this] { edit_sight(); });
         button(142, 420, 94, "Delete…", [this] { delete_sights(); });
         button(248, 420, 100, "Select all", [this] {
@@ -579,18 +584,22 @@ class Workbench {
                 saved->select(i);
         });
         button(360, 420, 106, "Reload log", [this] { load_store(); });
-        fix_at = new Fl_Check_Button(36, 469, 430, 27,
+        cluster_preview_button=button(36,461,208,"Plot altitude cluster", [this]{ preview_cluster(); });
+        index_button=button(256,461,210,"Estimate index error…", [this]{ estimate_index(); });
+        index_button->tooltip("Compare at least three raw sights from one sextant at known positions.");
+        button(36,503,208,"Back up sight log…", [this]{ backup_sights(); });
+        button(256,503,210,"Restore sight log…", [this]{ restore_sights(); });
+        fix_at = new Fl_Check_Button(36, 544, 430, 27,
                                      "Advance to explicit UTC fix time (otherwise latest sight)");
         fix_at->labelsize(12);
-        fix_date = input(36, 530, 210, "Fix date · YYYY-MM-DD");
-        fix_time = input(266, 530, 200, "Fix time · HH:MM:SS");
+        fix_date = input(36, 598, 210, "Fix date · YYYY-MM-DD");
+        fix_time = input(266, 598, 200, "Fix time · HH:MM:SS");
         fix_button =
-            button(36, 579, 208, "Calculate selected fix", [this] { calculate_fix(); }, true);
-        button(256, 579, 210, "Export fix report…", [this] { export_text(fix_buffer, "fix.txt"); });
-        index_button = button(36, 622, 430, "Estimate index error…", [this] { estimate_index(); });
-        index_button->tooltip("Compare at least three sights from one sextant using their saved DRs as known positions.");
-        fix_display = display(36, 666, 430, 109, fix_buffer);
+            button(36, 639, 208, "Plot selected fix", [this] { calculate_fix(); }, true);
+        button(256, 639, 210, "Export fix report…", [this] { export_text(fix_buffer, "fix.txt"); });
+        fix_display = display(36, 683, 430, 92, fix_buffer);
         fix_display->textsize(12);
+        const int chart_begin=fix_tab->children();
         map_toggle = new Fl_Check_Button(493, 143, 82, 28, "Map");
         map_toggle->labelsize(12);
         map_toggle->value(1);
@@ -637,6 +646,25 @@ class Workbench {
         zoom_readout->labelsize(13);
         auto *plot_hint = new Fl_Box(925, 749, 213, 34, "Wheel zoom · drag to pan");
         plot_hint->labelsize(11);
+        const int chart_end=fix_tab->children();
+        for(int i=chart_begin;i<chart_end;i++){
+            auto *w=fix_tab->child(i);
+            if(w!=plot && w!=detached_hint)chart_controls.push_back(w);
+        }
+        cluster_plot=new SightClusterPlot(493,183,645,512);
+        cluster_plot->tooltip("Corrected observed altitude (Ho) versus UTC. The line follows the ephemeris plus the fitted intercept.");
+        button(493,141,150,"Show fix chart",[this]{ show_cluster(false); });
+        cluster_reject=new Fl_Check_Button(661,144,460,28,"Exclude obvious outliers (5 or more sights)");
+        cluster_reject->value(1);
+        bind(cluster_reject,[this]{ preview_cluster(); });
+        cluster_summary=new Fl_Box(493,698,645,42);
+        cluster_summary->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE|FL_ALIGN_WRAP);
+        cluster_summary->labelsize(12);
+        cluster_save_button=button(493,749,257,"Save representative · keep originals",[this]{ save_cluster(false); },true);
+        cluster_replace_button=button(769,749,247,"Replace selected observations…",[this]{ save_cluster(true); });
+        for(int i=chart_end;i<fix_tab->children();i++){
+            auto *w=fix_tab->child(i); cluster_controls.push_back(w); w->hide();
+        }
         fix_tab->resizable(plot);
         fix_tab->end();
         chart_tab = new Fl_Group(16, 130, 1148, 672, "Charts + setup");
@@ -1562,6 +1590,8 @@ class Workbench {
                 ". Check the worked report before saving.");
     }
     void clear_fix() {
+        show_cluster(false);
+        cluster_ids.clear();
         plot->ready = false;
         plot->redraw();
         if (expanded_plot) {
@@ -1585,6 +1615,11 @@ class Workbench {
                 navsight_store_free(&candidate);
                 throw std::runtime_error("Select a saved sight to edit first.");
             }
+            if(old->cluster_used){
+                navsight_store_free(&candidate);
+                throw std::runtime_error("A representative LOP has no raw sight to edit.");
+            }
+            s.id=old->id;
             *old = s;
         } else {
             s.id = 0;
@@ -1641,7 +1676,17 @@ class Workbench {
         auto rows = selected();
         if (rows.size() != 1)
             throw std::runtime_error("Select exactly one sight to edit.");
-        fill_sight(store.v[rows[0]]);
+        const auto &s=store.v[rows[0]];
+        if(s.cluster_used){
+            fix_buffer.text(capture([&](FILE *p){
+                auto r=reduce(s);
+                navsight_print_correction(p,&s,&r);
+                navsight_print_reduction(p,&s,&r);
+            }).c_str());
+            message("Representative LOP #"+std::to_string(s.id)+" shown in the report; no raw Hs to edit.");
+            return;
+        }
+        fill_sight(s);
         tabs->value(sight_tab);
         reduce_sight();
     }
@@ -1654,7 +1699,8 @@ class Workbench {
             return;
         SightStore next{};
         char err[512]{};
-        navsight_store_load(&next, err, sizeof err);
+        if(navsight_store_load(&next, err, sizeof err))
+            throw std::runtime_error(err);
         for (int row : rows)
             navsight_store_delete(&next, store.v[row].id);
         if (navsight_store_save(&next, err, sizeof err)) {
@@ -1666,6 +1712,125 @@ class Workbench {
         refresh();
         clear_fix();
         message("Deleted selected sights.");
+    }
+    void show_cluster(bool show) {
+        if(show && expanded_window && expanded_window->shown()) reattach_plot();
+        showing_cluster=show;
+        for(auto *w:chart_controls) { if(show)w->hide(); else w->show(); }
+        for(auto *w:cluster_controls) { if(show)w->show(); else w->hide(); }
+        if(show){ plot->hide(); detached_hint->hide(); }
+        else if(expanded_window && expanded_window->shown()){plot->hide();detached_hint->show();}
+        else {plot->show();detached_hint->hide();}
+        fix_tab->redraw();
+    }
+    void preview_cluster() {
+        cluster_ids.clear();
+        cluster_save_button->deactivate();
+        cluster_replace_button->deactivate();
+        std::vector<Sight> inputs;
+        for(int row:selected())inputs.push_back(store.v[row]);
+        NavSightCluster result{};
+        char err[512]{};
+        if(navsight_cluster(inputs.data(),inputs.size(),cluster_reject->value(),&result,err,sizeof err))
+            throw std::runtime_error(err);
+        cluster=result;
+        const Sight &ref=cluster.sight;
+        auto jd=[](const Sight &s){return navsight_jd(&s);};
+        auto earliest=std::min_element(inputs.begin(),inputs.end(),[&](const Sight &a,const Sight &b){return jd(a)<jd(b);});
+        const double origin=jd(*earliest);
+        cluster_plot->epoch=chrono_nav::stamp(chrono_nav::epoch(*earliest));
+        cluster_plot->ref_sec=(jd(ref)-origin)*86400;
+        cluster_plot->ref_ho=ref.cluster_ho;
+        cluster_plot->caption=std::string(!std::strcmp(ref.body,"star")?ref.star:ref.body)+" · Corrected altitude (Ho) vs. time";
+        cluster_plot->points.clear();
+        for(size_t i=0;i<inputs.size();i++){
+            cluster_ids.push_back(inputs[i].id);
+            cluster_plot->points.push_back({(jd(inputs[i])-origin)*86400,result.ho_deg[i],
+                result.hc_deg[i]+result.offset_min/60,inputs[i].id,result.keep[i]!=0});
+        }
+        std::stable_sort(cluster_plot->points.begin(),cluster_plot->points.end(),
+                         [](const auto &a,const auto &b){return a.sec<b.sec;});
+        auto summary=std::to_string(ref.cluster_used)+"/"+std::to_string(ref.cluster_total)+
+            " used · scatter "+fmt(ref.cluster_sd_min,2)+"′ SD · representative "+
+            chrono_nav::stamp(chrono_nav::epoch(ref)).substr(11)+" UTC";
+        cluster_summary->copy_label((summary+"\nFor a fix, select the representative or its source sights.").c_str());
+        cluster_save_button->activate();
+        cluster_replace_button->activate();
+        show_cluster(true);
+        cluster_plot->redraw();
+        message("Cluster preview. Review the excluded points before saving.");
+    }
+    struct StoreGuard {
+        SightStore data{};
+        ~StoreGuard(){ navsight_store_free(&data); }
+    };
+    void adopt_store(StoreGuard &next) {
+        navsight_store_free(&store);
+        store=next.data;
+        next.data={};
+        edit_id=0;
+        update_button->deactivate();
+        refresh();
+        clear_fix();
+    }
+    void save_cluster(bool replace) {
+        if(cluster_ids.empty())throw std::runtime_error("Plot a cluster before saving.");
+        std::vector<int> now;
+        for(int row:selected())now.push_back(store.v[row].id);
+        if(now!=cluster_ids)throw std::runtime_error("Selection changed. Plot the cluster again before saving.");
+        if(replace && !testing &&
+           fl_choice("Replace all %zu selected observations, including any excluded points, with one representative LOP?",
+                     "Cancel","Replace",nullptr,cluster_ids.size())!=1)return;
+        StoreGuard next;
+        char err[512]{};
+        if(navsight_store_load(&next.data,err,sizeof err))throw std::runtime_error(err);
+        for(int id:cluster_ids){
+            auto *current=navsight_store_find(&next.data,id);
+            auto *previewed=navsight_store_find(&store,id);
+            if(!current || !previewed || std::memcmp(current,previewed,sizeof(Sight)))
+                throw std::runtime_error("A source sight changed on disk. Reload the log and plot the cluster again.");
+        }
+        const int id=navsight_store_add(&next.data,&cluster.sight);
+        if(!id)throw std::runtime_error("Could not add representative LOP.");
+        if(replace)for(int source:cluster_ids)navsight_store_delete(&next.data,source);
+        if(navsight_store_save(&next.data,err,sizeof err))throw std::runtime_error(err);
+        adopt_store(next);
+        for(size_t i=0;i<store.n;i++)if(store.v[i].id==id)saved->select((int)i+1);
+        cluster_save_button->deactivate();
+        cluster_replace_button->deactivate();
+        message("Saved representative LOP #"+std::to_string(id)+
+                (replace?"; selected originals replaced.":"; originals kept."));
+    }
+    void export_sight_log(const std::string &path) {
+        auto dest=fs::u8path(path), live=fs::u8path(navsight_store_path());
+        std::error_code ec;
+        if(fs::equivalent(dest,live,ec) || fs::absolute(dest).lexically_normal()==fs::absolute(live).lexically_normal())
+            throw std::runtime_error("Choose a separate file for the backup.");
+        StoreGuard current;
+        char err[512]{};
+        if(navsight_store_load(&current.data,err,sizeof err) ||
+           navsight_store_export(&current.data,path.c_str(),err,sizeof err))throw std::runtime_error(err);
+        message("Backed up "+std::to_string(current.data.n)+" saved sights.");
+    }
+    void backup_sights() {
+        auto path=choose_file("Back up all saved sights","NavAlm sight backup\t*.save",true,"navalm-sights-backup.save");
+        if(!path.empty())export_sight_log(path);
+    }
+    void import_sight_log(const std::string &path) {
+        StoreGuard next,current;
+        char err[512]{};
+        if(navsight_store_import(&next.data,path.c_str(),err,sizeof err) ||
+           navsight_store_load(&current.data,err,sizeof err))throw std::runtime_error(err);
+        if(current.data.n && !testing &&
+           fl_choice("Replace the %zu sights in this log with %zu sights from the backup?\nBack up this log first if you want to keep it.",
+                     "Cancel","Restore backup",nullptr,current.data.n,next.data.n)!=1)return;
+        if(navsight_store_save(&next.data,err,sizeof err))throw std::runtime_error(err);
+        adopt_store(next);
+        message("Restored "+std::to_string(store.n)+" saved sights from backup.");
+    }
+    void restore_sights() {
+        auto path=choose_file("Restore a saved sights backup","NavAlm sight backup\t*.save",false);
+        if(!path.empty())import_sight_log(path);
     }
     void defaults_state() {
         if(def_horizon->value()==2)def_short->activate();else def_short->deactivate();
@@ -3009,6 +3174,77 @@ static int self_test() {
                 "index check leaves the saved log and current plots alone");
         std::puts("PASS index check: selected sights, on/off arc, saved vs zero IC, artificial horizon, outlier and unchanged log/plots");
     }
+    {
+        Workbench::StoreGuard input;
+        char err[512]{};
+        const double expected[]={.8,1.0,1.2,16.0,1.1,.9};
+        for(int i=0;i<6;i++){
+            Sight v{};
+            std::strcpy(v.body,"venus");
+            date_time("2026-11-09","13:15:00",v);
+            v.mi+=i; v.dr_lat=34.02; v.dr_lon=-117.31; v.reduce_at_dr=i%2;
+            v.artificial=i%2; v.he=v.artificial?0:8; v.ie_min=5; v.ie_on_arc=1;
+            v.temp_c=10; v.press_mb=1017; v.hs_deg=v.artificial?20:10;
+            auto r=reduce(v);
+            const double d=r.dec_exact*M_PI/180,p=v.dr_lat*M_PI/180,h=(r.gha_exact+v.dr_lon)*M_PI/180;
+            const double target=std::asin(std::sin(d)*std::sin(p)+std::cos(d)*std::cos(p)*std::cos(h))*180/M_PI+expected[i]/60;
+            for(int j=0;j<5;j++)v.hs_deg+=(v.artificial?2:1)*(target-reduce(v).ho);
+            require(navsight_store_add(&input.data,&v)>0,"add cluster test sight");
+        }
+        require(!navsight_store_save(&input.data,err,sizeof err),err);
+        app.load_store();
+        for(int i=1;i<=6;i++)app.saved->select(i);
+        app.cluster_preview_button->do_callback();
+        require(app.showing_cluster && app.cluster_plot->visible() && !app.plot->visible() &&
+                app.cluster.sight.cluster_used==5 && !app.cluster.keep[3] &&
+                std::fabs(app.cluster.offset_min-1)<.001 && app.cluster.sight.mi==17,
+                "cluster preview normalizes rising Venus and rejects only the injected outlier");
+        require(app.cluster.hc_deg[5]-app.cluster.hc_deg[0]>.9 &&
+                std::fabs(reduce(app.cluster.sight).intercept_nm-1)<.11 &&
+                app.cluster_plot->points.size()==6 && !app.cluster_plot->points[3].kept,
+                "the graph shows all observed altitudes and representative retains the intercept");
+        app.cluster_reject->value(0); app.cluster_reject->do_callback();
+        require(app.cluster.sight.cluster_used==6 && app.cluster.offset_min>3,
+                "outlier toggle recomputes the fit and includes all points");
+        app.cluster_reject->value(1); app.cluster_reject->do_callback();
+        app.cluster_save_button->do_callback();
+        require(app.store.n==7 && app.store.v[6].cluster_used==5 && !app.showing_cluster && app.plot->visible(),
+                "keep originals writes one independent LOP and restores chart");
+        auto good=(testdir/"sights backup.save").u8string();
+        auto bad=(testdir/"truncated backup.save").u8string();
+        app.export_sight_log(good);
+        std::ofstream(bad)<<"# navalm sight backup 1 count=3\n";
+        rejects([&]{app.import_sight_log(bad);});
+        require(app.store.n==7,"failed restore leaves the live sight log intact");
+        app.saved->deselect();
+        for(int i=1;i<=6;i++)app.saved->select(i);
+        app.cluster_preview_button->do_callback();
+        app.saved->select(1,0);
+        rejects([&]{app.save_cluster(true);});
+        app.saved->select(1);
+        app.cluster_replace_button->do_callback();
+        require(app.store.n==2 && app.store.v[0].id==7 && app.store.v[1].id==8 &&
+                app.store.v[1].cluster_used==5,
+                "replace atomically removes the full selection and leaves unrelated LOPs");
+        app.import_sight_log(good);
+        require(app.store.n==7 && app.store.v[0].id==1 && app.store.v[6].id==7 &&
+                app.store.v[6].cluster_used==5 && app.store.v[6].cluster_total==6 &&
+                std::fabs(reduce(app.store.v[6]).intercept_nm-1)<.11,
+                "backup round trip preserves raw rows, IDs and corrected representative LOP");
+        NavIndexCheck diagnostic{};
+        require(navsight_index_check(&app.store.v[6],&diagnostic,err,sizeof err)!=0,
+                "representative LOP has no raw Hs for index checks");
+        NavSightCluster invalid{};
+        input.data.v[1].dr_lon+=.1;
+        require(navsight_cluster(input.data.v,2,1,&invalid,err,sizeof err)!=0 &&
+                std::strstr(err,"same saved DR"),"different DR rejected");
+        input.data.v[1].dr_lon=input.data.v[0].dr_lon;
+        std::strcpy(input.data.v[1].body,"sun");
+        require(navsight_cluster(input.data.v,2,1,&invalid,err,sizeof err)!=0 &&
+                std::strstr(err,"same body"),"mixed bodies rejected");
+        std::puts("PASS cluster: moving Venus, per-shot corrections, graph/outlier toggle, keep/replace, stale selection, backup/restore");
+    }
+
     // Exercise the actual background downloader through the FLTK event loop.
     // Its output and all test navigation state stay in the private test directory.
     require(app.land_map != nullptr, "bundled offline map is available");

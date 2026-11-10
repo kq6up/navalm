@@ -649,22 +649,24 @@ static void screen_fix(SightStore *st,const int *marked)
 static void screen_lops(void)
 {
     SightStore st;
-    int marked[256];
+    int *marked;
     char err[160];
     int sel = 0, c;
     size_t i;
 
-    memset(marked,0,sizeof marked);
     if(navsight_store_load(&st,err,sizeof err)) return;
+    marked=calloc(st.n?st.n:1,sizeof *marked);
+    if(!marked){ navsight_store_free(&st); return; }
 
     for(;;){
-        int rows = LINES-6;
+        int rows = LINES>6?LINES-6:1;
+        int top=sel<rows?0:sel-rows+1;
         erase();
         title("LOPs");
         mvprintw(1,2,"  #  body      date/time UTC            Ho          a       Zn    AP");
         if(!st.n) mvprintw(3,4,"no LOPs stored in %s",navsight_store_path());
 
-        for(i=0;i<st.n && (int)i<rows;i++){
+        for(i=(size_t)top;i<st.n && (int)i-top<rows;i++){
             Reduction r;
             char line[MAXLINE+96],ho[40],la[40],lo[40];
             if(navsight_reduce(&st.v[i],&r,err,sizeof err)){
@@ -680,9 +682,9 @@ static void screen_lops(void)
                          navsight_fmt_lat(r.ap_lat,la,sizeof la),
                          navsight_fmt_lon(r.ap_lon,lo,sizeof lo));
             }
-            mvaddnstr(2+(int)i,1,line,COLS-2);
-            if(st.v[i].has_motion && (int)i < rows-1)
-                mvprintw(2+(int)i,COLS-18,"%03.0f/%.0fkt",st.v[i].course,st.v[i].speed);
+            mvaddnstr(2+(int)i-top,1,line,COLS-2);
+            if(st.v[i].has_motion && (int)i-top < rows-1)
+                mvprintw(2+(int)i-top,COLS-18,"%03.0f/%.0fkt",st.v[i].course,st.v[i].speed);
         }
 
         footer("up/dn  SPACE mark  ENTER detail  E edit  A advance  D delete  F fix  ESC back");
@@ -697,10 +699,13 @@ static void screen_lops(void)
         else if((c == 'e' || c == 'E') && st.n){
             Sight s = st.v[sel];
             int id = s.id;
+            if(s.cluster_used){ screen_lop_detail(&s); continue; }
             navsight_store_free(&st);
+            free(marked);
             screen_sight_ex(&s,id);               /* every field, filled in */
             if(navsight_store_load(&st,err,sizeof err)) return;
-            memset(marked,0,sizeof marked);
+            marked=calloc(st.n?st.n:1,sizeof *marked);
+            if(!marked){ navsight_store_free(&st); return; }
             if(sel >= (int)st.n && sel) sel--;
         }
         else if((c == 'f' || c == 'F') && st.n) screen_fix(&st,marked);
@@ -710,7 +715,7 @@ static void screen_lops(void)
             if(confirm(q)){
                 navsight_store_delete(&st,st.v[sel].id);
                 navsight_store_save(&st,err,sizeof err);
-                memset(marked,0,sizeof marked);
+                memset(marked,0,st.n*sizeof *marked);
                 if(sel >= (int)st.n && sel) sel--;
             }
         }
@@ -728,6 +733,7 @@ static void screen_lops(void)
             navsight_store_save(&st,err,sizeof err);
         }
     }
+    free(marked);
     navsight_store_free(&st);
 }
 

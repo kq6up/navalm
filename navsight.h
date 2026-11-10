@@ -52,6 +52,9 @@ typedef struct {
     /* Audit only: y/mo/d/h/mi/s already hold corrected UTC. Never reapply this. */
     char clock_name[NAVSIGHT_NAME], clock_watch[32];
     double clock_correction_sec;
+    /* Derived LOP: no raw Hs. The component corrections are already in Ho. */
+    int cluster_used, cluster_total;
+    double cluster_ho, cluster_sd_min;
 } Sight;
 
 typedef struct {
@@ -124,6 +127,19 @@ void navsight_print_correction(FILE *out, const Sight *si, const Reduction *r);
 void navsight_print_reduction(FILE *out, const Sight *si, const Reduction *r);
 void navsight_print_brief(FILE *out, const Sight *si, const Reduction *r);
 
+/* Combine a short stationary series at one DR. Inlier flags and residuals
+   are in input order. The output uses an observed epoch near the midpoint. */
+#define NAV_CLUSTER_MAX 128
+typedef struct {
+    Sight sight;
+    int keep[NAV_CLUSTER_MAX];
+    double residual_min[NAV_CLUSTER_MAX], hc_deg[NAV_CLUSTER_MAX], ho_deg[NAV_CLUSTER_MAX];
+    double offset_min;
+    double span_sec, cutoff_min;
+} NavSightCluster;
+int navsight_cluster(const Sight *sel, size_t n, int reject, NavSightCluster *out,
+                     char *err, size_t errn);
+
 /* Store: ~/.naval.save (override with NAVALM_SAVE) */
 typedef struct {
     Sight *v;
@@ -133,6 +149,9 @@ typedef struct {
 const char *navsight_store_path(void);
 int  navsight_store_load(SightStore *st, char *err, size_t errn);
 int  navsight_store_save(const SightStore *st, char *err, size_t errn);
+/* Portable backup of the complete native log. Loading a backup is strict. */
+int  navsight_store_export(const SightStore *st, const char *path, char *err, size_t errn);
+int  navsight_store_import(SightStore *st, const char *path, char *err, size_t errn);
 void navsight_store_free(SightStore *st);
 int  navsight_store_add(SightStore *st, const Sight *si);      /* assigns id */
 Sight *navsight_store_find(SightStore *st, int id);

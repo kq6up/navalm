@@ -18,7 +18,7 @@ The existing CLI, `--gui`, and `-d` browser interface remain available.
 
 The native **Chrono** tab characterizes watches using manual WWV/UTC comparisons or computer UTC, and can correct sight times. See [CHRONO.md](CHRONO.md).
 
-Current source version: **5.7.2**.
+Current source version: **5.8.0**.
 The native **Lunars** tab (beside Chrono) and `navalm lunar FILE.lunar` solve
 lunar-distance clock corrections; see [Lunars](LUNARS.md).
 Check the release page for the latest published download.
@@ -160,7 +160,7 @@ If you downloaded a source archive, extract it and enter its source directory, t
 
 **Run `make page` before `make`.** The first command runs `mkpage.sh` to convert `page.html` into `navweb_page.h`, embedding the browser interface in the program. The second compiles the C sources and creates the `navalm` executable. Plain `make` does not regenerate the page header automatically.
 
-The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 5.7.2`. The executable is built in the source directory and can be run there without an installation step.
+The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 5.8.0`. The executable is built in the source directory and can be run there without an installation step.
 
 ### Build without ncurses
 

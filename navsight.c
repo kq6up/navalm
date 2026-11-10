@@ -26,6 +26,8 @@
 #include <string.h>
 #include <math.h>
 #include <ctype.h>
+#include <errno.h>
+#include <limits.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -483,7 +485,14 @@ int navsight_validate(const Sight *si,char *err,size_t errn){
        !isfinite(si->s) || si->s<0 || si->s>=60){
         snprintf(err,errn,"invalid sight UTC date or time"); return 1;
     }
-    if(!isfinite(si->hs_deg) || si->hs_deg<0 || si->hs_deg>(si->artificial?180.0:90.0)){
+    if(si->cluster_total || si->cluster_used){
+        if(si->cluster_used<2 || si->cluster_total<si->cluster_used ||
+           si->cluster_total>NAV_CLUSTER_MAX || !si->reduce_at_dr ||
+           !isfinite(si->cluster_ho) || si->cluster_ho< -2 || si->cluster_ho>90 ||
+           !isfinite(si->cluster_sd_min) || si->cluster_sd_min<0){
+            snprintf(err,errn,"invalid representative sight"); return 1;
+        }
+    } else if(!isfinite(si->hs_deg) || si->hs_deg<0 || si->hs_deg>(si->artificial?180.0:90.0)){
         snprintf(err,errn,"invalid sextant altitude; check Hs and the horizon setting"); return 1;
     }
     if(!isfinite(si->ie_min) || fabs(si->ie_min)>120 || !isfinite(si->he) || si->he<0 || si->he>10000 ||
@@ -541,69 +550,86 @@ int navsight_reduce(const Sight *si,Reduction *r,char *err,size_t errn){
     r->frac_hour = frac;
 
     /* ---- Hs -> Ho ---- */
-    r->hs = si->hs_deg;
-    r->ic_min = si->ie_on_arc ? -fabs(si->ie_min) : fabs(si->ie_min);
-    h = r->hs + r->ic_min/60.0;
-
-    if(si->artificial){
-        r->halved = h/2.0;
-        h = r->halved;
-    } else {
-        double he = si->he < 0 ? 0 : si->he;
-        r->dip_min = (si->he_metres ? 1.76 : 0.97) * sqrt(he);
-        if(si->short_horizon_nm>0){
-            /* Bowditch (2019), Vol II, Table 14: standard terrestrial refraction.
-             * atan returns radians; convert to arcminutes. Distance is to the waterline. */
-            double feet=si->he_metres?he/0.3048:he, distance=si->short_horizon_nm;
-            r->dip_min=deg(atan(feet/(6076.1*distance)+0.8321*distance/(2*3440.1)))*60;
+    if(si->cluster_used){
+        r->ho=si->cluster_ho;
+        if(!r->is_star && body_at(b,jd_exact,&ax)){
+            snprintf(err,errn,"almanac failed"); return 1;
         }
-        h -= r->dip_min/60.0;
-    }
-    r->ha = h;
+    } else {
+        r->hs = si->hs_deg;
+        r->ic_min = si->ie_on_arc ? -fabs(si->ie_min) : fabs(si->ie_min);
+        h = r->hs + r->ic_min/60.0;
 
-    if(r->ha <= -1.0){ snprintf(err,errn,"apparent altitude below the horizon"); return 1; }
-    if(r->ha > 90.0){
-        snprintf(err,errn,"Ha is above 90 degrees; an artificial-horizon reading must be halved (--ah)");
-        return 1;
-    }
+        if(si->artificial){
+            r->halved = h/2.0;
+            h = r->halved;
+        } else {
+            double he = si->he < 0 ? 0 : si->he;
+            r->dip_min = (si->he_metres ? 1.76 : 0.97) * sqrt(he);
+            if(si->short_horizon_nm>0){
+                /* Bowditch (2019), Vol II, Table 14: standard terrestrial refraction.
+                 * atan returns radians; convert to arcminutes. Distance is to the waterline. */
+                double feet=si->he_metres?he/0.3048:he, distance=si->short_horizon_nm;
+                r->dip_min=deg(atan(feet/(6076.1*distance)+0.8321*distance/(2*3440.1)))*60;
+            }
+            h -= r->dip_min/60.0;
+        }
+        r->ha = h;
 
-    tC = si->temp_c; pMB = si->press_mb;
-    r->r0_min = 0.0167/tan(rad(r->ha + 7.32/(r->ha + 4.32))) * 60.0;
-    r->f = 0.28*pMB/(tC + 273.0);
-    r->r_min = r->f * r->r0_min;
-    {
-        double h_refr = r->ha - r->r_min/60.0;
-        double ho = h_refr, hp_deg=0.0, sd_deg=0.0;
+        if(r->ha <= -1.0){ snprintf(err,errn,"apparent altitude below the horizon"); return 1; }
+        if(r->ha > 90.0){
+            snprintf(err,errn,"Ha is above 90 degrees; an artificial-horizon reading must be halved (--ah)");
+            return 1;
+        }
 
+        tC = si->temp_c; pMB = si->press_mb;
+        r->r0_min = 0.0167/tan(rad(r->ha + 7.32/(r->ha + 4.32))) * 60.0;
+        r->f = 0.28*pMB/(tC + 273.0);
+        r->r_min = r->f * r->r0_min;
+        {
+            double h_refr = r->ha - r->r_min/60.0;
+            double ho = h_refr, hp_deg=0.0, sd_deg=0.0;
+
+            if(r->is_star){
+                if(nav_star_almanac((size_t)star_index,jd_exact,&sa)){
+                    snprintf(err,errn,"star almanac failed"); return 1;
+                }
+            } else {
+                if(body_at(b,jd_exact,&ax)){ snprintf(err,errn,"almanac failed"); return 1; }
+                hp_deg = ax.hp_deg; sd_deg = ax.sd_deg;
+            }
+
+            if(sd_deg > 0.0 && si->limb != 0){
+                r->sd_raw_min = sd_deg*60.0;
+                r->sd_min = r->sd_raw_min;
+                if(b == NAV_MOON)
+                    r->sd_min *= (1.0 + sin(rad(hp_deg))*sin(rad(h_refr)));
+                if(si->limb < 0) r->sd_min = -r->sd_min;
+                ho += r->sd_min/60.0;
+                r->used_sd = 1;
+            }
+            r->hp_min = hp_deg*60.0;
+            if(hp_deg > 0.0){
+                r->par_min = deg(asin(sin(rad(hp_deg))*cos(rad(h_refr)))) * 60.0;
+                ho += r->par_min/60.0;
+                r->used_par = 1;
+            }
+            r->ho = ho;
+        }
+    } /* measured altitude */
+
+    /* ---- almanac: hourly row + increments ---- */
+    if(si->cluster_used){
         if(r->is_star){
             if(nav_star_almanac((size_t)star_index,jd_exact,&sa)){
                 snprintf(err,errn,"star almanac failed"); return 1;
             }
+            r->gha_exact=sa.gha_deg; r->dec_exact=sa.dec_deg;
         } else {
-            if(body_at(b,jd_exact,&ax)){ snprintf(err,errn,"almanac failed"); return 1; }
-            hp_deg = ax.hp_deg; sd_deg = ax.sd_deg;
+            r->gha_exact=ax.gha_deg; r->dec_exact=ax.dec_deg;
         }
-
-        if(sd_deg > 0.0 && si->limb != 0){
-            r->sd_raw_min = sd_deg*60.0;
-            r->sd_min = r->sd_raw_min;
-            if(b == NAV_MOON)
-                r->sd_min *= (1.0 + sin(rad(hp_deg))*sin(rad(h_refr)));
-            if(si->limb < 0) r->sd_min = -r->sd_min;
-            ho += r->sd_min/60.0;
-            r->used_sd = 1;
-        }
-        r->hp_min = hp_deg*60.0;
-        if(hp_deg > 0.0){
-            r->par_min = deg(asin(sin(rad(hp_deg))*cos(rad(h_refr)))) * 60.0;
-            ho += r->par_min/60.0;
-            r->used_par = 1;
-        }
-        r->ho = ho;
-    }
-
-    /* ---- almanac: hourly row + increments ---- */
-    if(r->is_star){
+        r->gha=r->gha_exact; r->dec=r->dec_exact;
+    } else if(r->is_star){
         NavStarAlmanac sx;
         if(body_at(NAV_ARIES,jd_hour,&a0)){ snprintf(err,errn,"almanac failed"); return 1; }
         if(nav_star_almanac((size_t)star_index,jd_exact,&sx)){ snprintf(err,errn,"star almanac failed"); return 1; }
@@ -731,6 +757,126 @@ int navsight_reduce(const Sight *si,Reduction *r,char *err,size_t errn){
     return 0;
 }
 
+/* Remove the altitude change predicted by the ephemeris before fitting
+   one constant intercept. This also handles a curved altitude track. */
+static double exact_hc(const Sight *s,const Reduction *r){
+    double lat=rad(s->dr_lat),dec=rad(r->dec_exact),lha=rad(r->gha_exact+s->dr_lon);
+    return deg(asin(clampd(sin(lat)*sin(dec)+cos(lat)*cos(dec)*cos(lha),-1,1)));
+}
+
+static int compare_double(const void *a,const void *b){
+    const double x=*(const double *)a,y=*(const double *)b;
+    return (x>y)-(x<y);
+}
+
+static double median(double *v,size_t n){
+    qsort(v,n,sizeof *v,compare_double);
+    return (v[n/2]+v[(n-1)/2])/2;
+}
+
+static int same_cluster_body(const Sight *a,const Sight *b){
+    if(strcmp(a->body,b->body)) return 0;
+    if(!strcmp(a->body,"star")){
+        int ia,ib;
+        return navsight_star_match(a->star,&ia,1)==1 &&
+               navsight_star_match(b->star,&ib,1)==1 && ia==ib;
+    }
+    return 1;
+}
+
+int navsight_cluster(const Sight *sel,size_t n,int reject,NavSightCluster *out,char *err,size_t errn){
+    double time[NAV_CLUSTER_MAX],work[NAV_CLUSTER_MAX],zn[NAV_CLUSTER_MAX];
+    double first=0,last=0,sum=0,sq=0;
+    size_t i,used=0,ref=0;
+    if(!sel || !out || n<2 || n>NAV_CLUSTER_MAX){
+        snprintf(err,errn,"select 2 to %d individual observations of one body",NAV_CLUSTER_MAX); return 1;
+    }
+    memset(out,0,sizeof *out);
+    for(i=0;i<n;i++){
+        const Sight *s=&sel[i];
+        if(navsight_validate(s,err,errn)) return 1;
+        if(s->cluster_used){
+            snprintf(err,errn,"select individual observations, not representative LOPs"); return 1;
+        }
+        if(!same_cluster_body(&sel[0],s)){
+            snprintf(err,errn,"all cluster observations must be of the same body"); return 1;
+        }
+        if(fabs(s->dr_lat-sel[0].dr_lat)>1e-6 ||
+           fabs(remainder(s->dr_lon-sel[0].dr_lon,360))>1e-6 ||
+           (s->has_motion && (s->speed>0 || s->drift>0))){
+            snprintf(err,errn,"a cluster requires stationary observations at the same saved DR"); return 1;
+        }
+        time[i]=navsight_jd(s);
+        if(i==0 || time[i]<first) first=time[i];
+        if(i==0 || time[i]>last) last=time[i];
+    }
+    out->span_sec=(last-first)*86400;
+    if(out->span_sec>900.001){
+        snprintf(err,errn,"select a cluster spanning at most 15 minutes"); return 1;
+    }
+    for(i=0;i<n;i++){
+        Sight s=sel[i];
+        Reduction r;
+        char detail[200];
+        s.reduce_at_dr=1;
+        if(navsight_reduce(&s,&r,detail,sizeof detail)){
+            snprintf(err,errn,"sight #%d: %s",s.id,detail); return 1;
+        }
+        out->hc_deg[i]=exact_hc(&s,&r);
+        out->ho_deg[i]=r.ho;
+        work[i]=out->residual_min[i]=(r.ho-out->hc_deg[i])*60;
+        zn[i]=r.zn;
+    }
+    if(reject && n>=5){
+        double center=median(work,n);
+        for(i=0;i<n;i++) work[i]=fabs(out->residual_min[i]-center);
+        /* 1.4826 rescales the median absolute deviation to a normal SD.
+           The floor avoids rejecting small deviations when most shots coincide. */
+        out->cutoff_min=fmax(2,3.5*1.4826*median(work,n));
+        for(i=0;i<n;i++) out->keep[i]=fabs(out->residual_min[i]-center)<=out->cutoff_min;
+    } else {
+        for(i=0;i<n;i++) out->keep[i]=1;
+    }
+    for(i=0;i<n;i++) if(out->keep[i]){
+        sum+=out->residual_min[i]; work[used++]=time[i];
+    }
+    if(used<2 || used<=n/2){
+        snprintf(err,errn,"no clear majority of consistent sights; review the selection"); return 1;
+    }
+    {
+        double mid=median(work,used),best=2;
+        for(i=0;i<n;i++) if(out->keep[i]){
+            double dist=fabs(time[i]-mid);
+            if(dist<best-1e-9 || (fabs(dist-best)<1e-9 && time[i]<time[ref])){
+                ref=i; best=dist;
+            }
+        }
+    }
+    out->offset_min=sum/used;
+    for(i=0;i<n;i++) if(out->keep[i]){
+        double e=out->residual_min[i]-out->offset_min;
+        if(fabs(remainder(zn[i]-zn[ref],360))>15){
+            snprintf(err,errn,"bearing changes too much for one LOP; select a shorter series"); return 1;
+        }
+        sq+=e*e;
+    }
+    {
+        Sight *s=&out->sight;
+        const Sight *t=&sel[ref];
+        Reduction r;
+        strcpy(s->body,t->body); strcpy(s->star,t->star);
+        s->y=t->y; s->mo=t->mo; s->d=t->d; s->h=t->h; s->mi=t->mi; s->s=t->s;
+        s->dr_lat=t->dr_lat; s->dr_lon=t->dr_lon; s->reduce_at_dr=1;
+        s->hs_deg=-1; /* Older releases reject rather than re-correcting Ho. */
+        s->cluster_ho=out->hc_deg[ref]+out->offset_min/60;
+        s->cluster_used=(int)used; s->cluster_total=(int)n;
+        s->cluster_sd_min=sqrt(sq/(used-1));
+        snprintf(s->label,sizeof s->label,"Cluster (%d of %d)",s->cluster_used,s->cluster_total);
+        if(navsight_reduce(s,&r,err,errn)) return 1;
+    }
+    return 0;
+}
+
 static int reduce_with_ic(Sight *s, double ic, Reduction *r, char *err, size_t errn){
     s->ie_min=fabs(ic);
     s->ie_on_arc=ic<0;
@@ -740,15 +886,13 @@ static int reduce_with_ic(Sight *s, double ic, Reduction *r, char *err, size_t e
 int navsight_index_check(const Sight *si,NavIndexCheck *out,char *err,size_t errn){
     Sight s=*si;
     Reduction saved,zero,trial;
-    double hc,lat,dec,lha,lo,hi,scale;
+    double hc,lo,hi,scale;
     memset(out,0,sizeof *out);
+    if(s.cluster_used){ snprintf(err,errn,"index checks need raw sights, not representative LOPs"); return 1; }
     s.reduce_at_dr=1;
     if(navsight_reduce(&s,&saved,err,errn) ||
        reduce_with_ic(&s,0,&zero,err,errn)) return 1;
-    lat=rad(s.dr_lat);
-    dec=rad(zero.dec_exact);
-    lha=rad(zero.gha_exact+s.dr_lon);
-    hc=deg(asin(clampd(sin(lat)*sin(dec)+cos(lat)*cos(dec)*cos(lha),-1,1)));
+    hc=exact_hc(&s,&zero);
     if(!isfinite(hc) || !isfinite(saved.ho) || !isfinite(zero.ho)){
         snprintf(err,errn,"could not compute a finite altitude");return 1;
     }
@@ -795,6 +939,12 @@ void navsight_print_correction(FILE *out,const Sight *si,const Reduction *r){
     char b[40];
     fprintf(out,"Sight     %s  %04d-%02d-%02d %02d:%02d:%05.2f UTC\n",
            body_label(si),si->y,si->mo,si->d,si->h,si->mi,si->s);
+    if(si->cluster_used){
+        fprintf(out,"\nRepresentative LOP: %d of %d observations; scatter %.2f' (SD).\n"
+                    "  Ho  %s   already corrected; no raw Hs\n",
+                si->cluster_used,si->cluster_total,si->cluster_sd_min,fmt_alt(r->ho,b,sizeof b));
+        return;
+    }
     fprintf(out,"\nHs -> Ho\n");
     fprintf(out,"  %-12s %10s\n","Hs",fmt_alt(r->hs,b,sizeof b));
     fprintf(out,"  %-12s %10s   index error %.1f' %s arc\n","IC",
@@ -839,7 +989,10 @@ void navsight_print_reduction(FILE *out,const Sight *si,const Reduction *r){
     double tmin = si->mi + si->s/60.0;
 
     fprintf(out,"\nAlmanac\n");
-    if(r->is_star){
+    if(si->cluster_used){
+        fprintf(out,"  %-14s %10s   exact epoch\n","GHA",fmt_gha(r->gha,b,sizeof b));
+        fprintf(out,"  %-14s %10s   exact epoch\n","Dec",fmt_lat(r->dec,b,sizeof b));
+    } else if(r->is_star){
         snprintf(lab,sizeof lab,"GHA Aries %02dh",r->hour_h);
         fprintf(out,"  %-14s %10s\n",lab,fmt_gha(r->gha_aries_hour,b,sizeof b));
         fprintf(out,"  %-14s %10s   %.2f min at 15 02.46'/h\n","Increment",
@@ -942,10 +1095,16 @@ const char *navsight_store_path(void){
     return path;
 }
 
-static void store_grow(SightStore *st){
-    if(st->n < st->cap) return;
-    st->cap = st->cap ? st->cap*2 : 16;
-    st->v = (Sight*)realloc(st->v,st->cap*sizeof(Sight));
+static int store_grow(SightStore *st){
+    size_t cap;
+    Sight *v;
+    if(st->n < st->cap) return 0;
+    if(st->cap > ((size_t)-1)/sizeof(Sight)/2) return 1;
+    cap=st->cap ? st->cap*2 : 16;
+    v=(Sight*)realloc(st->v,cap*sizeof(Sight));
+    if(!v) return 1;
+    st->v=v; st->cap=cap;
+    return 0;
 }
 
 void navsight_store_free(SightStore *st){
@@ -955,8 +1114,7 @@ void navsight_store_free(SightStore *st){
 int navsight_store_add(SightStore *st,const Sight *si){
     size_t i; int maxid=0;
     for(i=0;i<st->n;i++) if(st->v[i].id > maxid) maxid = st->v[i].id;
-    store_grow(st);
-    if(!st->v) return 1;
+    if(maxid==INT_MAX || store_grow(st)) return 0;
     st->v[st->n] = *si;
     st->v[st->n].id = maxid+1;
     st->n++;
@@ -982,23 +1140,32 @@ int navsight_store_delete(SightStore *st,int id){
 
 /* key=value line parser; label may be quoted */
 static int kv_next(char **p,char *key,size_t kn,char *val,size_t vn){
-    char *s=*p; size_t i;
+    char *s=*p;
+    size_t i=0;
     while(*s==' '||*s=='\t') s++;
-    if(!*s || *s=='\n') return 0;
-    for(i=0;*s && *s!='=' && *s!=' ' && *s!='\n';s++) if(i+1<kn) key[i++]=*s;
+    if(!*s || *s=='\n' || *s=='\r') return 0;
+    while(*s && *s!='=' && !isspace((unsigned char)*s)){
+        if(i+1>=kn) return -1;
+        key[i++]=*s++;
+    }
     key[i]=0;
-    if(*s!='='){ *p=s; return 0; }
-    s++;
+    if(!i || *s++!='=') return -1;
     i=0;
     if(*s=='"'){
         s++;
-        for(;*s && *s!='"';s++) if(i+1<vn) val[i++]=*s;
-        if(*s=='"') s++;
+        while(*s && *s!='"' && *s!='\n' && *s!='\r'){
+            if(i+1>=vn) return -1;
+            val[i++]=*s++;
+        }
+        if(*s++!='"' || (*s && !isspace((unsigned char)*s))) return -1;
     } else {
-        for(;*s && *s!=' ' && *s!='\n';s++) if(i+1<vn) val[i++]=*s;
+        while(*s && !isspace((unsigned char)*s)){
+            if(i+1>=vn) return -1;
+            val[i++]=*s++;
+        }
+        if(!i) return -1;
     }
-    val[i]=0;
-    *p=s;
+    val[i]=0; *p=s;
     return 1;
 }
 
@@ -1011,27 +1178,104 @@ static void sight_defaults(Sight *si){
     si->he = 0.0;
 }
 
-int navsight_store_load(SightStore *st,char *err,size_t errn){
+#ifdef _WIN32
+/* The native chooser and desktop store paths are UTF-8. */
+static int sight_wpath(const char *path,wchar_t *out,int n){
+    return MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,path,-1,out,n)!=0;
+}
+static FILE *sight_fopen(const char *path,const char *mode){
+    wchar_t w[4096];
+    if(!sight_wpath(path,w,4096)){ errno=EINVAL; return NULL; }
+    return _wfopen(w,*mode=='r'?L"r":L"w");
+}
+static int sight_replace(const char *source,const char *target){
+    wchar_t a[4096],b[4096];
+    return !(sight_wpath(source,a,4096) && sight_wpath(target,b,4096) &&
+             MoveFileExW(a,b,MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH));
+}
+static void sight_remove(const char *path){
+    wchar_t w[4096];
+    if(sight_wpath(path,w,4096)) _wremove(w);
+}
+#else
+#define sight_fopen fopen
+#define sight_replace nav_replace_file
+#define sight_remove remove
+#endif
+
+static int backup_value_ok(const char *key,const char *val){
+    const char *const numeric[]={"hs","ie","he","temp","press","short_horizon",
+        "clock_corr","drlat","drlon","course","speed","set","drift","cluster_ho","cluster_sd"};
+    const char *const ints[]={"id","at_dr","cluster_used","cluster_total"};
+    char *end;
+    size_t i;
+    if(!strcmp(key,"iearc")) return !strcmp(val,"on") || !strcmp(val,"off");
+    if(!strcmp(key,"heunit")) return !strcmp(val,"ft") || !strcmp(val,"m");
+    if(!strcmp(key,"horizon")) return !strcmp(val,"sea") || !strcmp(val,"ah");
+    if(!strcmp(key,"limb")) return !strcmp(val,"ll") || !strcmp(val,"ul") || !strcmp(val,"center");
+    if(!strcmp(key,"body") || !strcmp(key,"star") || !strcmp(key,"clock") || !strcmp(key,"watch"))
+        return strlen(val)<NAVSIGHT_NAME;
+    if(!strcmp(key,"label")) return strlen(val)<NAVSIGHT_LABEL;
+    if(!strcmp(key,"time")){
+        int y,mo,d,h,m,count=0; double sec;
+        /* Bound the integer fields before conversion. */
+        return sscanf(val,"%4d-%2d-%2dT%2d:%2d:%lf%n",&y,&mo,&d,&h,&m,&sec,&count)==6 &&
+               !val[count] && isfinite(sec);
+    }
+    for(i=0;i<sizeof ints/sizeof *ints;i++) if(!strcmp(key,ints[i])){
+        long v;
+        errno=0; v=strtol(val,&end,10);
+        return end!=val && !*end && !errno && v>=0 && v<=INT_MAX;
+    }
+    for(i=0;i<sizeof numeric/sizeof *numeric;i++) if(!strcmp(key,numeric[i])){
+        double v=strtod(val,&end);
+        return end!=val && !*end && isfinite(v);
+    }
+    return 0;
+}
+
+static int store_read(SightStore *st,const char *path,int backup,char *err,size_t errn){
     FILE *f;
     char line[1024];
-    const char *path = navsight_store_path();
+    size_t lineno=0,expected=0;
 
     st->v=NULL; st->n=st->cap=0;
-    f = fopen(path,"r");
-    if(!f) return 0;                     /* no store yet is not an error */
+    f = sight_fopen(path,"r");
+    if(!f){
+        if(!backup && errno==ENOENT) return 0;
+        snprintf(err,errn,"cannot read %s",path); return 1;
+    }
 
     while(fgets(line,sizeof line,f)){
         char key[32],val[128],*p=line;
+        int token,count=0;
+        unsigned seen=0;
         Sight si;
-        if(line[0]=='#' || line[0]=='\n') continue;
-        if(strncmp(line,"lop ",4)) continue;
+        lineno++;
+        if(backup && lineno==1){
+            if(sscanf(line,"# navalm sight backup 1 count=%zu%n",&expected,&count)!=1 ||
+               (line[count]!='\n' && line[count]!='\r')) goto bad;
+            continue;
+        }
+        if(line[0]=='#' || line[0]=='\n' || line[0]=='\r') continue;
+        if(strncmp(line,"lop ",4)){ if(backup) goto bad; continue; }
+        if(backup && !strchr(line,'\n')) goto bad;
         sight_defaults(&si);
         p = line+4;
-        while(kv_next(&p,key,sizeof key,val,sizeof val)){
-            if(!strcmp(key,"id"))        si.id = atoi(val);
+        while((token=kv_next(&p,key,sizeof key,val,sizeof val))>0){
+            if(backup && !backup_value_ok(key,val)) goto bad;
+            if(!strcmp(key,"id")) seen|=1;
+            if(!strcmp(key,"body")) seen|=2;
+            if(!strcmp(key,"time")) seen|=4;
+            if(!strcmp(key,"hs")) seen|=8;
+            if(!strcmp(key,"drlat")) seen|=16;
+            if(!strcmp(key,"drlon")) seen|=32;
+            if(!strcmp(key,"cluster_ho")) seen|=64;
+            if(!strcmp(key,"cluster_sd")) seen|=128;
+            if(!strcmp(key,"id"))        si.id = (int)strtol(val,NULL,10);
             else if(!strcmp(key,"body")) { strncpy(si.body,val,sizeof si.body-1); si.body[sizeof si.body-1]=0; }
             else if(!strcmp(key,"star")) { strncpy(si.star,val,sizeof si.star-1); si.star[sizeof si.star-1]=0; }
-            else if(!strcmp(key,"time")) sscanf(val,"%d-%d-%dT%d:%d:%lf",&si.y,&si.mo,&si.d,&si.h,&si.mi,&si.s);
+            else if(!strcmp(key,"time")) sscanf(val,"%4d-%2d-%2dT%2d:%2d:%lf",&si.y,&si.mo,&si.d,&si.h,&si.mi,&si.s);
             else if(!strcmp(key,"hs"))       si.hs_deg = atof(val);
             else if(!strcmp(key,"ie"))       si.ie_min = atof(val);
             else if(!strcmp(key,"iearc"))    si.ie_on_arc = !strcmp(val,"on");
@@ -1053,31 +1297,56 @@ int navsight_store_load(SightStore *st,char *err,size_t errn){
             else if(!strcmp(key,"speed"))    { si.speed  = atof(val); si.has_motion = 1; }
             else if(!strcmp(key,"set"))      { si.set    = atof(val); si.has_motion = 1; }
             else if(!strcmp(key,"drift"))    { si.drift  = atof(val); si.has_motion = 1; }
+            else if(!strcmp(key,"cluster_used")) si.cluster_used=(int)strtol(val,NULL,10);
+            else if(!strcmp(key,"cluster_total")) si.cluster_total=(int)strtol(val,NULL,10);
+            else if(!strcmp(key,"cluster_ho")) si.cluster_ho=atof(val);
+            else if(!strcmp(key,"cluster_sd")) si.cluster_sd_min=atof(val);
         }
-        store_grow(st);
-        if(!st->v){ fclose(f); snprintf(err,errn,"out of memory"); return 1; }
-        st->v[st->n++] = si;
+        if(backup && (token<0 || (seen&63)!=63 || si.id<1 ||
+           ((si.cluster_used || si.cluster_total) ? ((seen&192)!=192) : (seen&192)!=0) ||
+           (!strcmp(si.body,"star") ? !si.star[0] : (navsight_body_index(si.body)<0 ||
+            navsight_body_index(si.body)==NAV_ARIES)) ||
+           navsight_validate(&si,err,errn) || navsight_store_find(st,si.id))) goto bad;
+        if(store_grow(st)){
+            snprintf(err,errn,"out of memory"); goto fail;
+        }
+        memcpy(&st->v[st->n++],&si,sizeof si);
     }
+    if(ferror(f)){ snprintf(err,errn,"error reading %s",path); goto fail; }
+    if(backup && (!lineno || st->n!=expected)) goto bad;
     fclose(f);
     return 0;
+bad:
+    snprintf(err,errn,"invalid or incomplete NavAlm sight backup (line %zu)",lineno);
+fail:
+    fclose(f); navsight_store_free(st); return 1;
 }
 
-int navsight_store_save(const SightStore *st,char *err,size_t errn){
-    const char *path = navsight_store_path();
-    char tmp[1100];
+int navsight_store_load(SightStore *st,char *err,size_t errn){
+    return store_read(st,navsight_store_path(),0,err,errn);
+}
+int navsight_store_import(SightStore *st,const char *path,char *err,size_t errn){
+    return store_read(st,path,1,err,errn);
+}
+
+static int store_write(const SightStore *st,const char *path,int backup,char *err,size_t errn){
+    char tmp[4096];
     FILE *f;
     size_t i;
 
-    snprintf(tmp,sizeof tmp,"%s.tmp",path);
-    f = fopen(tmp,"w");
+    if(snprintf(tmp,sizeof tmp,"%s.tmp",path)>=(int)sizeof tmp){
+        snprintf(err,errn,"sight log path is too long"); return 1;
+    }
+    f = sight_fopen(tmp,"w");
     if(!f){ snprintf(err,errn,"cannot write %s",tmp); return 1; }
 
-    fprintf(f,"# navalm LOP store, format 1\n");
-    fprintf(f,"# one line per sight; the raw observation is stored and re-reduced on use\n");
+    if(backup) fprintf(f,"# navalm sight backup 1 count=%zu\n",st->n);
+    else fprintf(f,"# navalm LOP store, format 1\n");
+    fprintf(f,"# one line per sight; observations or derived LOPs\n");
     for(i=0;i<st->n;i++){
         const Sight *s = &st->v[i];
         fprintf(f,"lop id=%d body=%s",s->id,s->body);
-        if(s->star[0]) fprintf(f," star=%s",s->star);
+        if(s->star[0]) fprintf(f," star=\"%s\"",s->star);
         fprintf(f," time=%04d-%02d-%02dT%02d:%02d:%06.3f",s->y,s->mo,s->d,s->h,s->mi,s->s);
         fprintf(f," hs=%.6f ie=%.2f iearc=%s",s->hs_deg,s->ie_min,s->ie_on_arc?"on":"off");
         fprintf(f," horizon=%s",s->artificial?"ah":"sea");
@@ -1091,12 +1360,33 @@ int navsight_store_save(const SightStore *st,char *err,size_t errn){
         if(s->has_motion)
             fprintf(f," course=%.1f speed=%.2f set=%.1f drift=%.2f",
                     s->course,s->speed,s->set,s->drift);
+        if(s->cluster_used)
+            fprintf(f," cluster_used=%d cluster_total=%d cluster_ho=%.12f cluster_sd=%.9f",
+                    s->cluster_used,s->cluster_total,s->cluster_ho,s->cluster_sd_min);
         if(s->label[0]) fprintf(f," label=\"%s\"",s->label);
         fputc('\n',f);
     }
-    fclose(f);
-    if(nav_replace_file(tmp,path)){ snprintf(err,errn,"cannot rename %s to %s",tmp,path); return 1; }
+    {
+        int io=ferror(f),closed=fclose(f);
+        if(io || closed || sight_replace(tmp,path)){
+            sight_remove(tmp);
+            snprintf(err,errn,"could not complete writing %s",path); return 1;
+        }
+    }
     return 0;
+}
+int navsight_store_save(const SightStore *st,char *err,size_t errn){
+    return store_write(st,navsight_store_path(),0,err,errn);
+}
+int navsight_store_export(const SightStore *st,const char *path,char *err,size_t errn){
+    for(size_t i=0;i<st->n;i++){
+        const Sight *s=&st->v[i];
+        if(navsight_validate(s,err,errn)) return 1;
+        if(strpbrk(s->label,"\"\r\n") || strpbrk(s->star,"\"\r\n")){
+            snprintf(err,errn,"sight #%d has an invalid label or star name",s->id); return 1;
+        }
+    }
+    return store_write(st,path,1,err,errn);
 }
 
 /* ----------------------------------------------------------- running fix */

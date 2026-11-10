@@ -295,6 +295,10 @@ static int cmd_lop(int argc,char **argv){
         if(argc<4){ fprintf(stderr,"lop edit ID [options]\n"); navsight_store_free(&st); return 2; }
         si = navsight_store_find(&st,atoi(argv[3]));
         if(!si){ fprintf(stderr,"no LOP %s\n",argv[3]); navsight_store_free(&st); return 1; }
+        if(si->cluster_used){
+            fprintf(stderr,"a representative LOP has no raw sight to edit\n");
+            navsight_store_free(&st); return 1;
+        }
         if(parse_sight_options(argc,argv,4,si,&have_dr,&do_save,&brief)){ navsight_store_free(&st); return 2; }
         if(navsight_store_save(&st,err,sizeof err)){ fprintf(stderr,"%s\n",err); navsight_store_free(&st); return 1; }
         if(!reduce_or_warn(si,&r)){
