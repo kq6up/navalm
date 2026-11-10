@@ -631,7 +631,7 @@ static void usage(const char *p){
   "  lunar OBSERVATION.lunar | lunar --example   lunar distance / clock correction\n"
   "  %s BODY YYYY MM DD HH MM SS [--ap LATdeg LATmin N|S LONdeg LONmin E|W]\n"
   "  %s star NAME YYYY MM DD HH MM SS [--ap LATdeg LATmin N|S LONdeg LONmin E|W]\n"
-  "  transit BODY|star NAME YYYY-MM-DD --ap LATdeg LATmin N|S LONdeg LONmin E|W\n"
+  "  %s transit BODY|star NAME YYYY-MM-DD --ap LATdeg LATmin N|S LONdeg LONmin E|W\n"
   "        [--timezone ZONE] [--local-date]   exact upper meridian crossing\n"
   "  %s list-stars\n"
   "  %s -v\n"
@@ -665,6 +665,8 @@ static void usage(const char *p){
   "examples:\n"
   "  %s moon 2026 9 1 13 36 47 --ap 34 2.5 N 117 21.9 W\n"
   "  %s star Sirius 2026 9 3 12 0 0\n"
+  "  %s transit sun 2026-11-10 --ap 34 03 N 118 15 W\n"
+  "  %s transit star Vega 2026-11-10 --ap 34 03 N 118 15 W --timezone America/Los_Angeles\n"
   "  %s -th 2026-09-08 > almanac.html\n"
   "  %s -tx 2026-09-08 > almanac.tex && pdflatex almanac.tex\n"
   "\n"
@@ -690,7 +692,7 @@ static void usage(const char *p){
   "  %s fix 1 2 3 --at 2026 9 20 3 19 0\n"
   "\n"
   "  the LOP store is ~/.naval.save, or $NAVALM_SAVE if that is set\n",
-  p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p);
+  p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p);
 }
 
 #ifdef NAVALM_GUI
@@ -741,7 +743,10 @@ int main(int argc,char**argv){
    return 2;
  }
 
- /* --notice and -v are answerable without an ephemeris. */
+ /* Help and version queries do not require an ephemeris. */
+ if(argc==1){ usage(argv[0]); return 2; }
+ if(argc==3 && !strcmp(argv[1],"transit") && !strcmp(argv[2],"--help"))
+   return navsight_command(argc,argv);
  if(argc==2 && !strcmp(argv[1],"--notice")){ puts(navalm_safety_notice); return 0; }
  if(argc==2 && (!strcmp(argv[1],"-v") || !strcmp(argv[1],"--version"))){
    printf("navalm version %s\n",NAVALM_VERSION);

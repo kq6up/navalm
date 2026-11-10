@@ -544,7 +544,9 @@ static int transit_usage(const char *program,int code){
     fprintf(code?stderr:stdout,
         "Usage: %s transit BODY|star NAME YYYY-MM-DD --ap LATdeg LATmin N|S LONdeg LONmin E|W\n"
         "       [--timezone PST|PDT|+HH:MM|Area/City] [--local-date]\n"
-        "--tz is shorthand for --timezone. The search date is UTC unless --local-date is supplied.\n",program);
+        "--tz is shorthand for --timezone. The search date is UTC unless --local-date is supplied.\n"
+        "Example: %s transit sun 2026-11-10 --ap 34 03 N 118 15 W --timezone America/Los_Angeles\n",
+        program,program);
     return code;
 }
 
