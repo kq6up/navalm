@@ -1,3 +1,9 @@
+# Changes in NavAlm 5.8.1
+
+- Add a command-line upper meridian transit lookup at the entered AP. Report
+  UTC to milliseconds using the selected ephemeris, with optional local time
+  and local-date search using fixed offsets or installed IANA time zones.
+
 # Changes in NavAlm 5.8.0
 
 - Saved Sights uses the same panel for the position fix chart or an altitude

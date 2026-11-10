@@ -2,7 +2,9 @@
  * NAVALM contributions: Copyright (c) 2026 Chris Maness.
  * See LICENSE, THIRD_PARTY_NOTICES.md, and SAFETY.md.
  */
-/* navalm 2.0 - command handling for: sight, lop, fix */
+/* CLI commands for sights, fixes, setup and transits. */
+
+#define _POSIX_C_SOURCE 200809L
 
 #include "navsight.h"
 #include "navrc.h"
@@ -11,8 +13,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <math.h>
 #include <ctype.h>
+#include <stdint.h>
+#include <time.h>
 
 static int need(int argc,int i,int k,const char *opt){
     if(i+k < argc) return 1;
@@ -449,7 +454,174 @@ static int cmd_setup(int argc,char **argv){
     return 0;
 }
 
+typedef struct {
+    const char *name;
+    int named, minutes;
+} TransitZone;
+
+static int transit_digit(char c){ return c>='0' && c<='9'; }
+
+static int transit_zone(const char *name,TransitZone *zone){
+    static const struct { const char *name; int hours; } aliases[]={
+        {"UTC",0},{"GMT",0},{"Z",0},{"PST",-8},{"PDT",-7},
+        {"MST",-7},{"MDT",-6},{"CST",-6},{"CDT",-5},
+        {"EST",-5},{"EDT",-4},{"AKST",-9},{"AKDT",-8},{"HST",-10}
+    };
+    const char *offset=name;
+    zone->name=name;
+    for(size_t i=0;i<sizeof aliases/sizeof *aliases;i++){
+        if(!strcasecmp(name,aliases[i].name)){ zone->minutes=aliases[i].hours*60; return 0; }
+    }
+    if(!strncasecmp(offset,"UTC",3) || !strncasecmp(offset,"GMT",3)) offset+=3;
+    if(*offset=='+' || *offset=='-'){
+        size_t len=strlen(offset);
+        if((len!=3 && len!=6) || !transit_digit(offset[1]) || !transit_digit(offset[2])) return 1;
+        int hh=(offset[1]-'0')*10+offset[2]-'0',mm=0;
+        if(len==6){
+            if(offset[3]!=':' || !transit_digit(offset[4]) || !transit_digit(offset[5])) return 1;
+            mm=(offset[4]-'0')*10+offset[5]-'0';
+        }
+        if(hh>14 || mm>59 || (hh==14 && mm)) return 1;
+        zone->minutes=(*offset=='-'?-1:1)*(hh*60+mm);
+        return 0;
+    }
+    /* Check the actual TZif file. An unknown TZ silently becomes UTC on
+     * some systems; never let that look like a successful conversion. */
+    if(!*name || *name=='/' || strstr(name,"//") || !strncmp(name,"right/",6) ||
+       strspn(name,"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/_+-")!=strlen(name))
+        return 1;
+    char path[256],magic[4];
+    int len=snprintf(path,sizeof path,":/usr/share/zoneinfo/%s",name);
+    if(len<0 || len>=(int)sizeof path) return 1;
+    FILE *file=fopen(path+1,"rb");
+    if(!file) return 1;
+    int valid=fread(magic,1,sizeof magic,file)==sizeof magic && !memcmp(magic,"TZif",4);
+    fclose(file);
+    if(!valid || setenv("TZ",path,1)) return 1;
+    tzset();
+    zone->named=1;
+    return 0;
+}
+
+static int64_t transit_stamp(double jd){ return llround((jd-2440587.5)*86400000.0); }
+
+static int transit_print_time(int64_t ms,const TransitZone *zone){
+    int milli=(int)((ms%1000+1000)%1000);
+    time_t t=(time_t)((ms-milli)/1000+(zone && !zone->named ? zone->minutes*60 : 0));
+    struct tm when;
+    char stamp[32],label[48];
+    if(!(zone && zone->named ? localtime_r(&t,&when) : gmtime_r(&t,&when)) ||
+       !strftime(stamp,sizeof stamp,"%Y-%m-%d %H:%M:%S",&when)) return 1;
+    if(!zone) strcpy(label,"UTC");
+    else if(zone->named){
+        if(!strftime(label,sizeof label,"%Z (UTC%z)",&when)) return 1;
+    } else {
+        int n=abs(zone->minutes);
+        snprintf(label,sizeof label,"UTC%c%02d:%02d",zone->minutes<0?'-':'+',n/60,n%60);
+    }
+    printf("%s.%03d %s",stamp,milli,label);
+    return 0;
+}
+
+static int transit_day_start(time_t nominal,time_t *result){
+    struct tm date;
+    if(!gmtime_r(&nominal,&date)) return 1;
+    /* A zone can jump or repeat at midnight. Try both DST interpretations
+     * as well as the system default and use the earliest time on that date. */
+    int found=0;
+    for(int dst=-1;dst<=1;dst++){
+        struct tm local=date;
+        local.tm_isdst=dst;
+        time_t t=mktime(&local);
+        if(localtime_r(&t,&local) &&
+           local.tm_year==date.tm_year && local.tm_mon==date.tm_mon && local.tm_mday==date.tm_mday &&
+           (!found || t<*result)){ *result=t; found=1; }
+    }
+    return !found;
+}
+
+static int transit_usage(const char *program,int code){
+    fprintf(code?stderr:stdout,
+        "Usage: %s transit BODY|star NAME YYYY-MM-DD --ap LATdeg LATmin N|S LONdeg LONmin E|W\n"
+        "       [--timezone PST|PDT|+HH:MM|Area/City] [--local-date]\n"
+        "--tz is shorthand for --timezone. The search date is UTC unless --local-date is supplied.\n",program);
+    return code;
+}
+
+static int cmd_transit(int argc,char **argv){
+    Sight ap={0};
+    const char *date,*zone_name=NULL;
+    TransitZone zone={0};
+    int i=2,have_ap=0,local_date=0;
+    double start,end,events[NAV_TRANSIT_MAX];
+    size_t count;
+    char err[256];
+    if(argc==3 && !strcmp(argv[2],"--help")) return transit_usage(argv[0],0);
+    if(argc<4 || strlen(argv[i])>=sizeof ap.body) return transit_usage(argv[0],2);
+    strcpy(ap.body,argv[i++]);
+    if(!strcmp(ap.body,"star")){
+        if(i+1>=argc || strlen(argv[i])>=sizeof ap.star) return transit_usage(argv[0],2);
+        strcpy(ap.star,argv[i++]);
+    }
+    date=argv[i++];
+    if(strlen(date)!=10 || date[4]!='-' || date[7]!='-' ||
+       strspn(date,"0123456789-")!=10 ||
+       sscanf(date,"%4d-%2d-%2d",&ap.y,&ap.mo,&ap.d)!=3)
+        return transit_usage(argv[0],2);
+    for(;i<argc;i++){
+        if(!strcmp(argv[i],"--ap") && !have_ap){
+            int n=parse_position(argc,argv,i,&ap.dr_lat,&ap.dr_lon);
+            if(n<0) return transit_usage(argv[0],2);
+            i+=n; have_ap=1;
+        } else if((!strcmp(argv[i],"--timezone") || !strcmp(argv[i],"--tz")) && !zone_name && i+1<argc){
+            zone_name=argv[++i];
+        } else if(!strcmp(argv[i],"--local-date") && !local_date){
+            local_date=1;
+        } else return transit_usage(argv[0],2);
+    }
+    if(!have_ap || (local_date && !zone_name)) return transit_usage(argv[0],2);
+    if(navsight_validate(&ap,err,sizeof err)){ fprintf(stderr,"transit: %s\n",err); return 2; }
+    if(zone_name && transit_zone(zone_name,&zone)){
+        fprintf(stderr,"transit: unknown time zone '%s'; use an installed IANA name such as America/Los_Angeles or an explicit offset\n",zone_name);
+        return 2;
+    }
+    start=navsight_jd(&ap); end=start+1;
+    if(local_date && zone.named){
+        time_t utc=(time_t)(transit_stamp(start)/1000),lo=0,hi=0;
+        if(transit_day_start(utc,&lo)){
+            fprintf(stderr,"transit: %s does not exist in %s\n",date,zone_name); return 2;
+        }
+        if(transit_day_start(utc+86400,&hi) && transit_day_start(utc+172800,&hi)){
+            fprintf(stderr,"transit: cannot determine the end of the local date\n"); return 2;
+        }
+        start=2440587.5+(double)lo/86400;
+        end=2440587.5+(double)hi/86400;
+    } else if(local_date){
+        start-=zone.minutes/1440.0; end-=zone.minutes/1440.0;
+    }
+    if(navsight_transits(&ap,start,end,events,&count,err,sizeof err)){
+        fprintf(stderr,"transit: %s\n",err); return 1;
+    }
+    printf("Upper meridian transit of %s | AP %.8f, %+.8f (east positive)\n",
+           ap.star[0]?ap.star:ap.body,ap.dr_lat,ap.dr_lon);
+    printf("Search date: %s %s | %s engine; UT1 assumed equal to UTC\n",
+           date,local_date?zone_name:"UTC",nav_engine_name());
+    if(!count) puts("No upper meridian transit on this date.");
+    for(size_t j=0;j<count;j++){
+        int64_t ms=transit_stamp(events[j]);
+        if(transit_print_time(ms,NULL)) return 1;
+        if(zone_name){
+            printf("  |  ");
+            if(transit_print_time(ms,&zone)) return 1;
+            printf(" [%s]",zone_name);
+        }
+        putchar('\n');
+    }
+    return 0;
+}
+
 int navsight_command(int argc,char **argv){
+    if(!strcmp(argv[1],"transit")) return cmd_transit(argc,argv);
     if(!strcmp(argv[1],"sight")) return cmd_sight(argc,argv);
     if(!strcmp(argv[1],"lop"))   return cmd_lop(argc,argv);
     if(!strcmp(argv[1],"fix"))   return cmd_fix(argc,argv);

@@ -631,6 +631,8 @@ static void usage(const char *p){
   "  lunar OBSERVATION.lunar | lunar --example   lunar distance / clock correction\n"
   "  %s BODY YYYY MM DD HH MM SS [--ap LATdeg LATmin N|S LONdeg LONmin E|W]\n"
   "  %s star NAME YYYY MM DD HH MM SS [--ap LATdeg LATmin N|S LONdeg LONmin E|W]\n"
+  "  transit BODY|star NAME YYYY-MM-DD --ap LATdeg LATmin N|S LONdeg LONmin E|W\n"
+  "        [--timezone ZONE] [--local-date]   exact upper meridian crossing\n"
   "  %s list-stars\n"
   "  %s -v\n"
   "  %s -t  YYYY-MM-DD | YYYY MM DD   plain-text daily table\n"
@@ -775,7 +777,7 @@ int main(int argc,char**argv){
    return 2;
 #endif
  }
- if(argc>=2 && (!strcmp(argv[1],"sight") || !strcmp(argv[1],"lop") || !strcmp(argv[1],"fix") || !strcmp(argv[1],"setup"))){
+ if(argc>=2 && (!strcmp(argv[1],"transit") || !strcmp(argv[1],"sight") || !strcmp(argv[1],"lop") || !strcmp(argv[1],"fix") || !strcmp(argv[1],"setup"))){
    int rc = navsight_command(argc,argv);
    if(rc >= 0) return rc;
  }

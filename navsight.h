@@ -122,6 +122,12 @@ int navsight_paper(const Sight *si, NavPaper *p, char *err, size_t errn);
 void navsight_print_paper(FILE *out, const NavPaper *p, int width);
 const char *navsight_fmt_event(const NavDailyEvents *e, int kind, char *out, size_t n);
 
+/* Find exact upper meridian crossings in the half-open UTC interval.
+ * UTC is used as UT1, as in the rest of the almanac. */
+#define NAV_TRANSIT_MAX 4
+int navsight_transits(const Sight *ap, double start_jd, double end_jd,
+                      double jd[NAV_TRANSIT_MAX], size_t *count, char *err, size_t errn);
+
 /* Printing */
 void navsight_print_correction(FILE *out, const Sight *si, const Reduction *r);
 void navsight_print_reduction(FILE *out, const Sight *si, const Reduction *r);
@@ -202,7 +208,7 @@ const char *navsight_fmt_ra(double deg,char *buf,size_t n);
 const char *navsight_fmt_lon(double deg,char *buf,size_t n);
 const char *navsight_fmt_gha(double deg,char *buf,size_t n);
 
-/* Command entry point: handles "sight", "lop" and "fix"; -1 if not ours */
+/* Command entry point: handles transit, sight, lop, fix and setup; -1 if not ours */
 int navsight_command(int argc,char **argv);
 
 /* Helpers shared with main() */

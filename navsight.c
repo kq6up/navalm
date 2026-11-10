@@ -314,6 +314,54 @@ static void paper_events(int body,int star,double start,double lat,double lon,
     *out=e;
 }
 
+int navsight_transits(const Sight *ap,double start,double end,
+                      double jd[NAV_TRANSIT_MAX],size_t *count,char *err,size_t errn){
+    int b=-1,star=-1;
+    PaperEventSample prev;
+    double span=(end-start)*24;
+    *count=0;
+    if(navsight_validate(ap,err,errn)) return 1;
+    if(!isfinite(span) || span<=0 || span>49){
+        snprintf(err,errn,"invalid transit search interval"); return 1;
+    }
+    if(!strcmp(ap->body,"star")){
+        size_t n=navsight_star_match(ap->star,&star,1);
+        if(n!=1){
+            snprintf(err,errn,n?"ambiguous star: %s":"unknown star: %s",ap->star);
+            return 1;
+        }
+    } else if((b=navsight_body_index(ap->body))<0 || b==NAV_ARIES){
+        snprintf(err,errn,"unknown transit body: %s",ap->body); return 1;
+    }
+    if(paper_event_sample(b,star,start,0,ap->dr_lat,ap->dr_lon,&prev)) goto unavailable;
+    for(int i=1;;i++){
+        PaperEventSample next;
+        double t=fmin(i/6.0,span);
+        if(paper_event_sample(b,star,start,t,ap->dr_lat,ap->dr_lon,&next)) goto unavailable;
+        /* Wrapped LHA rises through zero at upper transit. The jump from
+         * +180 to -180 is the lower crossing and fails this sign test.
+         * Count a zero at the first endpoint, never at the last. */
+        if(prev.ha<=0 && next.ha>0 && next.ha-prev.ha<180){
+            double lo=prev.t,hi=next.t;
+            if(prev.ha==0) hi=lo;
+            for(int j=0;j<26 && lo<hi;j++){
+                PaperEventSample mid;
+                if(paper_event_sample(b,star,start,(lo+hi)/2,ap->dr_lat,ap->dr_lon,&mid))
+                    goto unavailable;
+                if(mid.ha<0) lo=mid.t; else hi=mid.t;
+            }
+            double crossing=start+(lo+hi)/48;
+            if(crossing<end && *count<NAV_TRANSIT_MAX) jd[(*count)++]=crossing;
+        }
+        if(t>=span) break;
+        prev=next;
+    }
+    return 0;
+unavailable:
+    snprintf(err,errn,"ephemeris could not evaluate the full transit search interval");
+    return 1;
+}
+
 const char *navsight_fmt_event(const NavDailyEvents *e,int kind,char *out,size_t n){
     int i;
     size_t used=0;

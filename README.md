@@ -18,7 +18,7 @@ The existing CLI, `--gui`, and `-d` browser interface remain available.
 
 The native **Chrono** tab characterizes watches using manual WWV/UTC comparisons or computer UTC, and can correct sight times. See [CHRONO.md](CHRONO.md).
 
-Current source version: **5.8.0**.
+Current source version: **5.8.1**.
 The native **Lunars** tab (beside Chrono) and `navalm lunar FILE.lunar` solve
 lunar-distance clock corrections; see [Lunars](LUNARS.md).
 Check the release page for the latest published download.
@@ -160,7 +160,7 @@ If you downloaded a source archive, extract it and enter its source directory, t
 
 **Run `make page` before `make`.** The first command runs `mkpage.sh` to convert `page.html` into `navweb_page.h`, embedding the browser interface in the program. The second compiles the C sources and creates the `navalm` executable. Plain `make` does not regenerate the page header automatically.
 
-The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 5.8.0`. The executable is built in the source directory and can be run there without an installation step.
+The normal build includes all three interfaces. Run `./navalm -v` to check the version; this source reports `navalm version 5.8.1`. The executable is built in the source directory and can be run there without an installation step.
 
 ### Build without ncurses
 
@@ -248,6 +248,24 @@ This example reduces an artificial-horizon Sun sight and prints the worked corre
 ```
 
 Here, `--hs` supplies the sextant reading in degrees and minutes, `--ah` selects an artificial horizon, and `--dr` supplies the dead-reckoning position. Temperature is in degrees Celsius and pressure is in millibars. Add `--save` to store the sight as a line of position, or `--brief` for a compact result.
+
+### Precise upper meridian transit
+
+```sh
+./navalm transit sun 2026-11-10 --ap 34 1.3 N 117 18.8 W --timezone America/Los_Angeles
+./navalm transit star Vega 2026-11-10 --ap 34 1.3 N 117 18.8 W --timezone PST --local-date
+```
+
+The command finds when local hour angle crosses zero at the entered AP,
+using the selected ephemeris directly. It prints UTC to milliseconds. This
+is display precision; the engine assumes UT1 equals UTC, so the physical
+crossing time can differ by a fraction of a second.
+
+The date selects a UTC day by default. Add `--timezone` (or `--tz`) for an additional local time
+display, and `--local-date` if the input date should also refer to that zone.
+`PST` and `PDT` are fixed offsets, as are values such as `+05:30`. Use a system
+IANA zone such as `America/Los_Angeles` for date-dependent daylight saving.
+The command reports when there is no crossing on the requested day.
 
 ### Almanac for a paper fix
 

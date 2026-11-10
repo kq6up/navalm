@@ -187,6 +187,9 @@ check-list:
 check-direct-dr: navalm
 	python3 tests/direct_dr.py
 
+check-transit: navalm
+	python3 tests/transit.py
+
 # Real HTTP integration with isolated HOME; needs the normal DE440s ephemeris.
 check-web-book: navalm
 	python3 tests/web_book.py
@@ -205,7 +208,7 @@ distclean: clean
 	rm -f $(EPHEM_NAV)
 
 .PHONY: all nogui classic-only ephem ephem-fetch stars page clean distclean check-paper check-plot check-list
-.PHONY: desktop fltk-deps desktop-app check-desktop desktop-checks-app check-book check-web-book check-sky check-direct-dr check-lunar
+.PHONY: desktop fltk-deps desktop-app check-desktop desktop-checks-app check-book check-web-book check-sky check-direct-dr check-lunar check-transit
 
 .build/lunar-check: tests/lunar.c navlunar.h $(DESKTOP_OBJ) libastro.a novas.a
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ tests/lunar.c $(DESKTOP_OBJ) libastro.a novas.a $(LDLIBS)

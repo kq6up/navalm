@@ -55,7 +55,7 @@ jobs:
           ./navalm -v
       - name: Navigation, plotting, planetarium and book checks
         run: |
-          make check-paper check-plot check-list check-desktop check-sky check-direct-dr check-lunar check-book check-web-book
+          make check-paper check-plot check-list check-desktop check-sky check-direct-dr check-transit check-lunar check-book check-web-book
       - name: Run native GUI callbacks on a virtual X11 display
         run: xvfb-run -a -s '-screen 0 1920x1080x24' ./navalm-fltk --self-test
       - name: Run Chrono scatter and editing callbacks
