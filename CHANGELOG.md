@@ -1,3 +1,20 @@
+# Changes in NavAlm 6.0.0
+
+- Add adjacent Occultations and Occultation UTC tabs between Lunars and Chrono.
+- Predict local lunar stellar occultations from 8,881 bundled XEphem catalogue
+  stars using NOVAS/DE440s topocentric geometry, proper motion and observer elevation.
+- Sort by UTC, magnitude, most direct track or closest to grazing; filter direct
+  and near-limb events, night/daylight and altitude; show D/R, bright/dark limb,
+  position angle, contact rate, near misses and a schematic track. Export lists.
+- Recover UTC minus watch from an actual timed contact at a fixed AP, with optional
+  reaction delay, DUT1 and limb offset. Propagate user-assumed timing, limb/catalog
+  and position uncertainty into seconds and equivalent longitude NM.
+- Preserve raw inputs in .occ files, export reports, and prepare an explicitly
+  reviewed Chrono comparison without silently changing a clock log or saved sights.
+- Add matching `occultations` and `occultation` CLI commands. Use a smooth lunar
+  sphere; terrain-dependent graze contacts and asteroid/planet occultations are
+  outside this version's model. See OCCULTATIONS.md for validation and limits.
+
 # Changes in NavAlm 5.8.1
 
 - Add a command-line upper meridian transit lookup at the entered AP. Report

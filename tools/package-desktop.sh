@@ -4,10 +4,11 @@ cd "$(dirname "$0")/.."
 version=$(sed -n 's/^#define NAVALM_VERSION_NUMBER "\([^"]*\)"/\1/p' nav_version.h)
 test -n "$version"
 test "$(uname -s)" = Darwin || { echo 'desktop-app creates a macOS bundle. Use make desktop on other platforms.'; exit 1; }
-app=NAVALM.app/Contents
+bundle=${NAVALM_APP_OUTPUT:-NAVALM.app}
+app="$bundle/Contents"
 mkdir -p "$app/MacOS" "$app/Resources"
 cp navalm-fltk "$app/MacOS/navalm-fltk"
-cp LICENSE THIRD_PARTY_NOTICES.md SAFETY.md DESKTOP.md ANNUAL.md PLANETARIUM.md LINUX.md DEFAULTS.md LUNARS.md CHRONO.md PROVENANCE.md "$app/Resources/"
+cp LICENSE THIRD_PARTY_NOTICES.md SAFETY.md DESKTOP.md ANNUAL.md PLANETARIUM.md LINUX.md DEFAULTS.md OCCULTATIONS.md LUNARS.md CHRONO.md PROVENANCE.md "$app/Resources/"
 mkdir -p "$app/Resources/data/sky"
 cp data/sky/README.md "$app/Resources/data/sky/"
 cp libastro/LICENSE.XEphem "$app/Resources/"
@@ -30,5 +31,6 @@ cat > "$app/Info.plist" <<PLIST
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
-codesign --force --deep --sign - NAVALM.app
-echo 'Built NAVALM.app — open NAVALM.app'
+codesign --force --deep --sign - "$bundle"
+codesign --verify --deep --strict "$bundle"
+echo "Built $bundle"

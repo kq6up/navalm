@@ -1,4 +1,10 @@
-# NAVALM
+# NavAlm 6.0.0
+
+Lunar occultations join the native workbench's time-recovery tools. Find events
+from the bundled magnitude-6.5 star catalogue, rank central versus near-limb tracks,
+and recover UTC minus watch from an actual recorded contact. See
+[Occultations and UTC recovery](OCCULTATIONS.md) for the model, commands and limits.
+
 
 **A nautical almanac and celestial sight-reduction program with terminal, web, and native desktop interfaces.**
 

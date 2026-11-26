@@ -1,0 +1,110 @@
+name: Desktop release packages
+
+on:
+  push:
+    branches: [feature/occultation-time-6.0.0]
+    tags: ['v6.*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  packages:
+    name: macOS arm64 and Windows x64 packages
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Prepare native dependencies and offline data
+        run: |
+          test "$(uname -m)" = arm64
+          make fltk-deps ephem-fetch ephem
+          mkdir -p .local/maps
+          curl --fail --location --retry 2 --output .local/maps/ne_10m_land.shp \
+            https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/10m_physical/ne_10m_land.shp
+          echo '4cad3a49bc75c1a4c2f3d7efae04f2f8e63151c96764b2658effabf524331fa6  .local/maps/ne_10m_land.shp' | shasum -a 256 -c -
+      - name: Build and check the Mac programs
+        run: |
+          make -j4 navalm navalm-book desktop
+          make check-occult check-lunar check-transit check-desktop check-sky
+          NAVALM_OCCULT_CHECK=1 ./navalm-fltk --occult-self-test
+          cat .build/desktop-test/ui-checks.txt
+      - name: Package and verify the Mac app
+        run: |
+          mkdir -p release
+          NAVALM_APP_OUTPUT="$RUNNER_TEMP/NavAlm.app" make desktop-app
+          codesign --verify --deep --strict "$RUNNER_TEMP/NavAlm.app"
+          ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/NavAlm.app" release/NavAlm-macOS-arm64.zip
+          ditto -x -k release/NavAlm-macOS-arm64.zip "$RUNNER_TEMP/extracted"
+          codesign --verify --deep --strict "$RUNNER_TEMP/extracted/NavAlm.app"
+      - name: Install the pinned LLVM-MinGW cross compiler
+        run: |
+          archive=llvm-mingw-20261006-ucrt-macos-universal.tar.xz
+          curl --fail --location --retry 2 --output "$RUNNER_TEMP/$archive" \
+            "https://github.com/mstorsjo/llvm-mingw/releases/download/20261006/$archive"
+          echo "a7a19b11048e89372637d26279cdb7c430ed3cf8c1e224310421312bf986ebf6  $RUNNER_TEMP/$archive" | shasum -a 256 -c -
+          tar -xJf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP"
+          echo "LLVM_MINGW_ROOT=$RUNNER_TEMP/llvm-mingw-20261006-ucrt-macos-universal" >> "$GITHUB_ENV"
+      - name: Build and inspect the Windows package
+        run: sh tools/build-windows.sh release
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: desktop-downloads
+          path: release/*.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  windows-runtime:
+    name: Windows occultation callbacks
+    needs: packages
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: desktop-downloads
+      - name: Exercise the packaged Windows application
+        shell: pwsh
+        run: |
+          Expand-Archive NAVALM-Windows-x64.zip -DestinationPath extracted
+          $exe = Get-ChildItem extracted -Filter NAVALM.exe -Recurse | Select-Object -First 1
+          if (-not $exe) { throw 'Missing Windows executable' }
+          $env:NAVALM_OCCULT_CHECK = '1'
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList '--occult-self-test' -PassThru
+          if (-not $p.WaitForExit(180000)) { $p.Kill(); throw 'Windows callbacks timed out' }
+          $p.Refresh()
+          $log = Join-Path $exe.DirectoryName '.build/desktop-test/ui-checks.txt'
+          $errors = Join-Path $exe.DirectoryName '.build/desktop-test/ui-errors.txt'
+          if (Test-Path $errors) { Get-Content $errors }
+          if ($p.ExitCode -ne 0) { throw "Windows exit code $($p.ExitCode)" }
+          $report = Get-Content $log -Raw
+          Write-Output $report
+          if (-not $report.Contains('Occultation UI: search, sort/filter')) { throw 'Missing callback success report' }
+
+  publish:
+    name: Publish tagged release
+    if: startsWith(github.ref, 'refs/tags/v6.')
+    needs: [packages, windows-runtime]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: desktop-downloads
+          path: release
+      - name: Publish the verified downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cd release
+          sha256sum *.zip > SHA256SUMS
+          gh release create "$RELEASE_TAG" --verify-tag --title "NavAlm ${RELEASE_TAG#v}" \
+            --notes-file "../packaging/release-${RELEASE_TAG#v}.md" *.zip SHA256SUMS

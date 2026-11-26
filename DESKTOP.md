@@ -230,3 +230,10 @@ On Linux run this under `xvfb-run -a` when no display is available.
 
 The **Lunars** tab sits immediately before **Chrono**. See [LUNARS.md](LUNARS.md)
 for lunar-distance clock correction, real shot epochs and Chrono handoff.
+
+## Occultations (6.0.0)
+
+Two tabs between Lunars and Chrono provide offline lunar stellar event planning
+and recorded-contact UTC recovery. Sort by time, magnitude, central or near-limb
+geometry; review uncertainty before preparing a Chrono reference. Raw watch data
+are preserved. See [OCCULTATIONS.md](OCCULTATIONS.md).

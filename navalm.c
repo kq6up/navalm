@@ -6,6 +6,7 @@
 #include "nav_notice.h"
 #include "navsight.h"
 #include "navlunar.h"
+#include "navoccult.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -628,6 +629,8 @@ static void usage(const char *p){
   "Informational use only; no safety-critical reliance. Use implies acceptance\n"
   "of the risk and liability terms; see SAFETY.md or --notice. MIT: see LICENSE.\n"
   "usage:\n"
+  "  occultations --date YYYY-MM-DD --lat DEG --lon DEG [--days 7]\n"
+  "  occultation --help                       recover UTC from a lunar occultation\n"
   "  lunar OBSERVATION.lunar | lunar --example   lunar distance / clock correction\n"
   "  %s BODY YYYY MM DD HH MM SS [--ap LATdeg LATmin N|S LONdeg LONmin E|W]\n"
   "  %s star NAME YYYY MM DD HH MM SS [--ap LATdeg LATmin N|S LONdeg LONmin E|W]\n"
@@ -747,6 +750,7 @@ int main(int argc,char**argv){
  if(argc==1){ usage(argv[0]); return 2; }
  if(argc==3 && !strcmp(argv[1],"transit") && !strcmp(argv[2],"--help"))
    return navsight_command(argc,argv);
+ if(argc>=2 && (!strcmp(argv[1],"occultations") || !strcmp(argv[1],"occultation"))) return navoccult_command(argc,argv);
  if(argc==2 && !strcmp(argv[1],"--notice")){ puts(navalm_safety_notice); return 0; }
  if(argc==2 && (!strcmp(argv[1],"-v") || !strcmp(argv[1],"--version"))){
    printf("navalm version %s\n",NAVALM_VERSION);

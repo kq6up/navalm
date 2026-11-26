@@ -21,9 +21,12 @@ import hashlib,sys
 assert hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest() == \
  '4cad3a49bc75c1a4c2f3d7efae04f2f8e63151c96764b2658effabf524331fa6', 'Unexpected map checksum'
 PY
+fltk_source=${NAVALM_FLTK_SOURCE:-}
+if [ -z "$fltk_source" ] && [ -d .deps/fltk-1.4.5 ]; then fltk_source="$PWD/.deps/fltk-1.4.5"; fi
 cmake -S . -B .build/windows-x64 -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE=cmake/windows-x64.cmake \
     -DLLVM_MINGW_ROOT="$LLVM_MINGW_ROOT" \
-    -DCMAKE_BUILD_TYPE=Release -DNAVALM_EMBED_DATA=ON
+    -DCMAKE_BUILD_TYPE=Release -DNAVALM_EMBED_DATA=ON \
+    -DNAVALM_FLTK_SOURCE="$fltk_source"
 cmake --build .build/windows-x64 --target navalm-desktop desktop-core-check --parallel 4
 python3 tools/package-windows.py --toolchain "$LLVM_MINGW_ROOT" --output "$out"

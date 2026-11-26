@@ -1,0 +1,9 @@
+NavAlm 6.0.0 adds **Occultations** and **Occultation UTC** beside Lunars and Chrono in the native desktop app, with matching command-line commands.
+
+- Predict local lunar stellar occultations using NOVAS/DE440s and 8,881 bundled XEphem catalogue stars. Sort by time, brightness, most direct track or proximity to grazing. Filter by altitude, night/daylight and direct/near-limb geometry; inspect disappearance/reappearance, limb illumination and a schematic track; export the list.
+- Recover **UTC minus watch** from an observed contact at a fixed AP. Preserve the original watch reading, include optional reaction delay, DUT1 and limb offset, and show an assumed uncertainty budget in seconds and equivalent longitude NM. Save/load observations and prepare a reviewed Chrono comparison.
+- The Mac and Windows packages include the ephemeris and map for offline use. Existing CLI, web, book, sight reduction, plotting, planetarium, Chrono and lunar-distance features remain available.
+
+The occultation model uses a **smooth lunar sphere**. Near-limb ranking does not predict terrain-dependent mountain/valley graze contacts. Catalogue astrometry, lunar relief, AP error, DUT1 and reaction can limit clock accuracy; fractional-second output is not a claim of matching physical accuracy. See [OCCULTATIONS.md](https://github.com/kq6up/navalm/blob/v6.0.0/OCCULTATIONS.md) for the model, workflow, validation and limits. This release adds native desktop and CLI occultation tools; the web interface retains its existing tools.
+
+Download **NavAlm-macOS-arm64.zip** for Apple Silicon Macs or **NAVALM-Windows-x64.zip** for 64-bit Windows. Extract the entire package. These community builds are not notarized by Apple or signed with a Windows publisher certificate. On macOS, after verifying the download source, use System Settings → Privacy & Security → Open Anyway if Gatekeeper blocks the app. `SHA256SUMS` contains download checksums.

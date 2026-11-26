@@ -1,6 +1,6 @@
 # Portable Windows desktop
 
-This source builds **5.7.0**; check GitHub for the latest published release. Its **Lunars** tab, immediately before Chrono, supports lunar-distance clock
+This source builds **6.0.0**; check GitHub for the latest published release. Its **Lunars** tab, near Chrono, supports lunar-distance clock
 corrections with measured or synthetic altitudes (see LUNARS.md). Its final **Annual book** tab
 exports selectable annual sections and compact Ageton tables directly to PDF,
 or to editable LaTeX source. Direct PDF export needs no TeX installation.
@@ -99,3 +99,7 @@ run it from the source directory with `ephem/de440s.nav` present. The desktop's
 `--self-test` likewise expects the source fixtures and a world map. Setting
 `NAVALM_TEST_DOWNLOAD=1` additionally exercises a live background map download
 and cancellation. These test modes use private temporary navigation logs.
+
+6.0.0 adds Occultations and Occultation UTC beside Lunars/Chrono, including the
+full bundled magnitude-6.5 stellar catalogue. No catalogue download is needed.
+See OCCULTATIONS.md; this is a mean-sphere predictor, without terrain profiles.

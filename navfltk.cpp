@@ -10,6 +10,7 @@
 #include "navfltk_chrono.h"
 #include "navfltk_cluster.h"
 #include "navfltk_lunar.h"
+#include "navfltk_occult.h"
 #include "navfile.h"
 #include "navfltk_map.h"
 #include "navfltk_plot.h"
@@ -356,6 +357,8 @@ class Workbench {
     Fl_Choice *def_lat_hemi,*def_lon_hemi,*def_arc,*def_units,*def_horizon,*def_limb;
     Fl_Check_Button *def_at_dr,*def_motion;
     LunarPanel *lunar;
+    OccultationPanel *occult;
+    OccultationUTCPanel *occult_utc;
     Fl_Group *chrono_tab;
     Fl_Choice *chrono_clock,*chrono_source,*sight_clock;
     Fl_Input *chrono_name,*chrono_ref_date,*chrono_ref_time,*chrono_watch_date,*chrono_watch_time,*chrono_note;
@@ -814,6 +817,23 @@ class Workbench {
             std::string note=std::string("Lunar / ")+q.distance.body+"; formal sigma "+fmt(s.sigma_time_sec,1)+" s; "+(q.refine_position?"real-altitude fix":"fixed AP")+"; verify systematics";
             chrono_note->value(note.c_str());tabs->value(chrono_tab);
             message("Lunar comparison prepared. Review its uncertainty and clock, then Add comparison to log it.");
+        };
+
+        occult=new OccultationPanel;
+        occult_utc=new OccultationUTCPanel;
+        occult->notify=occult_utc->notify=[this](const std::string &s,bool error){message(s,error);};
+        occult->current_position=occult_utc->current_position=lunar->current_position;
+        occult->transfer=[this](const NavOccultRequest &q,const NavOccultEvent &e,int c){
+            occult_utc->select_event(q,e,c);tabs->value(occult_utc);
+            message("Prediction copied. Enter your recorded watch time; no observation was generated.");
+        };
+        occult_utc->chrono_transfer=[this](double watch,double utc,const std::string &note){
+            chrono_guard();clock_log.clock(clock_log.selected);chrono_cancel_edit(true);
+            auto w=chrono_nav::stamp(watch),u=chrono_nav::stamp(utc);
+            chrono_watch_date->value(w.substr(0,10).c_str());chrono_watch_time->value(w.substr(11).c_str());
+            chrono_ref_date->value(u.substr(0,10).c_str());chrono_ref_time->value(u.substr(11).c_str());
+            chrono_source->value(1);chrono_note->value(note.c_str());tabs->value(chrono_tab);
+            message("Occultation comparison prepared. Review the clock and uncertainty, then Add comparison to log it.");
         };
 
         chrono_tab=new Fl_Group(16,130,1148,672,"Chrono");
@@ -2452,12 +2472,14 @@ static std::shared_ptr<LandMap> checked_map;
 static int self_test();
 static int chrono_self_test(bool preview=false);
 static int lunar_self_test(bool preview=false);
+static int occult_self_test();
 int main(int argc, char **argv) {
     bool checks = std::string(argv[0]).find("navalm-checks") != std::string::npos;
     bool chrono_checks=std::getenv("NAVALM_CHRONO_CHECK")!=nullptr;
     bool lunar_checks=std::getenv("NAVALM_LUNAR_CHECK")!=nullptr;
-    bool all_checks=std::getenv("NAVALM_ALL_CHECKS")!=nullptr;
-    checks=checks || chrono_checks || lunar_checks || all_checks;
+    bool occult_checks=std::getenv("NAVALM_OCCULT_CHECK")!=nullptr;
+    bool all_checks=std::getenv("NAVALM_ALL_CHECKS")!=nullptr || fs::path(argv[0]).filename()=="navalm-all-checks";
+    checks=checks || chrono_checks || lunar_checks || occult_checks || all_checks;
     try {
         auto root = runtime_root(argv[0]);
         application_root = root;
@@ -2533,7 +2555,10 @@ int main(int argc, char **argv) {
         if(all_checks || (argc>1&&!std::strcmp(argv[1],"--all-self-tests"))){
             nav_setenv("NAVALM_TEST_DOWNLOAD","1",1);self_test();
             nav_engine_select("precise");nav_engine_init(nullptr,0);chrono_self_test(false);
-            int code=lunar_self_test(all_checks);nav_engine_shutdown();return code;
+            lunar_self_test(false);int code=occult_self_test();nav_engine_shutdown();return code;
+        }
+        if(occult_checks || (argc>1 && !std::strcmp(argv[1],"--occult-self-test"))){
+            int code=occult_self_test();nav_engine_shutdown();return code;
         }
         if(lunar_checks || (argc>1 && !std::strcmp(argv[1],"--lunar-self-test"))){
             int code=lunar_self_test(lunar_checks);nav_engine_shutdown();return code;
@@ -2571,6 +2596,8 @@ int main(int argc, char **argv) {
             app.tabs->value(app.chrono_tab);
         if((argc>1 && !std::strcmp(argv[1],"--lunars")) || (start_tab && !std::strcmp(start_tab,"lunars")))
             app.tabs->value(app.lunar);
+        if((argc>1 && !std::strcmp(argv[1],"--occultations")) || (start_tab && !std::strcmp(start_tab,"occultations")))
+            app.tabs->value(app.occult);
         if (!startup.empty())
             app.message(startup);
         app.win.show();
@@ -2594,7 +2621,7 @@ static int lunar_self_test(bool preview) {
     nav_setenv("NAVALMRC",(tmp/"defaults.rc").u8string().c_str(),1);
     nav_setenv("NAVALM_SAVE",(tmp/"sights.save").u8string().c_str(),1);
     Workbench app;app.testing=true;auto &p=*app.lunar;
-    require(app.tabs->find(app.chrono_tab)==app.tabs->find(app.lunar)+1,"Lunars immediately before Chrono");
+    require(app.tabs->find(app.occult)==app.tabs->find(app.lunar)+1 && app.tabs->find(app.chrono_tab)==app.tabs->find(app.occult_utc)+1,"Lunar and occultation tools beside Chrono");
     require(p.moon_contact->value()==0,"new Moon contact defaults to Near");
     p.example();app.tabs->value(app.lunar);app.win.show();Fl::check();p.solve();
     require(p.ready&&p.result.count==1,"example solves through native inputs");
@@ -3352,4 +3379,41 @@ static int self_test() {
     Fl::check();
     std::puts("All desktop checks passed; no personal navigation files used.");
     return 0;
+}
+
+static int occult_self_test(){
+    auto require=[](bool v,const char *s){if(!v)throw std::runtime_error(std::string("OCCULT UI TEST: ")+s);};
+    auto tmp=nav_temp_dir();
+    struct Cleanup{fs::path p;~Cleanup(){std::error_code e;fs::remove_all(p,e);}} cleanup{tmp};
+    nav_setenv("NAVALM_CHRONO",(tmp/"chrono.log").u8string().c_str(),1);
+    nav_setenv("NAVALMRC",(tmp/"defaults.rc").u8string().c_str(),1);
+    nav_setenv("NAVALM_SAVE",(tmp/"sights.save").u8string().c_str(),1);
+    Workbench app;app.testing=true;auto &p=*app.occult;auto &u=*app.occult_utc;p.testing=true;
+    app.tabs->value(app.occult);app.win.show();Fl::check();
+    require(app.tabs->find(app.occult_utc)==app.tabs->find(app.occult)+1,"planner and recovery adjacent");
+    p.date->value("2026-11-26");p.time->value("00:00:00");p.days->value("7");
+    p.lat->value("34 1.3");p.ns->value(0);p.lon->value("117 18.8");p.ew->value(1);p.search();
+    require(p.ready&&p.result->count>=5,"local week searches through native inputs");
+    p.sort->value(1);p.sort->do_callback();for(size_t i=1;i<p.result->count;i++)require(navoccult_star(p.result->events[i-1].star)->magnitude<=navoccult_star(p.result->events[i].star)->magnitude,"magnitude sorting");
+    p.filter->value(2);p.filter->do_callback();require(!p.row_ids.empty(),"near-limb filter");p.rows->value(1);p.rows->do_callback();
+    require(!p.selected()->has_contacts&&!p.send->active(),"near miss cannot be sent as a contact");
+    p.filter->value(1);p.filter->do_callback();
+    for(size_t i=0;i<p.row_ids.size();i++){auto &e=p.result->events[p.row_ids[i]];if(e.has_contacts&&!e.double_star&&e.visible[0]){p.rows->value(int(i+1));break;}}
+    p.rows->do_callback();require(p.send->active(),"direct visible contact can be sent");
+    double truth=p.selected()->contact_jd[0];p.send->do_callback();require(app.tabs->value()==app.occult_utc,"send selects recovery tab");
+    require(std::string(u.time->value()).empty(),"prediction does not fabricate an observation");
+    auto watch=occult_ui::stamp(truth-60./86400+.25/86400);u.date->value(watch.substr(0,10).c_str());u.time->value(watch.substr(11,12).c_str());u.reaction->value("0.25");
+    u.solve();require(u.ready&&std::abs(u.result.correction_sec-60)<.003,"native recovery retains correct sign and reaction");
+    require(!u.send->active(),"Chrono requires explicit review");
+    auto inputs=u.input_text();std::string raw=u.time->value();u.load_text(inputs);require(!u.ready&&raw==u.time->value(),"input round trip preserves raw watch, invalidates result");u.solve();
+    auto before=u.input_text();try{u.load_text("NAVALM_OCCULTATION 9 bad");require(false,"malformed file should fail");}catch(const std::exception&){}require(u.input_text()==before,"malformed file leaves original inputs intact");
+    chrono_nav::Log clocks;int id=clocks.add_clock("Occult test watch");double t=(truth-2440587.5)*86400;
+    clocks.add({id,1,t,t-20,true,"Manual WWV","Test only"});app.chrono_commit(clocks);
+    u.review->value(1);u.review->do_callback();u.send->do_callback();require(app.tabs->value()==app.chrono_tab,"Chrono transfer selects clock page");
+    require(app.clock_log.readings.size()==1,"prepare does not silently save a new reference");
+    double w=chrono_nav::parse(app.chrono_watch_date->value(),app.chrono_watch_time->value()),ref=chrono_nav::parse(app.chrono_ref_date->value(),app.chrono_ref_time->value());
+    require(std::abs((ref-w)-60)<.003,"Chrono gets raw watch plus reaction-adjusted reference UTC");
+    u.reaction->value("0");u.reaction->do_callback();require(!u.ready&&!u.send->active()&&!u.export_button->active(),"edits invalidate derived correction, review and exports");
+    p.days->value("31");p.days->do_callback();require(!p.ready&&p.rows->size()==0&&!p.send->active(),"planner edits clear stale rows");
+    app.win.hide();std::puts("Occultation UI: search, sort/filter, near-miss handling, input round trip, reaction, review and Chrono callbacks passed.");return 0;
 }
