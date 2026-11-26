@@ -84,6 +84,12 @@ flowing-table redesign. Font sizes, labels and the preamble are editable, but
 regenerating overwrites source edits. Latin Modern advances are measured for
 wrapping and column alignment; no font programs are bundled with NAVALM.
 
+For Fedora missing-package or missing-font errors, see the
+[LaTeX dependency troubleshooting in the README](README.md#fedora-latex-pdf-dependencies).
+The reported Fedora package set there is for the daily-table export; annual-book
+LaTeX also needs the packages listed above. The built-in PDF exporter does not
+need any of these TeX packages.
+
 The revised 2027 LaTeX comparison was compiled with pdfLaTeX.
 The exported PDF has embedded fonts, 335 pages and 17 bookmarks.
 Representative page styles were rendered for visual inspection. Both export

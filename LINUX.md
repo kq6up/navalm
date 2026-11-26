@@ -13,6 +13,13 @@ sudo apt-get install -y build-essential cmake curl python3 nodejs perl \
   libxinerama-dev libxcursor-dev libfontconfig1-dev
 ```
 
+## Optional LaTeX PDF dependencies on Fedora
+
+For the Fedora package list reported by a user and help diagnosing missing TeX
+packages/fonts, see [the README](README.md#fedora-latex-pdf-dependencies).
+These dependencies are for compiling exported LaTeX; the Annual book's built-in
+PDF exporter works without TeX.
+
 ## Build and launch
 
 From a fresh clone or after `git pull`:

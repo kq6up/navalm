@@ -244,6 +244,30 @@ Dates and times in these examples are **UTC**.
 
 To turn the LaTeX output into a PDF, run `pdflatex almanac.tex` with a LaTeX installation providing `geometry`, `times`, and `graphicx`. LaTeX is optional and is not required to build or run NAVALM.
 
+#### Fedora LaTeX PDF dependencies
+
+Fedora user K reported that installing the following additional TeX Live
+packages resolved PDF compilation errors:
+
+```sh
+sudo dnf install texlive-geometry texlive-times texlive-pslatex \
+  texlive-courier texlive-dvips texlive-amsfonts
+```
+
+This is a user-reported working package set, in addition to an existing LaTeX
+installation with `pdflatex`; it has not been tested on every Fedora release.
+See the [Fedora TeX Live package index](https://packages.fedoraproject.org/pkgs/texlive/).
+Missing packages or font files can produce cryptic errors such as
+`File ... .sty not found` or `Font ... not loadable`. Read the **first error** in
+`almanac.log` for the missing file rather than relying on the final PDF failure.
+To find its Fedora package, use `dnf provides '*/filename.sty'` (or substitute the
+missing font filename, such as `fontname.tfm`). Install the matching package and
+rerun `pdflatex almanac.tex`.
+
+The Annual book's built-in PDF exporter needs **no TeX installation**. Compiling
+its optional LaTeX export uses a different preamble; see the package requirements
+in [ANNUAL.md](ANNUAL.md#optional-latex-export).
+
 ### Reduce a sextant sight
 
 This example reduces an artificial-horizon Sun sight and prints the worked corrections and reduction:
