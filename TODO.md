@@ -3,6 +3,20 @@
 Requested 2 November 2026; lunar requirements clarified 3 November 2026.
 The Moon/NAO table items remain planned. The native/console lunar workflow is implemented in 5.7.0.
 
+## Occultation display — next
+
+- [ ] Show the illuminated lunar disk and illumination percentage at the selected
+  disappearance or reappearance epoch, with the illuminated side oriented from
+  the Sun/Moon/observer geometry. Label the orientation and contact UTC clearly.
+- [ ] Show the star's contact point and track against that disk so the user can
+  judge whether the event is on the bright or dark limb. Update the display when
+  switching events or D/R, and verify phase and orientation independently.
+
+Current status: 6.0.0 identifies bright/dark contacts but its disk/track diagram
+is schematic. Contact timings use a smooth 1737.4 km lunar sphere, without a
+terrain profile or libration-dependent limb model. Illumination display alone
+will not add terrain-dependent grazing-contact predictions.
+
 ## Moon altitude corrections — priority
 
 - [ ] Replace the coarse Moon parallax/component page with a practical combined
