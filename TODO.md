@@ -17,6 +17,17 @@ is schematic. Contact timings use a smooth 1737.4 km lunar sphere, without a
 terrain profile or libration-dependent limb model. Illumination display alone
 will not add terrain-dependent grazing-contact predictions.
 
+## Lunar terrain and grazing contacts — conditional
+
+- [ ] Find a suitable **public-domain or GPL-licensed lunar surface model**.
+  Proceed only after confirming the model's provenance, license, redistribution
+  terms and compatibility with NavAlm's distribution. Record the source/version
+  and assess limb resolution, reference frame and accuracy before choosing it.
+- [ ] If a suitable model is available, compute the observer-dependent lunar
+  limb with libration and terrain, refine contact timings, and predict repeated
+  disappearances/reappearances during grazing events. Validate against independent
+  predictions or observations and show the terrain model's uncertainty explicitly.
+
 ## Moon altitude corrections — priority
 
 - [ ] Replace the coarse Moon parallax/component page with a practical combined
